@@ -1,139 +1,45 @@
-# NEXORA
+# NEXORA — Real Member Platform Upgrade
 
-Full-stack referral membership dashboard with PostgreSQL and Paystack M-Pesa charging.
+NEXORA is structured as a member workspace plus an administrator console. The member experience now includes dashboard intelligence, package comparison, progressive package-earning rules, referral analytics, a marketing center, QR sharing, Academy lessons, leaderboard, monthly challenges and achievements, wallet/transactions, support tickets, profile/security controls and payment recovery visibility.
 
-## 1. Requirements
-- Node.js 20+
-- Docker (recommended for PostgreSQL)
-- Paystack account enabled for Kenya M-Pesa
+## Member platform rules
+- Starter is eligible for Starter package purchases.
+- Growth is eligible for Starter + Growth purchases.
+- Pro is eligible for Starter + Growth + Pro purchases.
+- Elite is eligible for Starter + Growth + Pro + Elite purchases.
+- Premium is eligible for Starter + Growth + Pro + Elite + Premium purchases.
+- The commission amount comes from the package purchased by the referral.
+- A package upgrade charges only the price difference.
+- The member UI must describe commissions as eligibility/recorded commissions, never guaranteed income.
 
-## 2. Install
-cp .env.example .env
-docker compose up -d
-npm install
-npm run install:all
-npm run db:push
-npm run db:seed
+## New platform areas
+1. Dashboard: profile strength, monthly progress, activity and sharing.
+2. Achievements: first connection, network builder, consistent promoter and community leader.
+3. Leaderboard: top recorded referral commissions, first-name display only.
+4. Marketing Center: referral link, QR code, share actions and ready-to-share messages.
+5. Referral Analytics: conversion, direct/Level 2 network and monthly commission metrics.
+6. Smart notifications: surfaced through dashboard state, payment records and support status.
+7. Monthly Challenges: activity goals that do not promise earnings.
+8. NEXORA Academy: short lessons on platform use, marketing and safety.
+9. Help & Support: member support tickets plus WhatsApp support.
+10. Payment Center: transaction history and pending-payment checking.
+11. Profile Strength: completeness meter and security checklist.
+12. Security Center: update profile and change password.
 
-## 3. Start
-npm run dev
+## Admin
+Admin tools include users, balance correction, payment repair, withdrawals, package configuration, activity/audit log and CSV exports.
 
-Frontend: http://localhost:5173
-API: http://localhost:5000
+## Deployment
+Frontend and backend are deployed from the same repository. The Render build generates the Prisma client before building the Vite client. The backend creates/updates required additive database columns/tables at startup so the Free Render plan does not require Shell access.
 
-## 4. Paystack
-Put your Paystack secret key in `.env` as PAYSTACK_SECRET_KEY.
-Never put the secret key in React.
+Frontend settings:
+- Root Directory: blank
+- Build Command: `npm install --prefix client && npm run build --prefix client`
+- Publish Directory: `client/dist`
+- `VITE_API_URL=https://nexora-api-shxf.onrender.com/api`
+- SPA rewrite: `/*` → `/index.html`
 
-Set your Paystack webhook URL to:
-https://YOUR-API-DOMAIN/api/paystack/webhook
+Backend required environment variables remain in `.env.example`.
 
-The server verifies the webhook signature and only then activates the package and creates commissions.
-
-For Kenya M-Pesa, the server sends a charge request using the customer's phone number. Use +254 format where required.
-
-## 5. Production
-- Use HTTPS.
-- Use a strong random JWT_SECRET.
-- Use production PostgreSQL.
-- Use Paystack live keys only after testing.
-- Configure the webhook on your public HTTPS API.
-- Add KYC/AML, terms, privacy, refund policy and applicable Kenyan regulatory review before taking real customer funds.
-- Implement an admin authentication layer before exposing administrative endpoints.
-
-## NEXORA Admin Dashboard
-
-The project now includes a separate administrator console at:
-
-`https://YOUR-FRONTEND-DOMAIN/admin`
-
-Admin authentication is separate from member authentication. Set these **server-side** environment variables before running the seed:
-
-```env
-ADMIN_NAME="NEXORA Administrator"
-ADMIN_EMAIL="your-admin-email@example.com"
-ADMIN_PASSWORD="use-a-long-random-password"
-```
-
-Then apply the Prisma schema and seed the admin account:
-
-```bash
-npm run db:push
-npm run db:seed
-```
-
-Do not put the admin password, JWT secret, or Paystack secret key in the React frontend. The admin console provides separate views for Overview, Users, Transactions, Withdrawals, and Packages. It also includes user suspension/reactivation, withdrawal processing, and package configuration.
-
-For Netlify SPA hosting, `client/public/_redirects` is included so `/admin` loads the React application instead of returning a 404.
-
-
-## Render deployment (frontend + API)
-
-This project is deployed as two Render services:
-
-- **Frontend static site:** `nexora_referral`
-  - URL: `https://nexora-referral.onrender.com`
-- **API web service:** `nexora-api`
-  - URL: `https://nexora-api-shxf.onrender.com`
-
-### Frontend (`nexora_referral`) settings
-
-Use the repository root as the Root Directory.
-
-**Build Command**
-```text
-npm install --prefix client && npm run build --prefix client
-```
-
-**Publish Directory**
-```text
-client/dist
-```
-
-**Environment variable**
-```text
-VITE_API_URL=https://nexora-api-shxf.onrender.com/api
-```
-
-The repository also contains `render.yaml` with the required SPA rewrite:
-
-```text
-/*  ->  /index.html  (Rewrite)
-```
-
-Render's static-site documentation confirms that React/Vite SPAs need this rewrite for direct routes such as `/admin`. If the existing static service is not managed by a Render Blueprint, the rewrite must be added in that service's Redirects/Rewrites settings; simply committing `render.yaml` does not retroactively change an unmanaged service.
-
-The build also creates `client/dist/admin/index.html` as an additional fallback.
-
-### Backend (`nexora-api`) settings
-
-Keep the existing API service as a separate Render Web Service. Its public API URL is:
-
-```text
-https://nexora-api-shxf.onrender.com
-```
-
-Keep the existing server environment variables, including:
-```text
-DATABASE_URL
-JWT_SECRET
-PAYSTACK_SECRET_KEY
-ADMIN_NAME
-ADMIN_EMAIL
-ADMIN_PASSWORD
-```
-
-After database/schema setup, seed the admin account:
-```bash
-npm run db:push
-npm run db:seed
-```
-
-### Admin
-
-After the frontend deploy succeeds, open:
-
-`https://nexora-referral.onrender.com/admin`
-
-The React application switches to the administrator console when the pathname starts with `/admin`.
-
+## Important production note
+Before taking real money at scale, review the referral/membership model with appropriate Kenyan legal, tax, payments and consumer-protection professionals. Keep package benefits and commission rules transparent and avoid guaranteed-income claims.

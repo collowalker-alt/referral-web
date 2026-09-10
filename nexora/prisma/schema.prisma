@@ -56,6 +56,7 @@ model User {
   commissionsEarned Commission[] @relation("CommissionReceiver")
   commissionsFrom   Commission[] @relation("CommissionSource")
   withdrawals       Withdrawal[]
+  supportTickets    SupportTicket[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -69,7 +70,13 @@ model Package {
   price            Int
   directCommission Int
   level2Commission Int
+  tier             Int      @default(0)
   active           Boolean  @default(true)
+  description      String   @default("")
+  features         String[] @default([])
+  badge            String   @default("")
+  popular          Boolean  @default(false)
+  withdrawalLimit  Int      @default(0)
   users            User[]
   createdAt        DateTime @default(now())
 
@@ -138,4 +145,37 @@ model Admin {
   status       AdminStatus @default(ACTIVE)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+}
+
+
+model AdminActivityLog {
+  id          String   @id @default(cuid())
+  adminId     String
+  adminEmail  String
+  action      String
+  targetType  String?
+  targetId    String?
+  targetEmail String?
+  details     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetEmail])
+  @@index([action])
+}
+
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String
+  status    String   @default("OPEN")
+  response  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
 }

@@ -1,22 +1,29 @@
-NEXORA Render deployment note
+NEXORA DEPLOYMENT — FINAL
 
-This package is prepared for the split Render architecture:
-frontend = nexora_referral (Static Site)
-API      = nexora-api (Web Service)
-
-Frontend:
+FRONTEND STATIC SITE
+Service: nexora_referral
+Repo: collowalker-alt/referral-web
+Branch: main
 Build: npm install --prefix client && npm run build --prefix client
 Publish: client/dist
-VITE_API_URL: https://nexora-api-shxf.onrender.com/api
+Environment: VITE_API_URL=https://nexora-api-shxf.onrender.com/api
+SPA rewrite: /* -> /index.html (Rewrite)
 
-SPA fallback:
-Source /* -> Destination /index.html -> Rewrite
+BACKEND WEB SERVICE
+Service: nexora-api
+URL: https://nexora-api-shxf.onrender.com
 
-The package includes render.yaml with the same static-site configuration and
-also creates dist/admin/index.html during the frontend build.
+The backend startup performs additive setup for Package tier/settings, AdminActivityLog and SupportTicket. No Render Shell is required for these changes.
 
-Important: an unmanaged existing Render Static Site does not necessarily adopt
-render.yaml merely because the file is committed. Apply the Blueprint to the
-service or add the rewrite in the Render service settings.
+NEW MEMBER FEATURES
+Dashboard, profile strength, referral analytics, marketing center + QR, Academy, leaderboard, monthly challenges + achievements, support tickets, payment/transaction center and security center.
 
-The admin React route is already fixed in client/src/main.jsx.
+PACKAGE RULE
+Starter -> Starter
+Growth -> Starter + Growth
+Pro -> Starter + Growth + Pro
+Elite -> Starter + Growth + Pro + Elite
+Premium -> Starter + Growth + Pro + Elite + Premium
+
+UPGRADES
+Only higher tiers are allowed. The payment charge is the difference between target package price and current package price.

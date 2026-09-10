@@ -68,6 +68,12 @@ const adminAuth = async (req,res,next) => {
   } catch { res.status(401).json({message:"Invalid or expired admin session"}); }
 };
 
+async function logAdminAction(req, action, targetType=null, targetId=null, targetEmail=null, details={}){
+  try{
+    await prisma.adminActivityLog.create({data:{adminId:req.admin.id,adminEmail:req.admin.email,action,targetType,targetId,targetEmail,details}});
+  }catch(e){ console.error("[ADMIN AUDIT]",e.message); }
+}
+
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
@@ -148,11 +154,11 @@ app.post("/api/auth/login", async (req,res)=>{
 });
 
 const DEFAULT_PACKAGES=[
-  ["Starter",500,200,50],
-  ["Growth",1000,400,150],
-  ["Pro",1600,700,250],
-  ["Elite",2200,900,300],
-  ["Premium",4800,2000,500]
+  ["Starter",1,500,200,50],
+  ["Growth",2,1000,400,150],
+  ["Pro",3,1600,700,250],
+  ["Elite",4,2200,900,300],
+  ["Premium",5,4800,2000,500]
 ];
 async function ensureAdmin(){
   const email=String(process.env.ADMIN_EMAIL||"").trim().toLowerCase();
@@ -176,12 +182,13 @@ async function ensureAdmin(){
 }
 
 async function ensurePackages(){
-  for(const [name,price,directCommission,level2Commission] of DEFAULT_PACKAGES){
-    await prisma.package.upsert({where:{name},update:{price,directCommission,level2Commission,active:true},create:{name,price,directCommission,level2Commission,active:true}});
+  for(const [name,tier,price,directCommission,level2Commission] of DEFAULT_PACKAGES){
+    const existing=await prisma.package.findUnique({where:{name}});
+    if(!existing) await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true}});
   }
 }
 app.get("/api/packages",async(req,res)=>{
-  try{ await ensurePackages(); res.json(await prisma.package.findMany({where:{active:true},orderBy:{price:"asc"}})); }
+  try{ await ensurePackages(); res.json(await prisma.package.findMany({where:{active:true},orderBy:{tier:"asc"}})); }
   catch(e){ console.error("Packages error:",e); res.status(500).json({message:"Unable to load packages. Please check the database setup."}); }
 });
 
@@ -221,21 +228,26 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
     if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
+    const existingUser=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}});
+    const currentPackage=existingUser?.packageId ? await prisma.package.findUnique({where:{id:existingUser.packageId}}) : null;
+    if(currentPackage && currentPackage.id===pkg.id) return res.status(400).json({message:"You already have this package"});
+    if(currentPackage && pkg.price<=currentPackage.price) return res.status(400).json({message:"You can only upgrade to a higher package"});
+    const chargeAmount=currentPackage ? pkg.price-currentPackage.price : pkg.price;
     if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
 
     const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
     const formattedPhone=paystackPhone(normalizedPhone);
     const payload={
       email:req.user.email,
-      amount:pkg.price*100,
+      amount:chargeAmount*100,
       currency:"KES",
       mobile_money:{phone:formattedPhone,provider:"mpesa"},
       reference,
-      metadata:{userId:req.user.id,packageId:pkg.id}
+      metadata:{userId:req.user.id,packageId:pkg.id,chargeAmount,currentPackageId:currentPackage?.id||null}
     };
 
     console.log("[PAYSTACK INIT]",JSON.stringify({
-      reference,mode:paystackMode(),packageId:pkg.id,package:pkg.name,amountKES:pkg.price,
+      reference,mode:paystackMode(),packageId:pkg.id,package:pkg.name,amountKES:chargeAmount,
       phone:maskPhone(formattedPhone),email:maskEmail(req.user.email),startedAt:new Date().toISOString()
     }));
 
@@ -265,7 +277,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
       gateway_response:data.data?.gateway_response||null,
       channel:data.data?.channel||null,
       currency:data.data?.currency||"KES",
-      amount:data.data?.amount??pkg.price*100,
+      amount:data.data?.amount??chargeAmount*100,
       reference:data.data?.reference||reference,
       id:data.data?.id||null,
       message:data.message||null,
@@ -274,8 +286,8 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     };
 
     await prisma.transaction.create({data:{
-      userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",
-      metadata:{packageId:pkg.id,phone:normalizedPhone,paystack:safePaystack,diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}
+      userId:req.user.id,type:"PACKAGE_PURCHASE",amount:chargeAmount,reference,status:"PENDING",
+      metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,paystack:safePaystack,diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}
     }});
 
     if(chargeStatus==="success") await activatePaidPackage(reference);
@@ -289,7 +301,8 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
       paystack_http_status:r.status,
       paystack_status:chargeStatus,
       gateway_response:data.data?.gateway_response||"",
-      paystack_mode:paystackMode()
+      paystack_mode:paystackMode(),
+      chargeAmount
     });
   } catch(e){
     console.error("[PAYSTACK INIT EXCEPTION]",e);
@@ -309,16 +322,24 @@ async function activatePaidPackage(reference){
     await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id}});
     const buyer=await db.user.findUnique({where:{id:tx.userId}});
     if(!buyer?.referredById) return;
-    const parent=await db.user.findUnique({where:{id:buyer.referredById},include:{package:true}});
-    if(parent?.package){
-      const c1=parent.package.directCommission;
-      await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:`C1-${reference}` }});
-      await db.wallet.update({where:{userId:parent.id},data:{balance:{increment:c1},totalEarned:{increment:c1}}});
+    // Commission is determined by the PACKAGE PURCHASED by the new member.
+    // The upline can therefore earn when a referral purchases Starter, Growth, Pro, Elite or Premium.
+    const parent=await db.user.findUnique({where:{id:buyer.referredById}});
+    if(parent){
+      // A member can earn from package purchases up to their own package tier.
+      // Starter earns from Starter purchases; Growth earns from Starter + Growth;
+      // Pro earns from Starter + Growth + Pro; and so on.
+      if(!parent.packageId || (await db.package.findUnique({where:{id:parent.packageId}}))?.tier >= pkg.tier){
+        const c1=pkg.directCommission;
+        await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:`C1-${reference}` }});
+        await db.wallet.update({where:{userId:parent.id},data:{balance:{increment:c1},totalEarned:{increment:c1}}});
+      }
     }
     if(parent?.referredById){
-      const grand=await db.user.findUnique({where:{id:parent.referredById},include:{package:true}});
-      if(grand?.package){
-        const c2=grand.package.level2Commission;
+      const grand=await db.user.findUnique({where:{id:parent.referredById}});
+      const grandPkg=grand?.packageId ? await db.package.findUnique({where:{id:grand.packageId}}) : null;
+      if(grand && grandPkg && grandPkg.tier >= pkg.tier){
+        const c2=pkg.level2Commission;
         await db.commission.create({data:{receiverId:grand.id,sourceUserId:buyer.id,level:2,amount:c2,reference:`C2-${reference}` }});
         await db.wallet.update({where:{userId:grand.id},data:{balance:{increment:c2},totalEarned:{increment:c2}}});
       }
@@ -394,18 +415,19 @@ app.post("/api/admin/auth/login", rateLimit({windowMs:15*60*1000,max:20}), async
 app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email}}));
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
   try{
-    const [users,activeUsers,packages,transactions,pendingPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned]=await Promise.all([
+    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned]=await Promise.all([
       prisma.user.count(),
       prisma.user.count({where:{status:"ACTIVE"}}),
       prisma.package.count({where:{active:true}}),
       prisma.transaction.count(),
       prisma.transaction.count({where:{status:"PENDING"}}),
+      prisma.transaction.count({where:{status:"FAILED"}}),
       prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS"},_sum:{amount:true}}),
       prisma.withdrawal.count(),
       prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
       prisma.commission.aggregate({_sum:{amount:true}})
     ]);
-    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,totalCommissions:totalEarned._sum.amount||0,paystackMode:paystackMode()});
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paystackMode:paystackMode()});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
 app.get("/api/admin/users",adminAuth,async(req,res)=>{
@@ -415,8 +437,45 @@ app.get("/api/admin/users",adminAuth,async(req,res)=>{
     res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
+app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
+  try{
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const mode=String(req.body?.mode||"add").toLowerCase();
+    const amount=Number(req.body?.amount);
+    const reason=String(req.body?.reason||"").trim().slice(0,500);
+    const updateTotalEarned=Boolean(req.body?.updateTotalEarned);
+    if(!email || !email.includes("@")) return res.status(400).json({message:"Enter a valid member email address"});
+    if(!["add","subtract","set"].includes(mode)) return res.status(400).json({message:"Invalid balance update mode"});
+    if(!Number.isInteger(amount) || amount<0 || amount>10000000) return res.status(400).json({message:"Amount must be a whole number between KSh 0 and KSh 10,000,000"});
+    if(!reason) return res.status(400).json({message:"A reason is required for every balance correction"});
+    const user=await prisma.user.findUnique({where:{email},include:{wallet:true}});
+    if(!user) return res.status(404).json({message:"No member was found with that email address"});
+    const currentBalance=user.wallet?.balance||0;
+    const currentTotalEarned=user.wallet?.totalEarned||0;
+    const nextBalance=mode==="set"?amount:mode==="add"?currentBalance+amount:currentBalance-amount;
+    if(nextBalance<0) return res.status(400).json({message:`Cannot reduce balance below KSh 0. Current balance is KSh ${currentBalance}.`});
+    const delta=nextBalance-currentBalance;
+    if(updateTotalEarned && currentTotalEarned+delta<0) return res.status(400).json({message:`This correction would make Total Earned negative. Current Total Earned is KSh ${currentTotalEarned}.`});
+    const reference=`ADMIN-BAL-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+    const metadata={adminBalanceAdjustment:true,adminId:req.admin.id,adminEmail:req.admin.email,mode,previousBalance:currentBalance,newBalance:nextBalance,delta,reason,updateTotalEarned};
+    const walletData={balance:nextBalance};
+    if(updateTotalEarned) walletData.totalEarned={increment:delta};
+    const result=await prisma.$transaction(async(tx)=>{
+      const wallet=await tx.wallet.upsert({where:{userId:user.id},update:walletData,create:{userId:user.id,balance:nextBalance,totalEarned:updateTotalEarned?Math.max(0,delta):0}});
+      if(delta!==0){
+        await tx.transaction.create({data:{userId:user.id,type:"REFUND",amount:delta,status:"SUCCESS",reference,metadata}});
+      }
+      return wallet;
+    });
+    await logAdminAction(req,"BALANCE_CORRECTION","USER",user.id,user.email,{previousBalance:currentBalance,newBalance:result.balance,delta,mode,reason,reference,updateTotalEarned});
+    res.json({message:`Balance updated for ${user.email}`,user:{id:user.id,name:user.name,email:user.email},previousBalance:currentBalance,newBalance:result.balance,delta,reference});
+  }catch(e){
+    console.error("Admin balance update error:",e);
+    res.status(500).json({message:"Unable to update member balance"});
+  }
+});
 app.patch("/api/admin/users/:id/status",adminAuth,async(req,res)=>{
-  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
+  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to update user"});}
 });
 app.get("/api/admin/transactions",adminAuth,async(req,res)=>{
@@ -444,16 +503,121 @@ app.patch("/api/admin/withdrawals/:id/status",adminAuth,async(req,res)=>{
         prisma.transaction.create({data:{userId:current.userId,type:"REFUND",amount:current.amount,status:"SUCCESS",reference:`WD-REFUND-${current.reference}`,metadata:{withdrawalId:current.id,processedBy:req.admin.id}}})
       ]);
     } else { await prisma.withdrawal.update({where:{id:current.id},data:{status}}); }
+    await logAdminAction(req,"WITHDRAWAL_STATUS","WITHDRAWAL",current.id,null,{from:current.status,to:status,amount:current.amount,userId:current.userId,reference:current.reference});
     res.json({message:"Withdrawal status updated"});
   }catch(e){console.error("Admin withdrawal status error:",e);res.status(500).json({message:"Unable to update withdrawal"});}
 });
-app.get("/api/admin/packages",adminAuth,async(req,res)=>{try{res.json(await prisma.package.findMany({include:{_count:{select:{users:true}}},orderBy:{price:"asc"}}));}catch(e){res.status(500).json({message:"Unable to load packages"});}});
+app.get("/api/admin/packages",adminAuth,async(req,res)=>{try{res.json(await prisma.package.findMany({include:{_count:{select:{users:true}}},orderBy:{tier:"asc"}}));}catch(e){res.status(500).json({message:"Unable to load packages"});}});
 app.patch("/api/admin/packages/:id",adminAuth,async(req,res)=>{
-  try{const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),active=Boolean(req.body?.active);if(!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0)return res.status(400).json({message:"Package values must be whole non-negative amounts"});const p=await prisma.package.update({where:{id:req.params.id},data:{price,directCommission,level2Commission,active}});res.json(p);}catch(e){console.error(e);res.status(500).json({message:"Unable to update package"});}
+  try{const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),active=Boolean(req.body?.active),description=String(req.body?.description||""),badge=String(req.body?.badge||""),popular=Boolean(req.body?.popular),withdrawalLimit=Number(req.body?.withdrawalLimit||0),features=Array.isArray(req.body?.features)?req.body.features.map(x=>String(x).trim()).filter(Boolean):[];if(!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0||!Number.isInteger(withdrawalLimit)||withdrawalLimit<0)return res.status(400).json({message:"Package values must be whole non-negative amounts"});const p=await prisma.package.update({where:{id:req.params.id},data:{price,directCommission,level2Commission,active,description,badge,popular,withdrawalLimit,features}});await logAdminAction(req,"PACKAGE_UPDATED","PACKAGE",p.id,null,{name:p.name,price,directCommission,level2Commission,active,description,badge,popular,withdrawalLimit,features});res.json(p);}catch(e){console.error(e);res.status(500).json({message:"Unable to update package"});}
 });
 app.post("/api/admin/packages",adminAuth,async(req,res)=>{
-  try{const name=String(req.body?.name||"").trim();const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0)return res.status(400).json({message:"Enter valid package values"});const p=await prisma.package.create({data:{name,price,directCommission,level2Commission,active:true}});res.status(201).json(p);}catch(e){console.error(e);res.status(500).json({message:e.code==="P2002"?"A package with that name already exists":"Unable to create package"});}
+  try{const name=String(req.body?.name||"").trim();const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),description=String(req.body?.description||""),badge=String(req.body?.badge||""),popular=Boolean(req.body?.popular),withdrawalLimit=Number(req.body?.withdrawalLimit||0),features=Array.isArray(req.body?.features)?req.body.features.map(x=>String(x).trim()).filter(Boolean):[];if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0||!Number.isInteger(withdrawalLimit)||withdrawalLimit<0)return res.status(400).json({message:"Enter valid package values"});const maxTier=await prisma.package.aggregate({_max:{tier:true}}); const tier=Number(maxTier._max.tier||0)+1; const p=await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true,description,badge,popular,withdrawalLimit,features}});await logAdminAction(req,"PACKAGE_CREATED","PACKAGE",p.id,null,{name,price,directCommission,level2Commission,description,badge,popular,withdrawalLimit,features});res.status(201).json(p);}catch(e){console.error(e);res.status(500).json({message:e.code==="P2002"?"A package with that name already exists":"Unable to create package"});}
 });
+
+// Admin member details
+app.get("/api/admin/users/:id/details",adminAuth,async(req,res)=>{
+  try{
+    const u=await prisma.user.findUnique({where:{id:req.params.id},include:{package:true,wallet:true,referredBy:{select:{id:true,name:true,email:true}},referrals:{select:{id:true,name:true,email:true,status:true,package:{select:{name:true}},createdAt:true},orderBy:{createdAt:"desc"}},transactions:{orderBy:{createdAt:"desc"},take:100},commissionsEarned:{orderBy:{createdAt:"desc"},take:100,include:{sourceUser:{select:{name:true,email:true}}}},withdrawals:{orderBy:{createdAt:"desc"},take:100}}});
+    if(!u)return res.status(404).json({message:"Member not found"});
+    res.json(u);
+  }catch(e){console.error("Admin member details error:",e);res.status(500).json({message:"Unable to load member details"});}
+});
+
+// Admin payment repair: verifies a Paystack charge reference before activating the package.
+app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
+  try{
+    if(!process.env.PAYSTACK_SECRET_KEY)return res.status(503).json({message:"Paystack is not configured"});
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const reference=String(req.body?.reference||"").trim();
+    if(!email||!email.includes("@"))return res.status(400).json({message:"Enter the member email address"});
+    if(!reference)return res.status(400).json({message:"Enter the Paystack transaction reference"});
+    const user=await prisma.user.findUnique({where:{email}});
+    if(!user)return res.status(404).json({message:"No member was found with that email address"});
+    let tx=await prisma.transaction.findUnique({where:{reference}});
+    if(tx && tx.userId!==user.id)return res.status(409).json({message:"That payment reference belongs to a different member"});
+    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.status)return res.status(400).json({message:d.message||"Paystack could not verify this reference"});
+    const status=d.data?.status||"pending";
+    if(!tx){
+      if(status!=="success")return res.status(400).json({message:`Paystack reports this payment as ${status}. A transaction record cannot be created until it is successful.`});
+      const packageCode=d.data?.metadata?.packageId||d.data?.metadata?.package_id||null;
+      let pkg=packageCode?await prisma.package.findUnique({where:{id:String(packageCode)}}):null;
+      if(!pkg){
+        const amountKes=Math.round(Number(d.data?.amount||0)/100);
+        pkg=await prisma.package.findFirst({where:{price:amountKes,active:true},orderBy:{price:"asc"}});
+      }
+      if(!pkg)return res.status(400).json({message:"Payment is successful, but NEXORA could not determine the package. Use manual balance correction or provide the correct package in the transaction metadata."});
+      tx=await prisma.transaction.create({data:{userId:user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,status:"PENDING",reference,metadata:{packageId:pkg.id,phone:d.data?.authorization?.mobile_money_number||null,paystack:{status,display_text:d.data?.display_text||"",gateway_response:d.data?.gateway_response||null,channel:d.data?.channel||null,currency:d.data?.currency||"KES",amount:d.data?.amount||null,reference}}}});
+    }
+    if(status==="success"){
+      await activatePaidPackage(reference);
+      await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,paystackStatus:status,amount:d.data?.amount||null});
+      return res.json({message:"Payment verified and member account repaired successfully",status:"success",reference});
+    }
+    if(["failed","timeout"].includes(status))await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+    await logAdminAction(req,"PAYMENT_CHECKED","TRANSACTION",tx.id,user.email,{reference,paystackStatus:status});
+    res.json({message:`Paystack reports this payment as ${status}. No package activation was performed.`,status,reference});
+  }catch(e){console.error("Admin payment repair error:",e);res.status(500).json({message:"Unable to repair payment"});}
+});
+
+// Admin activity/audit log
+
+app.get("/api/admin/support/tickets",adminAuth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
+app.patch("/api/admin/support/tickets/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
+
+app.get("/api/admin/activity",adminAuth,async(req,res)=>{
+  try{const rows=await prisma.adminActivityLog.findMany({orderBy:{createdAt:"desc"},take:500});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load admin activity"});}
+});
+
+// Simple CSV exports for admin records.
+app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
+  try{
+    const type=String(req.params.type||"").toLowerCase(); let rows=[], headers=[];
+    if(type==="users"){
+      rows=await prisma.user.findMany({include:{wallet:true,package:true},orderBy:{createdAt:"desc"}});headers=["Name","Email","Phone","Status","Package","Balance","Total Earned","Total Withdrawn","Created"];
+      rows=rows.map(x=>[x.name,x.email,x.phone,x.status,x.package?.name||"",x.wallet?.balance||0,x.wallet?.totalEarned||0,x.wallet?.totalWithdrawn||0,x.createdAt.toISOString()]);
+    }else if(type==="transactions"){
+      rows=await prisma.transaction.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Type","Amount","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.type,x.amount,x.status,x.createdAt.toISOString()]);
+    }else if(type==="withdrawals"){
+      rows=await prisma.withdrawal.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Phone","Amount","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.phone,x.amount,x.status,x.createdAt.toISOString()]);
+    }else return res.status(400).json({message:"Unsupported export type"});
+    const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;const csv=[headers, ...rows].map(r=>r.map(esc).join(",")).join("\n");
+    res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition",`attachment; filename=nexora-${type}-${Date.now()}.csv`);res.send(csv);
+    await logAdminAction(req,"DATA_EXPORT",type.toUpperCase(),null,null,{rows:rows.length});
+  }catch(e){console.error("Admin export error:",e);res.status(500).json({message:"Unable to export data"});}
+});
+
+
+app.get("/api/member/analytics",auth,async(req,res)=>{
+  try{
+    const direct=await prisma.user.findMany({where:{referredById:req.user.id},select:{id:true,packageId:true,createdAt:true}});
+    const ids=direct.map(x=>x.id);
+    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},select:{id:true,packageId:true}}):[];
+    const commissions=await prisma.commission.findMany({where:{receiverId:req.user.id},select:{level:true,amount:true,createdAt:true}});
+    const now=new Date(); const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+    const monthDirect=direct.filter(x=>new Date(x.createdAt)>=monthStart).length;
+    const monthCommissions=commissions.filter(x=>new Date(x.createdAt)>=monthStart).reduce((a,x)=>a+x.amount,0);
+    const directCommission=commissions.filter(x=>x.level===1).reduce((a,x)=>a+x.amount,0);
+    const level2Commission=commissions.filter(x=>x.level===2).reduce((a,x)=>a+x.amount,0);
+    const paidReferrals=direct.filter(x=>x.packageId).length;
+    res.json({directCount:direct.length,level2Count:level2.length,paidReferrals,conversion:direct.length?Math.round(paidReferrals/direct.length*100):0,directCommission,level2Commission,totalCommission:directCommission+level2Commission,month:{directReferrals:monthDirect,commissions:monthCommissions}});
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to load analytics"});}
+});
+
+app.get("/api/member/leaderboard",auth,async(req,res)=>{
+  try{
+    const rows=await prisma.user.findMany({where:{status:"ACTIVE"},include:{package:true,wallet:true},orderBy:{wallet:{totalEarned:"desc"}},take:20,select:{id:true,name:true,createdAt:true,package:{select:{name:true}},wallet:{select:{totalEarned:true}}}});
+    res.json(rows.map(x=>({id:x.id,name:String(x.name||"Member").split(" ")[0],createdAt:x.createdAt,package:x.package?.name||null,totalEarned:x.wallet?.totalEarned||0})));
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to load leaderboard"});}
+});
+
+app.get("/api/support/tickets",auth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:50}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
+app.post("/api/support/tickets",auth,async(req,res)=>{try{const subject=String(req.body?.subject||"").trim().slice(0,120);const message=String(req.body?.message||"").trim().slice(0,3000);if(!subject||!message)return res.status(400).json({message:"Subject and message are required"});const t=await prisma.supportTicket.create({data:{userId:req.user.id,subject,message}});res.status(201).json({message:"Support request submitted",ticket:t});}catch(e){console.error(e);res.status(500).json({message:"Unable to create support ticket"});}});
+
+app.patch("/api/member/profile",auth,async(req,res)=>{try{const name=String(req.body?.name||"").trim();const phone=cleanPhone(req.body?.phone||"");if(name.length<2)return res.status(400).json({message:"Enter your full name"});if(!PHONE_RE.test(phone))return res.status(400).json({message:"Invalid Kenyan phone number"});const clash=await prisma.user.findFirst({where:{phone,id:{not:req.user.id}}});if(clash)return res.status(409).json({message:"That phone number is already in use"});await prisma.user.update({where:{id:req.user.id},data:{name,phone}});res.json({message:"Profile updated successfully"});}catch(e){console.error(e);res.status(500).json({message:"Unable to update profile"});}});
+app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(req.body?.currentPassword||"");const next=String(req.body?.newPassword||"");if(next.length<8)return res.status(400).json({message:"New password must be at least 8 characters"});if(!(await bcrypt.compare(current,req.user.passwordHash)))return res.status(401).json({message:"Current password is incorrect"});await prisma.user.update({where:{id:req.user.id},data:{passwordHash:await bcrypt.hash(next,12)}});res.json({message:"Password updated successfully. Please use the new password next time you sign in."});}catch(e){console.error(e);res.status(500).json({message:"Unable to update password"});}});
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
   const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
@@ -461,6 +625,9 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
   if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
   const wallet=await prisma.wallet.findUnique({where:{userId:req.user.id}});
   if(!wallet || wallet.balance<amount) return res.status(400).json({message:"Insufficient balance"});
+  const member=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
+  const limit=Number(member?.package?.withdrawalLimit||0);
+  if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${member.package.name} package allows withdrawals up to KSh ${limit.toLocaleString()} per request.`});
   const reference=`WD-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
   await prisma.$transaction([
     prisma.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:amount},pendingBalance:{increment:amount}}}),
@@ -484,8 +651,46 @@ app.get("/{*splat}", (req,res,next) => {
 });
 
 
+async function ensurePackageSettingsColumns(){
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "features" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "badge" TEXT NOT NULL DEFAULT ''`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "popular" BOOLEAN NOT NULL DEFAULT false`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "withdrawalLimit" INTEGER NOT NULL DEFAULT 0`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "tier" INTEGER NOT NULL DEFAULT 0`);
+  const tiers=[["Starter",1],["Growth",2],["Pro",3],["Elite",4],["Premium",5]];
+  for(const [name,tier] of tiers) await prisma.$executeRawUnsafe(`UPDATE "Package" SET "tier"=$1 WHERE "name"=$2`,tier,name);
+  const defaults=[
+    ["Starter","Start earning with the essentials.", ["Basic dashboard","Referral link","Basic referral statistics","Standard support"],"START",false,5000],
+    ["Growth","Build your network with more tools.",["Everything in Starter","Advanced referral statistics","Marketing templates","Priority support"],"GROWTH",false,10000],
+    ["Pro","A strong all-round package for serious users.",["Everything in Growth","Advanced analytics","Social-media marketing resources","Pro member badge","Higher withdrawal limit"],"MOST POPULAR",true,20000],
+    ["Elite","Advanced tools for professional promoters.",["Everything in Pro","Team statistics","Premium marketing resources","Elite member badge","Priority withdrawal review","Early access to selected features"],"ELITE",false,50000],
+    ["Premium","The complete NEXORA member experience.",["Everything in Elite","VIP support","Maximum available limits","Premium badge","VIP marketing resources","Early access to new features"],"VIP",false,100000]
+  ];
+  for(const [name,description,features,badge,popular,limit] of defaults){
+    await prisma.$executeRawUnsafe(`UPDATE "Package" SET "description"=$1,"features"=$2,"badge"=$3,"popular"=$4,"withdrawalLimit"=$5 WHERE "name"=$6 AND ("description" = '' OR cardinality("features") = 0)`,description,features,badge,popular,limit,name);
+  }
+}
+
+async function ensureAdminActivityTable(){
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AdminActivityLog" ("id" TEXT PRIMARY KEY,"adminId" TEXT NOT NULL,"adminEmail" TEXT NOT NULL,"action" TEXT NOT NULL,"targetType" TEXT,"targetId" TEXT,"targetEmail" TEXT,"details" JSONB,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AdminActivityLog_createdAt_idx" ON "AdminActivityLog"("createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AdminActivityLog_targetEmail_idx" ON "AdminActivityLog"("targetEmail")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AdminActivityLog_action_idx" ON "AdminActivityLog"("action")`);
+}
+
+
+async function ensureSupportTicketTable(){
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SupportTicket" ("id" TEXT PRIMARY KEY,"userId" TEXT NOT NULL,"subject" TEXT NOT NULL,"message" TEXT NOT NULL,"status" TEXT NOT NULL DEFAULT 'OPEN',"response" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportTicket_userId_createdAt_idx" ON "SupportTicket"("userId","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx" ON "SupportTicket"("status")`);
+}
+
 async function startServer(){
   try{
+    await ensurePackageSettingsColumns();
+    await ensureAdminActivityTable();
+    await ensureSupportTicketTable();
     await ensureAdmin();
   }catch(e){
     console.error("[ADMIN] Could not initialize admin account:",e);
