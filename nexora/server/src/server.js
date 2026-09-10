@@ -1,0 +1,168 @@
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { PrismaClient } from "@prisma/client";
+
+dotenv.config();
+const prisma = new PrismaClient();
+const app = express();
+
+app.use(helmet());
+app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
+app.use(express.json({ limit: "100kb" }));
+app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 100 }));
+
+const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+
+const sign = user => jwt.sign({ id:user.id }, JWT_SECRET, { expiresIn:"7d" });
+const auth = async (req,res,next) => {
+  try {
+    const token=(req.headers.authorization||"").replace("Bearer ","");
+    if(!token) return res.status(401).json({message:"Authentication required"});
+    const p=jwt.verify(token,JWT_SECRET);
+    const u=await prisma.user.findUnique({where:{id:p.id}});
+    if(!u || u.status!=="ACTIVE") return res.status(401).json({message:"Account unavailable"});
+    req.user=u; next();
+  } catch { res.status(401).json({message:"Invalid or expired session"}); }
+};
+const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
+
+app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
+
+app.post("/api/auth/register", async (req,res)=>{
+  try {
+    const {name,email,phone,password,referralCode}=req.body;
+    if(!name||!email||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
+    if(password.length<8) return res.status(400).json({message:"Password must be at least 8 characters"});
+    const exists=await prisma.user.findFirst({where:{OR:[{email:email.toLowerCase()},{phone}]}});
+    if(exists) return res.status(409).json({message:"Email or phone is already registered"});
+    let parent=null;
+    if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:referralCode.toUpperCase()}});
+    const hash=await bcrypt.hash(password,12);
+    const user=await prisma.user.create({data:{
+      name,email:email.toLowerCase(),phone,passwordHash:hash,referralCode:makeCode(name),
+      referredById:parent?.id,wallet:{create:{}}
+    }});
+    res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+  } catch(e){ console.error(e); res.status(500).json({message:"Registration failed"}); }
+});
+
+app.post("/api/auth/login", async (req,res)=>{
+  const {email,password}=req.body;
+  const user=await prisma.user.findUnique({where:{email:(email||"").toLowerCase()}});
+  if(!user || !(await bcrypt.compare(password||"",user.passwordHash))) return res.status(401).json({message:"Invalid login details"});
+  if(user.status!=="ACTIVE") return res.status(403).json({message:"Account is suspended"});
+  res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+});
+
+app.get("/api/packages",async(req,res)=>res.json(await prisma.package.findMany({where:{active:true},orderBy:{price:"asc"}})));
+
+app.get("/api/me",auth,async(req,res)=>{
+  const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true,wallet:true}});
+  const direct=await prisma.user.count({where:{referredById:u.id}});
+  const level1=await prisma.user.findMany({where:{referredById:u.id},select:{id:true}});
+  const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
+  const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
+  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+});
+
+app.post("/api/payments/initialize",auth,async(req,res)=>{
+  try {
+    const {packageId,phone}=req.body;
+    const pkg=await prisma.package.findUnique({where:{id:packageId}});
+    if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
+    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
+    const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+    const r=await fetch("https://api.paystack.co/charge",{
+      method:"POST",
+      headers:{"Authorization":`Bearer ${process.env.PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json"},
+      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone_number:phone||req.user.phone,provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
+    });
+    const data=await r.json();
+    if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
+    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,metadata:{packageId:pkg.id,paystack:data.data}}});
+    res.json({reference,status:data.data?.status,display_text:data.data?.display_text||"Check your phone and complete the M-Pesa prompt"});
+  } catch(e){console.error(e);res.status(500).json({message:"Payment initialization failed"});}
+});
+
+async function activatePaidPackage(reference){
+  const tx=await prisma.transaction.findUnique({where:{reference}});
+  if(!tx || tx.status==="SUCCESS") return;
+  const meta=tx.metadata||{};
+  const packageId=meta.packageId;
+  const pkg=await prisma.package.findUnique({where:{id:packageId}});
+  if(!pkg) throw new Error("Package missing");
+  await prisma.$transaction(async db=>{
+    await db.transaction.update({where:{id:tx.id},data:{status:"SUCCESS"}});
+    await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id}});
+    const buyer=await db.user.findUnique({where:{id:tx.userId}});
+    if(!buyer?.referredById) return;
+    const parent=await db.user.findUnique({where:{id:buyer.referredById},include:{package:true}});
+    if(parent?.package){
+      const c1=parent.package.directCommission;
+      await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:`C1-${reference}` }});
+      await db.wallet.update({where:{userId:parent.id},data:{balance:{increment:c1},totalEarned:{increment:c1}}});
+    }
+    if(parent?.referredById){
+      const grand=await db.user.findUnique({where:{id:parent.referredById},include:{package:true}});
+      if(grand?.package){
+        const c2=grand.package.level2Commission;
+        await db.commission.create({data:{receiverId:grand.id,sourceUserId:buyer.id,level:2,amount:c2,reference:`C2-${reference}` }});
+        await db.wallet.update({where:{userId:grand.id},data:{balance:{increment:c2},totalEarned:{increment:c2}}});
+      }
+    }
+  });
+}
+
+app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
+  try{
+    const r=await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
+    const d=await r.json();
+    if(d?.data?.status==="success") await activatePaidPackage(req.params.reference);
+    res.json({status:d?.data?.status||"pending"});
+  }catch(e){res.status(500).json({message:"Verification failed"});}
+});
+
+app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(req,res)=>{
+  try{
+    const signature=req.headers["x-paystack-signature"];
+    const expected=crypto.createHmac("sha512",process.env.PAYSTACK_SECRET_KEY).update(req.body).digest("hex");
+    if(!signature || !crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected))) return res.sendStatus(401);
+    const event=JSON.parse(req.body.toString());
+    if(event.event==="charge.success" && event.data?.reference) await activatePaidPackage(event.data.reference);
+    res.sendStatus(200);
+  }catch(e){console.error(e);res.sendStatus(500);}
+});
+
+app.get("/api/referrals",auth,async(req,res)=>{
+  const direct=await prisma.user.findMany({where:{referredById:req.user.id},select:{id:true,name:true,email:true,phone:true,package:{select:{name:true,price:true}},createdAt:true}});
+  const ids=direct.map(x=>x.id);
+  const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},select:{id:true,name:true,email:true,package:{select:{name:true}},referredBy:{select:{name:true}},createdAt:true}}):[];
+  res.json({direct,level2});
+});
+
+app.get("/api/earnings",auth,async(req,res)=>{
+  const commissions=await prisma.commission.findMany({where:{receiverId:req.user.id},orderBy:{createdAt:"desc"},include:{sourceUser:{select:{name:true,email:true}}},take:100});
+  res.json(commissions);
+});
+
+app.post("/api/withdrawals",auth,async(req,res)=>{
+  const amount=Number(req.body.amount), phone=req.body.phone||req.user.phone;
+  if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
+  const wallet=await prisma.wallet.findUnique({where:{userId:req.user.id}});
+  if(!wallet || wallet.balance<amount) return res.status(400).json({message:"Insufficient balance"});
+  const reference=`WD-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+  await prisma.$transaction([
+    prisma.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:amount},pendingBalance:{increment:amount}}}),
+    prisma.withdrawal.create({data:{userId:req.user.id,amount,phone,reference}})
+  ]);
+  res.status(201).json({message:"Withdrawal request submitted",reference});
+});
+
+app.listen(PORT,()=>console.log(`NEXORA API running on http://localhost:${PORT}`));
