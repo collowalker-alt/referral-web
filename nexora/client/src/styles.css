@@ -138,3 +138,32 @@
   main{position:relative;z-index:1}
   header{position:relative;z-index:2}
 }
+
+/* Modern public login / registration form polish */
+.authmodal{width:min(560px,calc(100vw - 32px));border-radius:24px;overflow:hidden;background:linear-gradient(145deg,#0d1b2d,#091524);border-color:#294664;box-shadow:0 30px 100px rgba(0,0,0,.62)}
+.authmodal .modalhead{padding:20px 24px;background:rgba(8,18,31,.55)}
+.authmodal .authtabs{margin:0;padding:14px 24px 0;gap:8px}
+.authmodal .authtabs button{height:48px;padding:0 14px;border-radius:12px;border:1px solid #253b55;background:#0a1524;color:#8fa2b9;font-weight:800;transition:.18s ease}
+.authmodal .authtabs button:hover{background:#102239;color:#dce8f7;border-color:#35506d}
+.authmodal .authtabs button.active{background:#172b43;color:#fff;border-color:#35506d;box-shadow:inset 0 -2px #38d9a9}
+.authmodal>h2{margin:24px 24px 7px;font-size:27px;letter-spacing:-.02em}
+.authmodal>p.muted{margin:0 24px 18px;line-height:1.55}
+.authmodal>.error{margin:0 24px 14px;border:1px solid #713342;border-radius:12px}
+.authmodal form{display:grid;grid-template-columns:1fr;gap:12px;padding:0 24px}
+.authmodal form input{display:block;width:100%;min-width:0;height:50px;margin:0;padding:0 15px;background:#071321;border:1px solid #29415d;border-radius:12px;color:#f4f8ff;font-size:14px;outline:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transition:border-color .18s,box-shadow .18s,background .18s}
+.authmodal form input::placeholder{color:#6f829a}
+.authmodal form input:hover{border-color:#365370;background:#081727}
+.authmodal form input:focus{border-color:#38d9a9;background:#091a2b;box-shadow:0 0 0 3px rgba(56,217,169,.11)}
+.authmodal form .primary{height:50px;margin-top:4px;border-radius:12px;font-size:14px;box-shadow:0 8px 24px rgba(56,217,169,.14)}
+.authmodal>p.small{padding:0 24px;margin:14px 0 22px;line-height:1.55}
+@media(max-width:520px){
+  .authmodal{width:calc(100vw - 22px);max-height:92vh}
+  .authmodal .modalhead{padding:17px}
+  .authmodal .authtabs{padding:12px 17px 0}
+  .authmodal>h2{margin:20px 17px 7px;font-size:23px}
+  .authmodal>p.muted{margin:0 17px 15px;font-size:13px}
+  .authmodal>.error{margin:0 17px 12px}
+  .authmodal form{padding:0 17px;gap:10px}
+  .authmodal form input,.authmodal form .primary{height:48px}
+  .authmodal>p.small{padding:0 17px;margin-bottom:17px}
+}
