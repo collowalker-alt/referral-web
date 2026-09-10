@@ -167,3 +167,23 @@
   .authmodal form input,.authmodal form .primary{height:48px}
   .authmodal>p.small{padding:0 17px;margin-bottom:17px}
 }
+
+/* Final mobile navigation/header refinement */
+.mobilemenu{align-items:center;justify-content:center;width:40px;height:40px;flex:0 0 40px;border:1px solid #29415e;border-radius:11px;background:#10243a;color:#eaf7ff;padding:0;cursor:pointer}
+.mobilemenu:hover{background:#17304b}
+.memberpagetitle{min-width:0;flex:1}
+.memberpagetitle b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:760px){
+  .app aside{display:flex;visibility:visible;width:min(310px,88vw);height:100dvh;padding:18px 14px;overflow:hidden;position:fixed;left:0;top:0;bottom:auto;inset-right:auto}
+  .app aside.open{transform:translateX(0)}
+  .membernavscroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:28px}
+  .membernavscroll button{min-height:46px}
+  header{display:flex;align-items:center;gap:10px;padding:0 2px}
+  .memberheaderbrand{margin-left:auto;flex:0 0 auto}
+  .memberheaderbrand .avatar{display:grid}
+}
+@media(max-width:480px){
+  .mobilemenu{width:38px;height:38px;flex-basis:38px;border-radius:10px}
+  .memberpagetitle .muted{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hero{position:relative}
+}
