@@ -404,3 +404,45 @@ button,input,textarea,select{max-width:100%}
 .passwordmatch.success{color:#42e6a4}
 .passwordmatch.mismatch{color:#ff6b78}
 .confirm-password-wrap .passwordfield input{margin-bottom:0}
+
+/* Final registration modal fit + password feedback visibility */
+.authmodal .confirm-password-wrap{
+  position:relative;
+  z-index:2;
+  overflow:visible;
+}
+.authmodal .passwordmatch{
+  position:relative;
+  z-index:3;
+  margin:7px 3px 0;
+  min-height:18px;
+  padding:0 2px;
+  display:flex;
+  align-items:center;
+  visibility:visible;
+  opacity:1;
+  pointer-events:none;
+}
+.authmodal .passwordmatch.success{color:#42e6a4}
+.authmodal .passwordmatch.mismatch{color:#ff6b78}
+@media(max-width:600px){
+  .modalbackdrop:has(.authmodal){
+    align-items:flex-start;
+    justify-items:center;
+    padding:10px 7px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .modalbackdrop:has(.authmodal) .authmodal{
+    width:calc(100vw - 14px);
+    max-width:560px;
+    max-height:calc(100dvh - 20px);
+    margin:0;
+    overflow-y:auto;
+    overflow-x:hidden;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  .authmodal form{padding-bottom:2px}
+  .authmodal>p.small{padding-bottom:4px}
+}
