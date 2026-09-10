@@ -43,3 +43,26 @@ Backend required environment variables remain in `.env.example`.
 
 ## Important production note
 Before taking real money at scale, review the referral/membership model with appropriate Kenyan legal, tax, payments and consumer-protection professionals. Keep package benefits and commission rules transparent and avoid guaranteed-income claims.
+
+## NEXORA Real Platform additions
+
+This build includes a public marketing website, responsive member workspace, profile card, visual referral network map, notification center, Community & Updates feed, configurable admin announcements, NEXORA Academy, achievements, challenges, leaderboard, referral analytics, marketing center, support tickets, security center, membership comparison, package upgrade rules, CSV exports, payment repair, balance correction, audit logging and a PWA install shell.
+
+### Public pages
+- `/` — NEXORA public landing page with login/register modal
+- `/terms` — Terms of Service summary
+- `/privacy` — Privacy Policy summary
+- `/membership` — Membership & Referral Rules summary
+- `/admin` — Administrator console
+
+### Member experience
+The member navigation includes Dashboard, Packages, My Referrals, Analytics, Marketing Center, Community, Notifications, NEXORA Academy, Leaderboard, Challenges, Wallet, Transactions, Help & Support and Security.
+
+### Package earning hierarchy
+Starter can earn from Starter purchases; Growth from Starter + Growth; Pro from Starter + Growth + Pro; Elite from Starter + Growth + Pro + Elite; Premium from all five. Eligibility is determined by the package `tier`, not merely by package price.
+
+### Important deployment note
+The package uses Prisma generation during the root build and also creates/repairs selected support, announcement, admin-audit and package-settings database structures at API startup. Keep `DATABASE_URL`, `JWT_SECRET`, Paystack keys and the admin environment variables configured on the Render API service.
+
+### Responsible platform language
+NEXORA UI intentionally avoids guaranteed-income claims. Referral commissions are described as recorded platform outcomes subject to package eligibility and qualifying purchases. Before taking real money at scale, have the membership, referral, payment, consumer-protection and tax model reviewed for the jurisdictions in which NEXORA operates.

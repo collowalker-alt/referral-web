@@ -22,7 +22,7 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ 
   origin: true,
   credentials: true,
-  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization","x-paystack-signature"]
 }));
 
@@ -205,7 +205,7 @@ app.get("/api/referrals",auth,async(req,res)=>{
   try{
     const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}});
     const ids=direct.map(x=>x.id);
-    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}}):[];
+    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,referredById:true,package:true}}):[];
     res.json({direct,level2});
   }catch(e){console.error(e);res.status(500).json({message:"Unable to load referrals"});}
 });
@@ -590,6 +590,11 @@ app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
 });
 
 
+app.get("/api/announcements",async(req,res)=>{try{res.json(await prisma.announcement.findMany({where:{active:true},orderBy:{createdAt:"desc"},take:30}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load announcements"});}});
+app.get("/api/admin/announcements",adminAuth,async(req,res)=>{try{res.json(await prisma.announcement.findMany({orderBy:{createdAt:"desc"},take:100}));}catch(e){res.status(500).json({message:"Unable to load announcements"});}});
+app.post("/api/admin/announcements",adminAuth,async(req,res)=>{try{const title=String(req.body?.title||"").trim().slice(0,120),body=String(req.body?.body||"").trim().slice(0,3000),category=String(req.body?.category||"UPDATE").trim().slice(0,30).toUpperCase();if(!title||!body)return res.status(400).json({message:"Title and body are required"});const a=await prisma.announcement.create({data:{title,body,category,active:req.body?.active!==false}});await logAdminAction(req,"ANNOUNCEMENT_CREATED","ANNOUNCEMENT",a.id,null,{title,category});res.status(201).json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to create announcement"});}});
+app.patch("/api/admin/announcements/:id",adminAuth,async(req,res)=>{try{const data={};if(req.body?.title!==undefined)data.title=String(req.body.title).trim().slice(0,120);if(req.body?.body!==undefined)data.body=String(req.body.body).trim().slice(0,3000);if(req.body?.category!==undefined)data.category=String(req.body.category).trim().slice(0,30).toUpperCase();if(req.body?.active!==undefined)data.active=Boolean(req.body.active);const a=await prisma.announcement.update({where:{id:req.params.id},data});await logAdminAction(req,"ANNOUNCEMENT_UPDATED","ANNOUNCEMENT",a.id,null,{active:a.active});res.json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to update announcement"});}});
+
 app.get("/api/member/analytics",auth,async(req,res)=>{
   try{
     const direct=await prisma.user.findMany({where:{referredById:req.user.id},select:{id:true,packageId:true,createdAt:true}});
@@ -651,6 +656,21 @@ app.get("/{*splat}", (req,res,next) => {
 });
 
 
+async function ensureAnnouncementTable(){
+  try{
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Announcement" ("id" TEXT PRIMARY KEY, "title" TEXT NOT NULL, "body" TEXT NOT NULL, "category" TEXT NOT NULL DEFAULT 'UPDATE', "active" BOOLEAN NOT NULL DEFAULT true, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    const count=await prisma.announcement.count();
+    if(!count){
+      const seed=[
+        ["Welcome to NEXORA","Explore your member workspace, Academy, analytics, referral tools and support center. Keep your account information current and use the platform responsibly.","WELCOME"],
+        ["Learn before you share","Use NEXORA Academy to understand the platform and communicate membership details clearly. Avoid misleading or guaranteed-income claims.","EDUCATION"],
+        ["Protect your account","Never share your password or M-Pesa PIN. NEXORA support will not ask you to disclose those credentials.","SECURITY"]
+      ];
+      for(const [title,body,category] of seed) await prisma.announcement.create({data:{id:crypto.randomUUID(),title,body,category,active:true}});
+    }
+  }catch(e){console.error("[ANNOUNCEMENTS SETUP]",e.message);}
+}
+
 async function ensurePackageSettingsColumns(){
   await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT ''`);
   await prisma.$executeRawUnsafe(`ALTER TABLE "Package" ADD COLUMN IF NOT EXISTS "features" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`);
@@ -689,6 +709,7 @@ async function ensureSupportTicketTable(){
 async function startServer(){
   try{
     await ensurePackageSettingsColumns();
+  await ensureAnnouncementTable();
     await ensureAdminActivityTable();
     await ensureSupportTicketTable();
     await ensureAdmin();

@@ -179,3 +179,16 @@ model SupportTicket {
   @@index([userId, createdAt])
   @@index([status])
 }
+
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  category  String   @default("UPDATE")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, createdAt])
+}

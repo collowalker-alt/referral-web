@@ -1,0 +1,13 @@
+{
+  "name": "NEXORA Member Platform",
+  "short_name": "NEXORA",
+  "description": "NEXORA member workspace for membership, learning, analytics, referrals and support.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090d",
+  "theme_color": "#0b0d12",
+  "icons": [
+    {"src":"/nexora-logo.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"/nexora-logo.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}

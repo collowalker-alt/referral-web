@@ -27,3 +27,16 @@ Premium -> Starter + Growth + Pro + Elite + Premium
 
 UPGRADES
 Only higher tiers are allowed. The payment charge is the difference between target package price and current package price.
+
+NEW PLATFORM FEATURES
+- Public landing page and legal pages are served by the same SPA.
+- Installable PWA shell is enabled through manifest.webmanifest and sw.js.
+- Admin > Announcements controls the member Community & Updates feed.
+- Admin > Support tickets manages member support requests.
+- Package tier ordering is explicit and independent of price.
+
+The existing frontend service should continue using:
+Build Command: npm install --prefix client && npm run build --prefix client
+Publish Directory: client/dist
+Environment: VITE_API_URL=https://nexora-api-shxf.onrender.com/api
+SPA rewrite: /* -> /index.html
