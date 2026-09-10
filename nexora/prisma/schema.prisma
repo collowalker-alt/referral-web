@@ -1,90 +1,42 @@
-generator client { provider = "prisma-client-js" }
-datasource db { provider = "postgresql" url = env("DATABASE_URL") }
+generator client {
+  provider = "prisma-client-js"
+}
 
-enum UserStatus { ACTIVE SUSPENDED }
-enum TransactionStatus { PENDING SUCCESS FAILED }
-enum TransactionType { PACKAGE_PURCHASE COMMISSION WITHDRAWAL REFUND }
-enum WithdrawalStatus { PENDING PROCESSING PAID FAILED }
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
 
 model User {
-  id                 String   @id @default(cuid())
-  name               String
-  email              String   @unique
-  phone              String   @unique
-  passwordHash       String
-  referralCode       String   @unique
-  referredById       String?
-  referredBy         User?    @relation("ReferralTree", fields: [referredById], references: [id])
-  referrals           User[]   @relation("ReferralTree")
-  packageId           String?
-  package             Package? @relation(fields: [packageId], references: [id])
-  status             UserStatus @default(ACTIVE)
-  wallet             Wallet?
-  transactions       Transaction[]
-  commissionsEarned  Commission[] @relation("CommissionReceiver")
-  commissionsFrom    Commission[] @relation("CommissionSource")
-  withdrawals        Withdrawal[]
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  @@index([referredById])
+  id String @id @default(cuid())
+  email String @unique
+  name String?
+  password String
+  referralCode String @unique @default(cuid())
+  referredBy String?
+  referrer User? @relation("Referrals", fields: [referredBy], references: [id])
+  referrals User[] @relation("Referrals")
+  balance Float @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model Package {
-  id                 String @id @default(cuid())
-  name               String
-  price              Int
-  directCommission   Int
-  level2Commission   Int
-  active             Boolean @default(true)
-  users              User[]
-  createdAt          DateTime @default(now())
-}
-
-model Wallet {
-  id              String @id @default(cuid())
-  userId          String @unique
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance         Int @default(0)
-  pendingBalance  Int @default(0)
-  totalEarned     Int @default(0)
-  totalWithdrawn  Int @default(0)
-  updatedAt       DateTime @updatedAt
+model Referral {
+  id String @id @default(cuid())
+  referrerId String
+  referredId String
+  status String @default("pending")
+  reward Float @default(0)
+  createdAt DateTime @default(now())
+  @@unique([referrerId, referredId])
 }
 
 model Transaction {
-  id          String @id @default(cuid())
-  userId      String
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        TransactionType
-  amount      Int
-  status      TransactionStatus @default(PENDING)
-  reference   String @unique
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  @@index([userId, createdAt])
-}
-
-model Commission {
-  id          String @id @default(cuid())
-  receiverId  String
-  receiver    User @relation("CommissionReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-  sourceUserId String
-  sourceUser  User @relation("CommissionSource", fields: [sourceUserId], references: [id], onDelete: Cascade)
-  level       Int
-  amount      Int
-  reference   String @unique
-  createdAt   DateTime @default(now())
-  @@index([receiverId, createdAt])
-}
-
-model Withdrawal {
-  id          String @id @default(cuid())
-  userId      String
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount      Int
-  phone       String
-  status      WithdrawalStatus @default(PENDING)
-  reference   String @unique
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id String @id @default(cuid())
+  userId String
+  type String
+  amount Float
+  status String @default("pending")
+  reference String? @unique
+  createdAt DateTime @default(now())
 }
