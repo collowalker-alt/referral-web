@@ -44,3 +44,25 @@
   .row small{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topmsg{font-size:12px}
 }
+
+/* M-Pesa payment status modal */
+.paymentmodal{width:min(620px,100%)}
+.paymentbody{padding:24px;display:grid;gap:18px}
+.paymentstatus{display:flex;gap:14px;align-items:flex-start;padding:16px;border:1px solid #213955;background:#091525;border-radius:15px}
+.paymenticon{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:0 0 48px;background:#13243d;color:#b9c9df}
+.paymenticon.pending{animation:paymentPulse 1.3s infinite}
+.paymenticon.success{background:#123d32;color:#7ff0ca}
+.paymenticon.failed{background:#461b25;color:#ffb6c2}
+.paymentstatus b{display:block;line-height:1.45}
+.paymentstatus p{margin:6px 0 0;line-height:1.5}
+.paymentdetails{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.paymentdetails div{border:1px solid #1d3049;background:#0a1525;border-radius:12px;padding:12px;min-width:0}
+.paymentdetails span{display:block;color:#73849c;font-size:11px;margin-bottom:5px}
+.paymentdetails strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.payment-success{color:#7ff0ca!important;background:#123d32!important;border-color:#236b58!important}
+.payment-failed{color:#ffb6c2!important;background:#461b25!important;border-color:#7b2e3d!important}
+.paymentfoot{gap:10px;flex-wrap:wrap}
+.paymentfoot .primary{width:auto}
+.paymentfoot .secondary{cursor:pointer}
+@keyframes paymentPulse{50%{transform:rotate(90deg);opacity:.65}}
+@media(max-width:520px){.paymentbody{padding:17px}.paymentdetails{grid-template-columns:1fr}.paymentfoot{padding:14px 17px}.paymentfoot .secondary,.paymentfoot .primary{width:100%;justify-content:center}}

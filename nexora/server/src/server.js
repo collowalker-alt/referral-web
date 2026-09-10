@@ -55,11 +55,11 @@ const auth = async (req,res,next) => {
 };
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
-// Paystack's M-Pesa charge endpoint expects the international 254 format.
+// Paystack's M-Pesa charge endpoint requires the international +254 format.
 const paystackPhone=v=>{
   const n=cleanPhone(v);
-  if(/^07\d{8}$/.test(n)) return `254${n.slice(1)}`;
-  if(/^011\d{7}$/.test(n)) return `254${n.slice(1)}`;
+  if(/^07\d{8}$/.test(n)) return `+254${n.slice(1)}`;
+  if(/^011\d{7}$/.test(n)) return `+254${n.slice(1)}`;
   if(/^254[17]\d{8}$/.test(n)) return `+${n}`;
   return n;
 };
@@ -140,8 +140,11 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     });
     const data=await r.json();
     if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
-    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,metadata:{packageId:pkg.id,paystack:data.data}}});
-    res.json({reference,status:data.data?.status,display_text:data.data?.display_text||"Check your phone and complete the M-Pesa prompt"});
+    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",metadata:{packageId:pkg.id,paystack:data.data}}});
+    const status=data.data?.status||"pending";
+    if(status==="success") await activatePaidPackage(reference);
+    else if(status==="failed") await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+    res.json({reference,status,display_text:data.data?.display_text||"",message:data.message||"Charge attempted"});
   } catch(e){console.error(e);res.status(500).json({message:"Payment initialization failed"});}
 });
 
@@ -174,35 +177,37 @@ async function activatePaidPackage(reference){
   });
 }
 
+app.get("/api/payments/status/:reference",auth,async(req,res)=>{
+  try{
+    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
+    const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
+    if(!tx || tx.userId!==req.user.id) return res.status(404).json({message:"Payment reference not found"});
+    if(tx.status==="SUCCESS") return res.json({status:"success",display_text:"Payment confirmed. Your package is active."});
+    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
+    const d=await r.json();
+    if(!r.ok || !d.status) return res.status(400).json({message:d.message||"Unable to check payment status"});
+    const status=d.data?.status||"pending";
+    if(status==="success") await activatePaidPackage(req.params.reference);
+    else if(status==="failed") await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
+    res.json({status,display_text:d.data?.display_text||"",message:d.message||"Charge attempted"});
+  }catch(e){console.error("PAYMENT STATUS ERROR:",e);res.status(500).json({message:"Payment status check failed"});}
+});
+
+// Kept for compatibility with older frontends. The Charge API endpoint above is the
+// preferred status check for M-Pesa charges.
 app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
   try{
     if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
-    const r=await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
+    const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
+    if(!tx || tx.userId!==req.user.id) return res.status(404).json({message:"Payment reference not found"});
+    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
     const d=await r.json();
-    if(d?.data?.status==="success") await activatePaidPackage(req.params.reference);
-    res.json({status:d?.data?.status||"pending"});
+    if(!r.ok || !d.status) return res.status(400).json({message:d.message||"Unable to check payment status"});
+    const status=d.data?.status||"pending";
+    if(status==="success") await activatePaidPackage(req.params.reference);
+    else if(status==="failed") await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
+    res.json({status,display_text:d.data?.display_text||"",message:d.message||"Charge attempted"});
   }catch(e){res.status(500).json({message:"Verification failed"});}
-});
-
-
-
-app.get("/api/referrals",auth,async(req,res)=>{
-  const direct=await prisma.user.findMany({where:{referredById:req.user.id},select:{id:true,name:true,email:true,phone:true,package:{select:{name:true,price:true}},createdAt:true}});
-  const ids=direct.map(x=>x.id);
-  const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},select:{id:true,name:true,email:true,package:{select:{name:true}},referredBy:{select:{name:true}},createdAt:true}}):[];
-  res.json({direct,level2});
-});
-
-app.get("/api/transactions",auth,async(req,res)=>{
-  try{
-    const rows=await prisma.transaction.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:50});
-    res.json(rows);
-  }catch(e){res.status(500).json({message:"Unable to load transactions"});}
-});
-
-app.get("/api/earnings",auth,async(req,res)=>{
-  const commissions=await prisma.commission.findMany({where:{receiverId:req.user.id},orderBy:{createdAt:"desc"},include:{sourceUser:{select:{name:true,email:true}}},take:100});
-  res.json(commissions);
 });
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
