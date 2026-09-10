@@ -382,3 +382,25 @@ button,input,textarea,select{max-width:100%}
 .passwordtoggle:hover{background:rgba(56,217,169,.1);border-color:rgba(56,217,169,.35);color:#dffbf2}
 .passwordtoggle:focus-visible{outline:2px solid #38d9a9;outline-offset:2px}
 @media(max-width:520px){.passwordtoggle{min-width:68px;right:7px}.authmodal .passwordfield input{padding-right:84px}.passwordtoggle span{font-size:10px}}
+
+/* Final mobile login visibility fixes */
+.publicnav{position:sticky;top:0;z-index:200;isolation:isolate}
+.publicactions{position:relative;z-index:201}
+.publicactions .pwa-install{position:relative;z-index:202}
+.authmodal .passwordfield{isolation:isolate}
+.authmodal .passwordfield input{position:relative;z-index:1;padding-right:98px}
+.authmodal .passwordtoggle{z-index:5;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none}
+@media(max-width:600px){
+  .publicnav{position:sticky;top:0;z-index:200;background:rgba(7,9,13,.97);backdrop-filter:blur(14px)}
+  .publicactions{z-index:202}
+  .publicactions .pwa-install{z-index:203;display:inline-flex !important;visibility:visible !important;opacity:1 !important}
+  .authmodal .passwordfield input{padding-right:100px}
+  .authmodal .passwordtoggle{min-width:72px;width:72px;height:36px;right:6px;z-index:10}
+}
+
+/* Confirm-password feedback */
+.confirm-password-wrap{width:100%;min-width:0}
+.passwordmatch{margin:-6px 2px 10px;font-size:12px;font-weight:800;line-height:1.35;display:flex;align-items:center;gap:5px}
+.passwordmatch.success{color:#42e6a4}
+.passwordmatch.mismatch{color:#ff6b78}
+.confirm-password-wrap .passwordfield input{margin-bottom:0}
