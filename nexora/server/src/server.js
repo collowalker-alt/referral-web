@@ -140,7 +140,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     });
     const data=await r.json();
     if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
-    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",metadata:{packageId:pkg.id,paystack:data.data}}});
+    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",metadata:{packageId:pkg.id,phone:normalizedPhone,paystack:data.data}}});
     const status=data.data?.status||"pending";
     if(status==="success") await activatePaidPackage(reference);
     else if(status==="failed") await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});

@@ -66,3 +66,26 @@
 .paymentfoot .secondary{cursor:pointer}
 @keyframes paymentPulse{50%{transform:rotate(90deg);opacity:.65}}
 @media(max-width:520px){.paymentbody{padding:17px}.paymentdetails{grid-template-columns:1fr}.paymentfoot{padding:14px 17px}.paymentfoot .secondary,.paymentfoot .primary{width:100%;justify-content:center}}
+
+
+/* Refined M-Pesa payment flow */
+.phonemodal{width:min(560px,100%)}
+.phonebody{gap:13px}
+.phonepackage{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
+.phonepackage>div{border:1px solid #1d3049;background:#0a1525;border-radius:12px;padding:13px}
+.phonepackage span{display:block;color:#73849c;font-size:11px;margin-bottom:5px}
+.phonepackage strong{display:block;font-size:16px}
+.fieldlabel{font-size:13px;font-weight:800;color:#dce7f7;margin-top:4px}
+.phonemodal input{width:100%;font-size:18px;letter-spacing:.3px;padding:14px 15px}
+.payment-pending{color:#ffe19a!important;background:#3b3115!important;border-color:#77631f!important}
+.paymentwait{border:1px solid #29405e;background:#0a1525;border-radius:13px;padding:14px 15px}
+.paymentwaittitle{display:flex;align-items:center;gap:9px}
+.live-dot{width:9px;height:9px;border-radius:50%;background:#f2c94c;box-shadow:0 0 0 5px rgba(242,201,76,.08);animation:livePulse 1.2s infinite}
+.paymentwait p{margin:7px 0 0;line-height:1.5}
+@keyframes livePulse{50%{opacity:.45;transform:scale(.8)}}
+.transactionright{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.txstatus{font-size:11px;font-weight:900;text-transform:uppercase}
+.txstatus.pending{color:#f4d477}.txstatus.success{color:#7ff0ca}.txstatus.failed{color:#ff9dac}
+.txcheck{display:inline-flex;align-items:center;gap:5px;border:1px solid #29405e;background:#10223a;color:#dce8f7;border-radius:8px;padding:6px 8px;font-size:11px;font-weight:800;cursor:pointer}
+.txcheck:hover{background:#17304d}
+@media(max-width:520px){.phonepackage{grid-template-columns:1fr}.transactionright{align-items:flex-end}.txcheck{font-size:10px;padding:5px 7px}}
