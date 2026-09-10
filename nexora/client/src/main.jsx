@@ -15,9 +15,12 @@ function PWAInstall({compact=false}){
  const [deferred,setDeferred]=useState(null);
  const [installed,setInstalled]=useState(false);
  const [showHelp,setShowHelp]=useState(false);
+ const [platform,setPlatform]=useState('android');
  useEffect(()=>{
   const standalone=window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone===true;
   setInstalled(standalone);
+  const ua=navigator.userAgent||'';
+  setPlatform(/iPad|iPhone|iPod/.test(ua)&&!window.MSStream?'ios':'android');
   const onBefore=e=>{e.preventDefault();setDeferred(e)};
   const onInstalled=()=>{setInstalled(true);setDeferred(null);setShowHelp(false)};
   window.addEventListener('beforeinstallprompt',onBefore);
@@ -25,14 +28,29 @@ function PWAInstall({compact=false}){
   return()=>{window.removeEventListener('beforeinstallprompt',onBefore);window.removeEventListener('appinstalled',onInstalled)};
  },[]);
  if(installed)return null;
- const install=async()=>{
+ const openInstaller=async()=>{
   if(deferred){deferred.prompt();try{await deferred.userChoice}catch{}setDeferred(null);return}
   setShowHelp(true);
  };
- return <>{<button className={`pwa-install ${compact?'pwa-install-compact':''}`} onClick={install} title="Install NEXORA as an app"><Download size={16}/><span>Install NEXORA</span></button>}
- {showHelp&&<div className="modalbackdrop" onClick={()=>setShowHelp(false)}><div className="modal pwahelp" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">NEXORA APP</span><h2>Install NEXORA</h2></div><button className="iconbtn" onClick={()=>setShowHelp(false)}><X size={20}/></button></div><div className="pwahelpbody"><p>Install NEXORA on your phone or computer for an app-like experience, faster access and a home-screen icon.</p><div className="pwahelpitem"><b>Android / Chrome</b><span>Open the browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</span></div><div className="pwahelpitem"><b>iPhone / iPad</b><span>Open NEXORA in Safari, tap <strong>Share</strong>, then choose <strong>Add to Home Screen</strong>.</span></div><div className="pwahelpitem"><b>Desktop Chrome / Edge</b><span>Use the install icon in the address bar, or open the browser menu and choose <strong>Install NEXORA</strong>.</span></div></div><div className="modalfoot"><button className="primary" onClick={()=>setShowHelp(false)}>Got it</button></div></div></div>}</>
+ const androidInstall=async()=>{
+  if(deferred){deferred.prompt();try{await deferred.userChoice}catch{}setDeferred(null);return}
+  setPlatform('android');setShowHelp(true);
+ };
+ const iosHelp=()=>{setPlatform('ios');setShowHelp(true)};
+ return <>
+  <button className={`pwa-install ${compact?'pwa-install-compact':''}`} onClick={openInstaller} title="Install NEXORA as an app"><Download size={16}/><span>Install NEXORA</span></button>
+  {showHelp&&<div className="modalbackdrop" onClick={()=>setShowHelp(false)}><div className="modal pwahelp moderninstall" onClick={e=>e.stopPropagation()}>
+   <div className="modalhead installhead"><div><span className="pill">NEXORA APP</span><h2>Get NEXORA on your device</h2><p>Install NEXORA like an app for faster access and a home-screen icon.</p></div><button className="iconbtn" onClick={()=>setShowHelp(false)}><X size={20}/></button></div>
+   <div className="pwahelpbody installbody">
+    <div className={`installcard ${platform==='android'?'selected':''}`}><div className="installicon androidicon">A</div><div className="installcopy"><b>Android</b><span>Chrome can install NEXORA directly on your phone.</span></div><button className="primary installaction" onClick={androidInstall}><Download size={16}/>{deferred?'Install now':'Install'}</button></div>
+    <div className={`installcard ${platform==='ios'?'selected':''}`}><div className="installicon iosicon"></div><div className="installcopy"><b>iPhone / iPad</b><span>Use Safari to add NEXORA to your Home Screen.</span></div><button className="secondary installaction" onClick={iosHelp}><Download size={16}/>Add to Home</button></div>
+    <div className="installnote"><ShieldCheck size={17}/><span>NEXORA is a secure installable web app. No separate APK or App Store download is required.</span></div>
+    <div className="installsteps"><b>{platform==='ios'?'iPhone / iPad':'Android'}</b>{platform==='ios'?<span>Open this site in <strong>Safari</strong> → tap <strong>Share</strong> → choose <strong>Add to Home Screen</strong>.</span>:<span>Tap <strong>Install</strong>. If your browser does not show the install prompt, open its menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</span>}</div>
+   </div>
+   <div className="modalfoot"><button className="secondary" onClick={()=>setShowHelp(false)}>Close</button></div>
+  </div></div>}
+ </>
 }
-
 function Instructions({onClose}){return <div className="modalbackdrop" onClick={onClose}><div className="modal instructions" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">NEXORA GUIDE</span><h2>How to use NEXORA</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="instructionbody"><div><b>1. Create your account</b><p>Register with your name, email, password and valid Kenyan M-Pesa phone number. Keep your login details private.</p></div><div><b>2. Explore your workspace</b><p>Dashboard gives you your balance, package, referral activity, profile strength, monthly progress and recent activity.</p></div><div><b>3. Choose or upgrade a package</b><p>Review package prices, benefits and referral-earning eligibility. Upgrades are charged only on the price difference.</p></div><div><b>4. Understand package earning access</b><p>Starter can earn from Starter purchases; Growth from Starter + Growth; Pro from Starter + Growth + Pro; Elite from Starter + Growth + Pro + Elite; Premium from all five. Actual commissions are recorded only when qualifying referral purchases are completed.</p></div><div><b>5. Grow your network</b><p>Use My Referrals and the Marketing Center to copy/share your personal link, create a QR scan experience and use ready-to-share messages.</p></div><div><b>6. Use analytics, challenges and achievements</b><p>Analytics helps you understand network activity. Challenges and achievements track activity milestones; they are not guarantees of earnings.</p></div><div><b>7. Learn in NEXORA Academy</b><p>Start with the foundations, then work through membership packages, referral fundamentals, ethical marketing, analytics, wallet and payment safety, account security and sustainable growth. Open any lesson and use the Finish lesson button when you are done.</p></div><div><b>8. Wallet and payments</b><p>Wallet shows available, pending and withdrawn amounts. Transactions keeps your payment history and lets you check pending M-Pesa payments.</p></div><div><b>9. Get help</b><p>Open Help & Support to create a ticket and track replies, or use WhatsApp Support for direct assistance. Never send your password or M-Pesa PIN.</p></div><div><b>10. Keep your account secure</b><p>Use Security Center to update your profile and change your password. Review your profile strength and security checklist regularly.</p></div><div><b>11. Install NEXORA as an app</b><p>Use the Install NEXORA button when your browser supports installation. On iPhone/iPad, open NEXORA in Safari and choose Add to Home Screen.</p></div></div><div className="modalfoot"><a className="secondary supportinline" href="https://wa.me/254703265774" target="_blank" rel="noreferrer"><MessageCircle size={17}/> WhatsApp Support <ExternalLink size={14}/></a></div></div></div>}
 function SupportButton(){return <a className="supportfloat" href="https://wa.me/254703265774" target="_blank" rel="noreferrer" aria-label="Contact NEXORA support on WhatsApp"><MessageCircle size={20}/><span>Support</span></a>}
 function PublicLanding({onLogin}){

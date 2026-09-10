@@ -351,3 +351,21 @@ button,input,textarea,select{max-width:100%}
 @keyframes splashDots{from{transform:rotate(0)}to{transform:rotate(18deg)}}
 @keyframes splashText{to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.nexorasplash *,.nexorasplash:before{animation:none!important}.layerMain{opacity:1;transform:none;filter:none}.splashbrand,.splashlabel{opacity:1;transform:none}}
+
+/* Modern mobile public top bar + app install chooser */
+.pwahelp.moderninstall{width:min(620px,calc(100vw - 28px));background:linear-gradient(145deg,#0b182a,#08111e);border-color:#2b4665}
+.moderninstall .installhead{padding:24px 26px 20px}
+.moderninstall .installhead h2{font-size:28px;letter-spacing:-.03em;margin:8px 0 6px}
+.moderninstall .installhead p{margin:0;color:#8fa0b6;line-height:1.5;font-size:13px;max-width:500px}
+.installbody{padding:20px 24px 24px;display:grid;gap:12px;max-height:65vh;overflow:auto}
+.installcard{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:16px;border:1px solid #203852;border-radius:17px;background:linear-gradient(135deg,#0d1a2b,#0a1524);transition:.18s ease}
+.installcard.selected{border-color:#38d9a9;box-shadow:0 0 0 1px rgba(56,217,169,.12),0 12px 30px rgba(0,0,0,.18)}
+.installicon{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-weight:900;font-size:19px;background:#14283f;color:#eaf7ff;border:1px solid #2c4765}
+.installcopy{min-width:0;display:grid;gap:4px}.installcopy b{font-size:15px}.installcopy span{font-size:12px;color:#8294ab;line-height:1.45}.installaction{width:auto;min-width:104px;white-space:nowrap;padding:10px 13px!important}.installnote,.installsteps{display:flex;align-items:flex-start;gap:9px;padding:12px 14px;border-radius:13px;background:#0a1524;border:1px solid #1d334d;color:#8799b0;font-size:11px;line-height:1.5}.installnote{color:#9fe9d3}.installsteps b{color:#fff;min-width:72px}.installsteps strong{color:#dce9f8}
+@media(max-width:600px){
+ .publicnav{height:64px;padding:0 12px;gap:8px}
+ .publicbrand{min-width:0;gap:7px}.publicbrand img{width:34px;height:34px}.publicbrand b{font-size:16px}.publicbrand small{font-size:7px}
+ .publicactions{gap:6px;min-width:0;flex:0 0 auto}.publicactions .pwa-install{width:40px;height:38px;padding:0;flex:0 0 40px}.publicactions .pwa-install span{display:none}.publicactions .secondary{display:none}.publicactions .primary{width:auto;flex:0 0 auto;padding:9px 11px;font-size:0;min-width:0}.publicactions .primary::after{content:'Join';font-size:12px}
+ .moderninstall .installhead{padding:18px 17px 16px}.moderninstall .installhead h2{font-size:22px}.installbody{padding:15px 17px 18px}.installcard{grid-template-columns:auto 1fr;gap:11px;padding:13px}.installaction{grid-column:2;justify-self:start;min-width:112px}.installicon{width:38px;height:38px}.installcopy span{font-size:11px}.installnote,.installsteps{font-size:10.5px}.moderninstall .modalfoot{padding:13px 17px}
+}
+@media(max-width:380px){.publicbrand small{display:none}.publicbrand b{font-size:15px}.publicactions .pwa-install{width:38px;flex-basis:38px}.publicactions .primary{padding-left:9px;padding-right:9px}.installcopy span{font-size:10px}}
