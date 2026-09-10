@@ -67,33 +67,73 @@ Do not put the admin password, JWT secret, or Paystack secret key in the React f
 For Netlify SPA hosting, `client/public/_redirects` is included so `/admin` loads the React application instead of returning a 404.
 
 
-## Render deployment (single service)
+## Render deployment (frontend + API)
 
-This version is designed for your current Render URL, `https://nexora-referral.onrender.com/`.
-The same Render service serves both the React frontend and `/api`.
+This project is deployed as two Render services:
 
-In Render, use:
-- **Root Directory:** blank (repository root)
-- **Build Command:** `npm run build`
-- **Start Command:** `npm start`
+- **Frontend static site:** `nexora_referral`
+  - URL: `https://nexora-referral.onrender.com`
+- **API web service:** `nexora-api`
+  - URL: `https://nexora-api-shxf.onrender.com`
 
-Set these environment variables on Render:
-```env
-DATABASE_URL=your-postgresql-url
-JWT_SECRET=your-long-random-secret
-PAYSTACK_SECRET_KEY=your-paystack-key
-ADMIN_NAME=NEXORA Administrator
-ADMIN_EMAIL=your-admin-email
-ADMIN_PASSWORD=your-long-admin-password
+### Frontend (`nexora_referral`) settings
+
+Use the repository root as the Root Directory.
+
+**Build Command**
+```text
+npm install --prefix client && npm run build --prefix client
 ```
 
-After the first deploy, run:
+**Publish Directory**
+```text
+client/dist
+```
+
+**Environment variable**
+```text
+VITE_API_URL=https://nexora-api-shxf.onrender.com/api
+```
+
+The repository also contains `render.yaml` with the required SPA rewrite:
+
+```text
+/*  ->  /index.html  (Rewrite)
+```
+
+Render's static-site documentation confirms that React/Vite SPAs need this rewrite for direct routes such as `/admin`. If the existing static service is not managed by a Render Blueprint, the rewrite must be added in that service's Redirects/Rewrites settings; simply committing `render.yaml` does not retroactively change an unmanaged service.
+
+The build also creates `client/dist/admin/index.html` as an additional fallback.
+
+### Backend (`nexora-api`) settings
+
+Keep the existing API service as a separate Render Web Service. Its public API URL is:
+
+```text
+https://nexora-api-shxf.onrender.com
+```
+
+Keep the existing server environment variables, including:
+```text
+DATABASE_URL
+JWT_SECRET
+PAYSTACK_SECRET_KEY
+ADMIN_NAME
+ADMIN_EMAIL
+ADMIN_PASSWORD
+```
+
+After database/schema setup, seed the admin account:
 ```bash
 npm run db:push
 npm run db:seed
 ```
 
-Then:
+### Admin
+
+After the frontend deploy succeeds, open:
+
 `https://nexora-referral.onrender.com/admin`
 
-The frontend API URL defaults to the same Render origin (`/api`), so no `VITE_API_URL` is required for this single-service setup.
+The React application switches to the administrator console when the pathname starts with `/admin`.
+

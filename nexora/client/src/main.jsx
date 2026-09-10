@@ -2,7 +2,7 @@ import React,{useEffect,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,BarChart3} from "lucide-react";
 import "./styles.css";
-const API=(import.meta.env.VITE_API_URL||`${window.location.origin}/api`).replace(/\/$/,"");
+const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
 const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");

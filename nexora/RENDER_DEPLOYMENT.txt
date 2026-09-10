@@ -1,0 +1,22 @@
+NEXORA Render deployment note
+
+This package is prepared for the split Render architecture:
+frontend = nexora_referral (Static Site)
+API      = nexora-api (Web Service)
+
+Frontend:
+Build: npm install --prefix client && npm run build --prefix client
+Publish: client/dist
+VITE_API_URL: https://nexora-api-shxf.onrender.com/api
+
+SPA fallback:
+Source /* -> Destination /index.html -> Rewrite
+
+The package includes render.yaml with the same static-site configuration and
+also creates dist/admin/index.html during the frontend build.
+
+Important: an unmanaged existing Render Static Site does not necessarily adopt
+render.yaml merely because the file is committed. Apply the Blueprint to the
+service or add the rewrite in the Render service settings.
+
+The admin React route is already fixed in client/src/main.jsx.
