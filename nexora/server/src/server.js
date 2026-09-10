@@ -613,7 +613,7 @@ app.get("/api/member/analytics",auth,async(req,res)=>{
 
 app.get("/api/member/leaderboard",auth,async(req,res)=>{
   try{
-    const rows=await prisma.user.findMany({where:{status:"ACTIVE"},include:{package:true,wallet:true},orderBy:{wallet:{totalEarned:"desc"}},take:20,select:{id:true,name:true,createdAt:true,package:{select:{name:true}},wallet:{select:{totalEarned:true}}}});
+    const rows=await prisma.user.findMany({where:{status:"ACTIVE"},orderBy:{wallet:{totalEarned:"desc"}},take:20,select:{id:true,name:true,createdAt:true,package:{select:{name:true}},wallet:{select:{totalEarned:true}}}});
     res.json(rows.map(x=>({id:x.id,name:String(x.name||"Member").split(" ")[0],createdAt:x.createdAt,package:x.package?.name||null,totalEarned:x.wallet?.totalEarned||0})));
   }catch(e){console.error(e);res.status(500).json({message:"Unable to load leaderboard"});}
 });
