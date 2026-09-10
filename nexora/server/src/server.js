@@ -154,6 +154,27 @@ const DEFAULT_PACKAGES=[
   ["Elite",2200,900,300],
   ["Premium",4800,2000,500]
 ];
+async function ensureAdmin(){
+  const email=String(process.env.ADMIN_EMAIL||"").trim().toLowerCase();
+  const password=String(process.env.ADMIN_PASSWORD||"");
+  const name=String(process.env.ADMIN_NAME||"NEXORA Administrator").trim()||"NEXORA Administrator";
+  if(!email || !password){
+    console.warn("ADMIN_EMAIL/ADMIN_PASSWORD are not set; admin account was not created or updated.");
+    return;
+  }
+  if(password.length < 10){
+    console.error("ADMIN_PASSWORD must be at least 10 characters; admin account was not created or updated.");
+    return;
+  }
+  const passwordHash=await bcrypt.hash(password,12);
+  await prisma.admin.upsert({
+    where:{email},
+    update:{name,passwordHash,status:"ACTIVE"},
+    create:{name,email,passwordHash,status:"ACTIVE"}
+  });
+  console.log(`[ADMIN] Admin account ready: ${email}`);
+}
+
 async function ensurePackages(){
   for(const [name,price,directCommission,level2Commission] of DEFAULT_PACKAGES){
     await prisma.package.upsert({where:{name},update:{price,directCommission,level2Commission,active:true},create:{name,price,directCommission,level2Commission,active:true}});
@@ -463,4 +484,13 @@ app.get("/{*splat}", (req,res,next) => {
 });
 
 
-app.listen(PORT,()=>console.log(`NEXORA app/API running on port ${PORT}`));
+async function startServer(){
+  try{
+    await ensureAdmin();
+  }catch(e){
+    console.error("[ADMIN] Could not initialize admin account:",e);
+  }
+  app.listen(PORT,()=>console.log(`NEXORA app/API running on port ${PORT}`));
+}
+
+startServer();
