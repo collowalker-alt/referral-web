@@ -65,3 +65,35 @@ npm run db:seed
 Do not put the admin password, JWT secret, or Paystack secret key in the React frontend. The admin console provides separate views for Overview, Users, Transactions, Withdrawals, and Packages. It also includes user suspension/reactivation, withdrawal processing, and package configuration.
 
 For Netlify SPA hosting, `client/public/_redirects` is included so `/admin` loads the React application instead of returning a 404.
+
+
+## Render deployment (single service)
+
+This version is designed for your current Render URL, `https://nexora-referral.onrender.com/`.
+The same Render service serves both the React frontend and `/api`.
+
+In Render, use:
+- **Root Directory:** blank (repository root)
+- **Build Command:** `npm run build`
+- **Start Command:** `npm start`
+
+Set these environment variables on Render:
+```env
+DATABASE_URL=your-postgresql-url
+JWT_SECRET=your-long-random-secret
+PAYSTACK_SECRET_KEY=your-paystack-key
+ADMIN_NAME=NEXORA Administrator
+ADMIN_EMAIL=your-admin-email
+ADMIN_PASSWORD=your-long-admin-password
+```
+
+After the first deploy, run:
+```bash
+npm run db:push
+npm run db:seed
+```
+
+Then:
+`https://nexora-referral.onrender.com/admin`
+
+The frontend API URL defaults to the same Render origin (`/api`), so no `VITE_API_URL` is required for this single-service setup.

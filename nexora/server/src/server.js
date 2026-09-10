@@ -6,6 +6,8 @@ import dotenv from "dotenv";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import path from "path";
+import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 
 dotenv.config();
@@ -446,4 +448,19 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
   res.status(201).json({message:"Withdrawal request submitted",reference});
 });
 
-app.listen(PORT,()=>console.log(`NEXORA API running on http://localhost:${PORT}`));
+// -------------------- SERVE NEXORA FRONTEND FROM RENDER --------------------
+// The production deployment uses one Render service for both the React UI and API.
+// Vite builds client/dist, and Express serves it here. SPA fallback makes /admin work.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDist = path.resolve(__dirname, "../../client/dist");
+app.use(express.static(clientDist, { index: "index.html" }));
+app.get("/{*splat}", (req,res,next) => {
+  if (req.path.startsWith("/api/")) return next();
+  res.sendFile(path.join(clientDist, "index.html"), err => {
+    if (err) next(err);
+  });
+});
+
+
+app.listen(PORT,()=>console.log(`NEXORA app/API running on port ${PORT}`));
