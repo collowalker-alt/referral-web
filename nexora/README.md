@@ -97,3 +97,7 @@ Then:
 `https://nexora-referral.onrender.com/admin`
 
 The frontend API URL defaults to the same Render origin (`/api`), so no `VITE_API_URL` is required for this single-service setup.
+
+
+## Admin login
+The Render service now serves the admin portal directly at `/admin`, even if the React client has not been built. Set `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `JWT_SECRET`, and `DATABASE_URL` in Render, then run `npm run db:push` and `npm run db:seed`. Open `https://YOUR-RENDER-DOMAIN/admin`.
