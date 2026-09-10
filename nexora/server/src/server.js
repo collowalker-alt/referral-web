@@ -53,6 +53,8 @@ const auth = async (req,res,next) => {
     req.user=u; next();
   } catch { res.status(401).json({message:"Invalid or expired session"}); }
 };
+const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
+const cleanPhone=v=>String(v||"").replace(/[\s-]/g,"");
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
 // FIX 3: Health checks so / and /api don't return "Cannot GET"
@@ -63,15 +65,17 @@ app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 app.post("/api/auth/register", async (req,res)=>{
   try {
     const {name,email,phone,password,referralCode}=req.body;
+    const normalizedPhone=cleanPhone(phone);
     if(!name||!email||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
     if(password.length<8) return res.status(400).json({message:"Password must be at least 8 characters"});
-    const exists=await prisma.user.findFirst({where:{OR:[{email:email.toLowerCase()},{phone}]}});
+    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
+    const exists=await prisma.user.findFirst({where:{OR:[{email:email.toLowerCase()},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
     if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:referralCode.toUpperCase()}});
     const hash=await bcrypt.hash(password,12);
     const user=await prisma.user.create({data:{
-      name,email:email.toLowerCase(),phone,passwordHash:hash,referralCode:makeCode(name),
+      name,email:email.toLowerCase(),phone:normalizedPhone,passwordHash:hash,referralCode:makeCode(name),
       referredById:parent?.id,wallet:{create:{}}
     }});
     res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
@@ -115,6 +119,8 @@ app.get("/api/me",auth,async(req,res)=>{
 app.post("/api/payments/initialize",auth,async(req,res)=>{
   try {
     const {packageId,phone}=req.body;
+    const normalizedPhone=cleanPhone(phone||req.user.phone);
+    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
     if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
     if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
@@ -122,7 +128,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     const r=await fetch("https://api.paystack.co/charge",{
       method:"POST",
       headers:{"Authorization":`Bearer ${process.env.PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json"},
-      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone_number:phone||req.user.phone,provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
+      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone_number:normalizedPhone,provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
     });
     const data=await r.json();
     if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
@@ -192,7 +198,8 @@ app.get("/api/earnings",auth,async(req,res)=>{
 });
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
-  const amount=Number(req.body.amount), phone=req.body.phone||req.user.phone;
+  const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
+  if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
   if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
   const wallet=await prisma.wallet.findUnique({where:{userId:req.user.id}});
   if(!wallet || wallet.balance<amount) return res.status(400).json({message:"Insufficient balance"});
