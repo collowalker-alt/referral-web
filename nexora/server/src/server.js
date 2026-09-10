@@ -55,6 +55,13 @@ const auth = async (req,res,next) => {
 };
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").replace(/[\s-]/g,"");
+// Paystack's M-Pesa charge endpoint expects the international 254 format.
+const paystackPhone=v=>{
+  const n=cleanPhone(v);
+  if(/^07\d{8}$/.test(n)) return `254${n.slice(1)}`;
+  if(/^011\d{7}$/.test(n)) return `254${n.slice(1)}`;
+  return n;
+};
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
 // FIX 3: Health checks so / and /api don't return "Cannot GET"
@@ -128,7 +135,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     const r=await fetch("https://api.paystack.co/charge",{
       method:"POST",
       headers:{"Authorization":`Bearer ${process.env.PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json"},
-      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone_number:normalizedPhone,provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
+      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone_number:paystackPhone(normalizedPhone),provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
     });
     const data=await r.json();
     if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
