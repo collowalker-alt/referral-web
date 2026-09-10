@@ -54,7 +54,7 @@ const auth = async (req,res,next) => {
   } catch { res.status(401).json({message:"Invalid or expired session"}); }
 };
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
-const cleanPhone=v=>String(v||"").replace(/[\s-]/g,"");
+const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint expects the international 254 format.
 const paystackPhone=v=>{
   const n=cleanPhone(v);
