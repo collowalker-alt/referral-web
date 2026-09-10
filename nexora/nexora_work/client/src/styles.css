@@ -286,3 +286,27 @@ button,input,textarea,select{max-width:100%}
  .pwahelpbody{padding:3px 16px 16px}
  .pwahelpitem{padding:11px 12px}
 }
+
+/* Final mobile dashboard layout + guaranteed menu visibility */
+@media (max-width:760px){
+  .app main > header .mobilemenu{
+    display:flex !important;
+    visibility:visible !important;
+    opacity:1 !important;
+    position:relative;
+    z-index:70;
+    flex:0 0 40px;
+  }
+  .app main > header .mobilemenu svg{display:block;pointer-events:none}
+  .grid2{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px}
+  .grid2 > .panel{min-width:0;overflow:hidden}
+  .grid2 > .panel .copybox{width:100%}
+}
+@media (max-width:480px){
+  .app main > header .mobilemenu{width:40px;height:40px;flex-basis:40px}
+  .grid2{gap:8px}
+  .cards{gap:8px}
+  .grid2 > .panel,.cards .stat{padding:12px}
+  .grid2 > .panel h3{font-size:14px}
+}
