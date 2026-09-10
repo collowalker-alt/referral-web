@@ -12,8 +12,18 @@ dotenv.config();
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
+// FIX 1: Helmet was blocking cross-origin fetches — disable resource policy
+app.use(helmet({ crossOriginResourcePolicy: false }));
+
+// FIX 2: Allow ALL origins (including your live frontend on Render)
+// Previously you only allowed localhost:5173, which caused "Failed to fetch"
+app.use(cors({ 
+  origin: true,
+  credentials: true,
+  methods: ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization","x-paystack-signature"]
+}));
+
 app.use(express.json({ limit: "100kb" }));
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 100 }));
 
@@ -33,6 +43,9 @@ const auth = async (req,res,next) => {
 };
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
+// FIX 3: Health checks so / and /api don't return "Cannot GET"
+app.get("/", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
+app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 
 app.post("/api/auth/register", async (req,res)=>{
