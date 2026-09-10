@@ -67,17 +67,19 @@ Do not put the admin password, JWT secret, or Paystack secret key in the React f
 For Netlify SPA hosting, `client/public/_redirects` is included so `/admin` loads the React application instead of returning a 404.
 
 
-## Render deployment (single service)
 
-This version is designed for your current Render URL, `https://nexora-referral.onrender.com/`.
-The same Render service serves both the React frontend and `/api`.
+## Render deployment — single Web Service
 
-In Render, use:
-- **Root Directory:** blank (repository root)
-- **Build Command:** `npm run build`
+This project is configured for your current Render site:
+`https://nexora-referral.onrender.com/`
+
+Render settings:
+- **Root Directory:** leave blank (repository root)
+- **Build Command:** `npm install && npm run db:generate && npm run build:client`
 - **Start Command:** `npm start`
+- **Health Check Path:** `/api/health`
 
-Set these environment variables on Render:
+Required Render environment variables:
 ```env
 DATABASE_URL=your-postgresql-url
 JWT_SECRET=your-long-random-secret
@@ -87,17 +89,13 @@ ADMIN_EMAIL=your-admin-email
 ADMIN_PASSWORD=your-long-admin-password
 ```
 
-After the first deploy, run:
+After the first successful deployment, open Render Shell and run:
 ```bash
 npm run db:push
 npm run db:seed
 ```
 
-Then:
+The administrator login is:
 `https://nexora-referral.onrender.com/admin`
 
-The frontend API URL defaults to the same Render origin (`/api`), so no `VITE_API_URL` is required for this single-service setup.
-
-
-## Admin login
-The Render service now serves the admin portal directly at `/admin`, even if the React client has not been built. Set `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `JWT_SECRET`, and `DATABASE_URL` in Render, then run `npm run db:push` and `npm run db:seed`. Open `https://YOUR-RENDER-DOMAIN/admin`.
+The same Render service serves the React frontend and `/api`, and the React app explicitly renders the administrator console whenever the browser path begins with `/admin`.

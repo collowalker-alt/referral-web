@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: nexora-referral
+    runtime: node
+    buildCommand: npm install && npm run db:generate && npm run build:client
+    startCommand: npm start
+    healthCheckPath: /api/health
