@@ -60,7 +60,7 @@ model User {
 
 model Package {
   id               String   @id @default(cuid())
-  name             String
+  name             String   @unique
   price            Int
   directCommission Int
   level2Commission Int

@@ -24,6 +24,18 @@ app.use(cors({
   allowedHeaders: ["Content-Type","Authorization","x-paystack-signature"]
 }));
 
+app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(req,res)=>{
+  try{
+    if(!process.env.PAYSTACK_SECRET_KEY) return res.sendStatus(503);
+    const signature=req.headers["x-paystack-signature"];
+    const expected=crypto.createHmac("sha512",process.env.PAYSTACK_SECRET_KEY).update(req.body).digest("hex");
+    if(!signature || signature.length!==expected.length || !crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected))) return res.sendStatus(401);
+    const event=JSON.parse(req.body.toString());
+    if(event.event==="charge.success" && event.data?.reference) await activatePaidPackage(event.data.reference);
+    res.sendStatus(200);
+  }catch(e){console.error(e);res.sendStatus(500);}
+});
+
 app.use(express.json({ limit: "100kb" }));
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 100 }));
 
@@ -74,7 +86,22 @@ app.post("/api/auth/login", async (req,res)=>{
   res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
 });
 
-app.get("/api/packages",async(req,res)=>res.json(await prisma.package.findMany({where:{active:true},orderBy:{price:"asc"}})));
+const DEFAULT_PACKAGES=[
+  ["Starter",500,200,50],
+  ["Growth",1000,400,150],
+  ["Pro",1600,700,250],
+  ["Elite",2200,900,300],
+  ["Premium",4800,2000,500]
+];
+async function ensurePackages(){
+  for(const [name,price,directCommission,level2Commission] of DEFAULT_PACKAGES){
+    await prisma.package.upsert({where:{name},update:{price,directCommission,level2Commission,active:true},create:{name,price,directCommission,level2Commission,active:true}});
+  }
+}
+app.get("/api/packages",async(req,res)=>{
+  try{ await ensurePackages(); res.json(await prisma.package.findMany({where:{active:true},orderBy:{price:"asc"}})); }
+  catch(e){ console.error("Packages error:",e); res.status(500).json({message:"Unable to load packages. Please check the database setup."}); }
+});
 
 app.get("/api/me",auth,async(req,res)=>{
   const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true,wallet:true}});
@@ -135,6 +162,7 @@ async function activatePaidPackage(reference){
 
 app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
   try{
+    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
     const r=await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
     const d=await r.json();
     if(d?.data?.status==="success") await activatePaidPackage(req.params.reference);
@@ -142,22 +170,20 @@ app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
   }catch(e){res.status(500).json({message:"Verification failed"});}
 });
 
-app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(req,res)=>{
-  try{
-    const signature=req.headers["x-paystack-signature"];
-    const expected=crypto.createHmac("sha512",process.env.PAYSTACK_SECRET_KEY).update(req.body).digest("hex");
-    if(!signature || !crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected))) return res.sendStatus(401);
-    const event=JSON.parse(req.body.toString());
-    if(event.event==="charge.success" && event.data?.reference) await activatePaidPackage(event.data.reference);
-    res.sendStatus(200);
-  }catch(e){console.error(e);res.sendStatus(500);}
-});
+
 
 app.get("/api/referrals",auth,async(req,res)=>{
   const direct=await prisma.user.findMany({where:{referredById:req.user.id},select:{id:true,name:true,email:true,phone:true,package:{select:{name:true,price:true}},createdAt:true}});
   const ids=direct.map(x=>x.id);
   const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},select:{id:true,name:true,email:true,package:{select:{name:true}},referredBy:{select:{name:true}},createdAt:true}}):[];
   res.json({direct,level2});
+});
+
+app.get("/api/transactions",auth,async(req,res)=>{
+  try{
+    const rows=await prisma.transaction.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:50});
+    res.json(rows);
+  }catch(e){res.status(500).json({message:"Unable to load transactions"});}
 });
 
 app.get("/api/earnings",auth,async(req,res)=>{
