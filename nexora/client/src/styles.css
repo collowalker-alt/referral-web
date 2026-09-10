@@ -187,3 +187,79 @@
   .memberpagetitle .muted{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hero{position:relative}
 }
+
+/* Final responsive fit: prevent horizontal scrolling and make mobile content breathe */
+html,body,#root{max-width:100%;width:100%;overflow-x:hidden}
+body{overflow-x:hidden}
+.app,main,.publicsite,.publicnav,.publichero,.publicsection,.modalbackdrop,.modal{max-width:100%;min-width:0}
+img,svg,video,canvas{max-width:100%}
+button,input,textarea,select{max-width:100%}
+.hero>*{min-width:0}
+.hero p,.panel,.stat,.pkg,.walletbig,.featurecard,.communitypost,.step,.publicheroCopy,.publicheroCard{min-width:0;overflow-wrap:anywhere}
+.sectionhead>*,.topmsg>*{min-width:0}
+.copybox{min-width:0;max-width:100%}
+.copybox span{min-width:0}
+.table{min-width:0;max-width:100%}
+.row{min-width:0}
+.row>*{min-width:0;overflow-wrap:anywhere}
+.tree{max-width:100%;overflow-x:hidden}
+.treebranch,.treechildren{max-width:100%;flex-wrap:wrap}
+
+@media(max-width:760px){
+  main{padding-left:12px;padding-right:12px}
+  header{min-width:0}
+  .memberpagetitle{overflow:hidden}
+  .memberheaderbrand img{display:none}
+  .hero{padding:18px;display:block}
+  .heroicon{width:58px;height:58px;margin:12px 0 0 auto}
+  .hero h1{font-size:clamp(24px,7vw,30px);overflow-wrap:anywhere}
+  .hero p{font-size:14px;line-height:1.55;max-width:100%}
+  .heroactions{display:flex;gap:9px;flex-wrap:wrap;min-width:0}
+  .heroactions .primary,.heroactions .secondary{min-width:0;flex:1 1 150px}
+  .cards{grid-template-columns:1fr;gap:12px}
+  .stat,.panel,.pkg,.walletbig{padding:16px}
+  .stat strong{font-size:23px}
+  .grid2,.dashboardgrid,.analyticsgrid,.supportgrid,.securitygrid,.marketinggrid,.academygrid{grid-template-columns:1fr;min-width:0}
+  .packageactive{grid-template-columns:1fr;min-width:0}
+  .sectionhead{display:block;min-width:0}
+  .sectionhead .heroactions,.sectionhead>.secondary{margin-top:12px}
+  .sectionhead .secondary{max-width:100%}
+  .row,.row.simple{grid-template-columns:1fr;gap:6px;padding:13px 0}
+  .row span:last-child{display:block}
+  .transactionright{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:0}
+  .copybox{padding-left:10px}
+  .copybox button{flex:0 0 auto;padding:8px 9px}
+  .packages,.comparisongrid{grid-template-columns:1fr!important}
+  .comparisongrid>div{min-width:0}
+  .profilecard{min-width:0}
+  .profileinfo{min-width:0}
+  .publichero,.publicsection{width:100%;max-width:100%;overflow:hidden}
+  .publichero{padding-left:16px;padding-right:16px}
+  .publicheroCopy h1{font-size:clamp(40px,12vw,52px);overflow-wrap:anywhere}
+  .publicheroCard{width:100%;min-width:0}
+  .publiccta{margin-left:12px;margin-right:12px;max-width:calc(100% - 24px);min-width:0}
+  .modalbackdrop{padding:10px}
+  .modal{width:100%;max-width:100%;min-width:0}
+}
+
+@media(max-width:480px){
+  main{padding-left:10px;padding-right:10px}
+  header{height:70px;gap:8px}
+  .memberpagetitle .muted{font-size:9px}
+  .mobilemenu{width:38px;flex-basis:38px}
+  .avatar{width:36px;height:36px}
+  .hero{margin-top:16px;border-radius:18px}
+  .heroactions{flex-direction:column}
+  .heroactions .primary,.heroactions .secondary{width:100%;flex:1 1 auto}
+  .heroicon{width:52px;height:52px}
+  .stat,.panel,.pkg,.walletbig{border-radius:15px;padding:14px}
+  .walletbig strong{font-size:34px}
+  .sectionhead h1{font-size:25px}
+  .supportfloat{right:10px;bottom:10px}
+  .modalbackdrop{padding:7px}
+  .modal{border-radius:18px}
+  .modalhead h2{font-size:22px}
+  .authmodal{width:calc(100vw - 14px)}
+  .authtabs{flex-direction:column}
+  .authtabs button{width:100%}
+}
