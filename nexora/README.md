@@ -40,3 +40,28 @@ For Kenya M-Pesa, the server sends a charge request using the customer's phone n
 - Configure the webhook on your public HTTPS API.
 - Add KYC/AML, terms, privacy, refund policy and applicable Kenyan regulatory review before taking real customer funds.
 - Implement an admin authentication layer before exposing administrative endpoints.
+
+## NEXORA Admin Dashboard
+
+The project now includes a separate administrator console at:
+
+`https://YOUR-FRONTEND-DOMAIN/admin`
+
+Admin authentication is separate from member authentication. Set these **server-side** environment variables before running the seed:
+
+```env
+ADMIN_NAME="NEXORA Administrator"
+ADMIN_EMAIL="your-admin-email@example.com"
+ADMIN_PASSWORD="use-a-long-random-password"
+```
+
+Then apply the Prisma schema and seed the admin account:
+
+```bash
+npm run db:push
+npm run db:seed
+```
+
+Do not put the admin password, JWT secret, or Paystack secret key in the React frontend. The admin console provides separate views for Overview, Users, Transactions, Withdrawals, and Packages. It also includes user suspension/reactivation, withdrawal processing, and package configuration.
+
+For Netlify SPA hosting, `client/public/_redirects` is included so `/admin` loads the React application instead of returning a 404.

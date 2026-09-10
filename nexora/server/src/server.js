@@ -53,6 +53,19 @@ const auth = async (req,res,next) => {
     req.user=u; next();
   } catch { res.status(401).json({message:"Invalid or expired session"}); }
 };
+const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin" }, JWT_SECRET, { expiresIn:"12h" });
+const adminAuth = async (req,res,next) => {
+  try {
+    const token=(req.headers.authorization||"").replace("Bearer ","");
+    if(!token) return res.status(401).json({message:"Admin authentication required"});
+    const p=jwt.verify(token,JWT_SECRET);
+    if(p.type!=="admin") return res.status(403).json({message:"Admin access required"});
+    const a=await prisma.admin.findUnique({where:{id:p.id}});
+    if(!a || a.status!=="ACTIVE") return res.status(401).json({message:"Admin account unavailable"});
+    req.admin=a; next();
+  } catch { res.status(401).json({message:"Invalid or expired admin session"}); }
+};
+
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
@@ -156,6 +169,25 @@ app.get("/api/me",auth,async(req,res)=>{
   const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
   const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
   res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+});
+
+app.get("/api/referrals",auth,async(req,res)=>{
+  try{
+    const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}});
+    const ids=direct.map(x=>x.id);
+    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}}):[];
+    res.json({direct,level2});
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to load referrals"});}
+});
+app.get("/api/earnings",auth,async(req,res)=>{
+  try{
+    const rows=await prisma.commission.findMany({where:{receiverId:req.user.id},include:{sourceUser:{select:{name:true}}},orderBy:{createdAt:"desc"},take:100});
+    res.json(rows);
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to load earnings"});}
+});
+app.get("/api/transactions",auth,async(req,res)=>{
+  try{ const rows=await prisma.transaction.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:100}); res.json(rows); }
+  catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
 });
 
 app.post("/api/payments/initialize",auth,async(req,res)=>{
@@ -324,6 +356,80 @@ app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
     else if(status==="failed") await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
     res.json({status,display_text:d.data?.display_text||"",message:d.message||"Charge attempted"});
   }catch(e){res.status(500).json({message:"Verification failed"});}
+});
+
+// -------------------- NEXORA ADMIN --------------------
+app.post("/api/admin/auth/login", rateLimit({windowMs:15*60*1000,max:20}), async(req,res)=>{
+  try{
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const password=String(req.body?.password||"");
+    const admin=await prisma.admin.findUnique({where:{email}});
+    if(!admin || admin.status!=="ACTIVE" || !(await bcrypt.compare(password,admin.passwordHash))) return res.status(401).json({message:"Invalid admin login details"});
+    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email}});
+  }catch(e){console.error("Admin login error:",e);res.status(500).json({message:"Admin login failed"});}
+});
+app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email}}));
+app.get("/api/admin/overview",adminAuth,async(req,res)=>{
+  try{
+    const [users,activeUsers,packages,transactions,pendingPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned]=await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({where:{status:"ACTIVE"}}),
+      prisma.package.count({where:{active:true}}),
+      prisma.transaction.count(),
+      prisma.transaction.count({where:{status:"PENDING"}}),
+      prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS"},_sum:{amount:true}}),
+      prisma.withdrawal.count(),
+      prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
+      prisma.commission.aggregate({_sum:{amount:true}})
+    ]);
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,totalCommissions:totalEarned._sum.amount||0,paystackMode:paystackMode()});
+  }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
+});
+app.get("/api/admin/users",adminAuth,async(req,res)=>{
+  try{
+    const q=String(req.query.q||"").trim();
+    const rows=await prisma.user.findMany({where:q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}}]}:undefined,include:{package:true,wallet:true,referredBy:{select:{name:true,email:true}}},orderBy:{createdAt:"desc"},take:200});
+    res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
+  }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
+});
+app.patch("/api/admin/users/:id/status",adminAuth,async(req,res)=>{
+  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
+  catch(e){console.error(e);res.status(500).json({message:"Unable to update user"});}
+});
+app.get("/api/admin/transactions",adminAuth,async(req,res)=>{
+  try{const rows=await prisma.transaction.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
+});
+app.get("/api/admin/withdrawals",adminAuth,async(req,res)=>{
+  try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
+});
+app.patch("/api/admin/withdrawals/:id/status",adminAuth,async(req,res)=>{
+  try{
+    const status=req.body?.status;
+    if(!["PENDING","PROCESSING","PAID","FAILED"].includes(status))return res.status(400).json({message:"Invalid withdrawal status"});
+    const current=await prisma.withdrawal.findUnique({where:{id:req.params.id}});
+    if(!current)return res.status(404).json({message:"Withdrawal not found"});
+    if(current.status!=="PAID" && status==="PAID"){
+      await prisma.$transaction([
+        prisma.withdrawal.update({where:{id:current.id},data:{status}}),
+        prisma.wallet.update({where:{userId:current.userId},data:{pendingBalance:{decrement:current.amount},totalWithdrawn:{increment:current.amount}}}),
+        prisma.transaction.create({data:{userId:current.userId,type:"WITHDRAWAL",amount:current.amount,status:"SUCCESS",reference:`WD-TX-${current.reference}`,metadata:{withdrawalId:current.id,processedBy:req.admin.id}}})
+      ]);
+    } else if(current.status!=="PAID" && status==="FAILED"){
+      await prisma.$transaction([
+        prisma.withdrawal.update({where:{id:current.id},data:{status}}),
+        prisma.wallet.update({where:{userId:current.userId},data:{pendingBalance:{decrement:current.amount},balance:{increment:current.amount}}}),
+        prisma.transaction.create({data:{userId:current.userId,type:"REFUND",amount:current.amount,status:"SUCCESS",reference:`WD-REFUND-${current.reference}`,metadata:{withdrawalId:current.id,processedBy:req.admin.id}}})
+      ]);
+    } else { await prisma.withdrawal.update({where:{id:current.id},data:{status}}); }
+    res.json({message:"Withdrawal status updated"});
+  }catch(e){console.error("Admin withdrawal status error:",e);res.status(500).json({message:"Unable to update withdrawal"});}
+});
+app.get("/api/admin/packages",adminAuth,async(req,res)=>{try{res.json(await prisma.package.findMany({include:{_count:{select:{users:true}}},orderBy:{price:"asc"}}));}catch(e){res.status(500).json({message:"Unable to load packages"});}});
+app.patch("/api/admin/packages/:id",adminAuth,async(req,res)=>{
+  try{const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),active=Boolean(req.body?.active);if(!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0)return res.status(400).json({message:"Package values must be whole non-negative amounts"});const p=await prisma.package.update({where:{id:req.params.id},data:{price,directCommission,level2Commission,active}});res.json(p);}catch(e){console.error(e);res.status(500).json({message:"Unable to update package"});}
+});
+app.post("/api/admin/packages",adminAuth,async(req,res)=>{
+  try{const name=String(req.body?.name||"").trim();const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission);if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0)return res.status(400).json({message:"Enter valid package values"});const p=await prisma.package.create({data:{name,price,directCommission,level2Commission,active:true}});res.status(201).json(p);}catch(e){console.error(e);res.status(500).json({message:e.code==="P2002"?"A package with that name already exists":"Unable to create package"});}
 });
 
 app.post("/api/withdrawals",auth,async(req,res)=>{

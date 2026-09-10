@@ -33,6 +33,11 @@ enum WithdrawalStatus {
   FAILED
 }
 
+enum AdminStatus {
+  ACTIVE
+  SUSPENDED
+}
+
 model User {
   id                String   @id @default(cuid())
   name              String
@@ -124,4 +129,13 @@ model Withdrawal {
 
   @@index([userId])
   @@index([status])
+}
+model Admin {
+  id           String      @id @default(cuid())
+  name         String
+  email        String      @unique
+  passwordHash String
+  status       AdminStatus @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
