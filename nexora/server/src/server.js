@@ -63,6 +63,40 @@ const paystackPhone=v=>{
   if(/^254[17]\d{8}$/.test(n)) return `+${n}`;
   return n;
 };
+const maskPhone=v=>{
+  const n=String(v||"");
+  return n.length>=7 ? `${n.slice(0,4)}****${n.slice(-3)}` : "***";
+};
+const maskEmail=v=>{
+  const e=String(v||"");
+  const [name,domain]=e.split("@");
+  if(!domain) return "***";
+  return `${(name||"").slice(0,2)}***@${domain}`;
+};
+const paystackMode=()=>{
+  const key=process.env.PAYSTACK_SECRET_KEY||"";
+  return key.startsWith("sk_live_")?"live":key.startsWith("sk_test_")?"test":"unknown";
+};
+const logPaystackCharge=(label,{reference,httpStatus,response,phone,email}={})=>{
+  const data=response?.data||{};
+  console.log(`[PAYSTACK ${label}]`,JSON.stringify({
+    reference,
+    mode:paystackMode(),
+    httpStatus,
+    apiStatus:response?.status??null,
+    message:response?.message||null,
+    chargeStatus:data.status||null,
+    displayText:data.display_text||null,
+    gatewayResponse:data.gateway_response||null,
+    channel:data.channel||null,
+    currency:data.currency||null,
+    amount:data.amount??null,
+    paystackReference:data.reference||null,
+    paystackId:data.id||null,
+    phone:maskPhone(phone),
+    email:maskEmail(email)
+  }));
+};
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
 // FIX 3: Health checks so / and /api don't return "Cannot GET"
@@ -125,6 +159,7 @@ app.get("/api/me",auth,async(req,res)=>{
 });
 
 app.post("/api/payments/initialize",auth,async(req,res)=>{
+  const startedAt=Date.now();
   try {
     const {packageId,phone}=req.body;
     const normalizedPhone=cleanPhone(phone||req.user.phone);
@@ -132,20 +167,79 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
     if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
     if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
+
     const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+    const formattedPhone=paystackPhone(normalizedPhone);
+    const payload={
+      email:req.user.email,
+      amount:pkg.price*100,
+      currency:"KES",
+      mobile_money:{phone:formattedPhone,provider:"mpesa"},
+      reference,
+      metadata:{userId:req.user.id,packageId:pkg.id}
+    };
+
+    console.log("[PAYSTACK INIT]",JSON.stringify({
+      reference,mode:paystackMode(),packageId:pkg.id,package:pkg.name,amountKES:pkg.price,
+      phone:maskPhone(formattedPhone),email:maskEmail(req.user.email),startedAt:new Date().toISOString()
+    }));
+
     const r=await fetch("https://api.paystack.co/charge",{
       method:"POST",
       headers:{"Authorization":`Bearer ${process.env.PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json"},
-      body:JSON.stringify({email:req.user.email,amount:pkg.price*100,currency:"KES",mobile_money:{phone:paystackPhone(normalizedPhone),provider:"mpesa"},reference,metadata:{userId:req.user.id,packageId:pkg.id}})
+      body:JSON.stringify(payload)
     });
-    const data=await r.json();
-    if(!r.ok||!data.status) return res.status(400).json({message:data.message||"Unable to start M-Pesa payment"});
-    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",metadata:{packageId:pkg.id,phone:normalizedPhone,paystack:data.data}}});
-    const status=data.data?.status||"pending";
-    if(status==="success") await activatePaidPackage(reference);
-    else if(status==="failed") await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-    res.json({reference,status,display_text:data.data?.display_text||"",message:data.message||"Charge attempted"});
-  } catch(e){console.error(e);res.status(500).json({message:"Payment initialization failed"});}
+    const data=await r.json().catch(()=>({status:false,message:"Paystack returned a non-JSON response"}));
+    logPaystackCharge("INIT RESPONSE",{reference,httpStatus:r.status,response:data,phone:formattedPhone,email:req.user.email});
+
+    if(!r.ok||!data.status){
+      console.error("[PAYSTACK INIT ERROR]",JSON.stringify({reference,httpStatus:r.status,mode:paystackMode(),message:data.message||"Unknown Paystack error",response:data}));
+      return res.status(400).json({
+        message:data.message||"Unable to start M-Pesa payment",
+        reference,
+        paystack_http_status:r.status,
+        paystack_status:data.data?.status||null,
+        display_text:data.data?.display_text||""
+      });
+    }
+
+    const chargeStatus=data.data?.status||"pending";
+    const safePaystack={
+      status:data.data?.status||null,
+      display_text:data.data?.display_text||"",
+      gateway_response:data.data?.gateway_response||null,
+      channel:data.data?.channel||null,
+      currency:data.data?.currency||"KES",
+      amount:data.data?.amount??pkg.price*100,
+      reference:data.data?.reference||reference,
+      id:data.data?.id||null,
+      message:data.message||null,
+      http_status:r.status,
+      mode:paystackMode()
+    };
+
+    await prisma.transaction.create({data:{
+      userId:req.user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,reference,status:"PENDING",
+      metadata:{packageId:pkg.id,phone:normalizedPhone,paystack:safePaystack,diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}
+    }});
+
+    if(chargeStatus==="success") await activatePaidPackage(reference);
+    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+
+    res.json({
+      reference,
+      status:chargeStatus,
+      display_text:data.data?.display_text||"",
+      message:data.message||"",
+      paystack_http_status:r.status,
+      paystack_status:chargeStatus,
+      gateway_response:data.data?.gateway_response||"",
+      paystack_mode:paystackMode()
+    });
+  } catch(e){
+    console.error("[PAYSTACK INIT EXCEPTION]",e);
+    res.status(500).json({message:"Payment initialization failed"});
+  }
 });
 
 async function activatePaidPackage(reference){
@@ -183,14 +277,36 @@ app.get("/api/payments/status/:reference",auth,async(req,res)=>{
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
     if(!tx || tx.userId!==req.user.id) return res.status(404).json({message:"Payment reference not found"});
     if(tx.status==="SUCCESS") return res.json({status:"success",display_text:"Payment confirmed. Your package is active."});
+
     const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
-    const d=await r.json();
-    if(!r.ok || !d.status) return res.status(400).json({message:d.message||"Unable to check payment status"});
+    const d=await r.json().catch(()=>({status:false,message:"Paystack returned a non-JSON response"}));
+    logPaystackCharge("STATUS RESPONSE",{reference:req.params.reference,httpStatus:r.status,response:d,email:req.user.email});
+
+    if(!r.ok || !d.status){
+      console.error("[PAYSTACK STATUS ERROR]",JSON.stringify({reference:req.params.reference,httpStatus:r.status,mode:paystackMode(),message:d.message||"Unknown Paystack error",response:d}));
+      return res.status(400).json({message:d.message||"Unable to check payment status",reference:req.params.reference,paystack_http_status:r.status});
+    }
+
     const status=d.data?.status||"pending";
+    const oldMeta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
+    const oldPaystack=(oldMeta.paystack&&typeof oldMeta.paystack==="object")?oldMeta.paystack:{};
+    await prisma.transaction.update({where:{reference:req.params.reference},data:{
+      metadata:{...oldMeta,paystack:{...oldPaystack,status,display_text:d.data?.display_text||"",gateway_response:d.data?.gateway_response||null,channel:d.data?.channel||null,currency:d.data?.currency||"KES",amount:d.data?.amount??null,last_checked_at:new Date().toISOString(),http_status:r.status,mode:paystackMode()}}
+    }});
+
     if(status==="success") await activatePaidPackage(req.params.reference);
-    else if(status==="failed") await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
-    res.json({status,display_text:d.data?.display_text||"",message:d.message||"Charge attempted"});
-  }catch(e){console.error("PAYMENT STATUS ERROR:",e);res.status(500).json({message:"Payment status check failed"});}
+    else if(["failed","timeout"].includes(status)) await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
+
+    res.json({
+      status,
+      display_text:d.data?.display_text||"",
+      message:d.message||"",
+      reference:req.params.reference,
+      paystack_http_status:r.status,
+      gateway_response:d.data?.gateway_response||"",
+      paystack_mode:paystackMode()
+    });
+  }catch(e){console.error("[PAYMENT STATUS EXCEPTION]",e);res.status(500).json({message:"Payment status check failed"});}
 });
 
 // Kept for compatibility with older frontends. The Charge API endpoint above is the
