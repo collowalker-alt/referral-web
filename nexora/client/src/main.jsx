@@ -55,7 +55,20 @@ function Instructions({onClose}){return <div className="modalbackdrop" onClick={
 function SupportButton(){return <a className="supportfloat" href="https://wa.me/254703265774" target="_blank" rel="noreferrer" aria-label="Contact NEXORA support on WhatsApp"><MessageCircle size={20}/><span>Support</span></a>}
 function PublicLanding({onLogin}){
  const [mode,setMode]=useState(null);
+ const [initialResetToken,setInitialResetToken]=useState("");
  const go=(m)=>setMode(m);
+ useEffect(()=>{
+  const params=new URLSearchParams(window.location.search);
+  const reset=params.get("reset");
+  if(reset){
+   setInitialResetToken(reset);
+   setMode("reset");
+   // Clean URL without reloading
+   const url=new URL(window.location.href);
+   url.searchParams.delete("reset");
+   window.history.replaceState({},"",url.pathname+url.search+url.hash);
+  }
+ },[]);
  return <div className="publicsite">
   <header className="publicnav"><div className="publicbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div></div><nav><a href="#features">Features</a><a href="#how">How it works</a><a href="#packages">Membership</a><a href="#faq">FAQ</a></nav><div className="publicactions"><PWAInstall compact/><button className="secondary" onClick={()=>go("login")}>Log in</button><button className="primary" onClick={()=>go("register")}>Join NEXORA</button></div></header>
   <main>
@@ -68,11 +81,247 @@ function PublicLanding({onLogin}){
    <section className="publiccta"><div><span className="pill">READY WHEN YOU ARE</span><h2>Build your NEXORA workspace.</h2><p>Start with an account, explore the platform and decide what membership level fits your goals.</p></div><button className="primary" onClick={()=>go("register")}>Create account <ArrowUpRight size={17}/></button></section>
   </main>
   <footer className="publicfooter"><div><b>NEXORA.</b><p>Connect. Grow. Learn. Build.</p></div><div className="footerlinks"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/membership">Membership rules</a><a href="#faq">Support</a></div><small>© {new Date().getFullYear()} NEXORA. Information is provided for platform use and does not constitute a guarantee of income.</small></footer>
-  {mode&&<AuthModal mode={mode} onClose={()=>setMode(null)} onLogin={onLogin}/>}<SupportButton/>
+  {mode&&<AuthModal mode={mode} initialResetToken={initialResetToken} onClose={()=>{setMode(null);setInitialResetToken("")}} onLogin={onLogin}/>}<SupportButton/>
  </div>
 }
-function AuthModal({mode:onMode,onClose,onLogin}){const [mode,setMode]=useState(onMode),[f,setF]=useState({}),[err,setErr]=useState(""),[busy,setBusy]=useState(false),[showPassword,setShowPassword]=useState(false),[showConfirmPassword,setShowConfirmPassword]=useState(false),[confirmPassword,setConfirmPassword]=useState("");useEffect(()=>setMode(onMode),[onMode]);const ref=new URLSearchParams(location.search).get("ref")||"";const passwordMatch=mode==="register"&&confirmPassword.length>0&&f.password===confirmPassword;const passwordMismatch=mode==="register"&&confirmPassword.length>0&&f.password!==confirmPassword;const switchMode=m=>{setMode(m);setErr("");setShowPassword(false);setShowConfirmPassword(false);setConfirmPassword("")};const submit=async e=>{e.preventDefault();setErr("");if(mode==="register"&&f.password!==confirmPassword)return setErr("Passwords do not match.");if(mode==="register"&&!validPhone(f.phone))return setErr("Enter a valid Kenyan phone number: 07…, 011…, 2547… or 2541…. ");setBusy(true);try{const d=await api(`/auth/${mode==="login"?"login":"register"}`,{method:"POST",body:JSON.stringify({...f,phone:mode==="register"?cleanPhone(f.phone):f.phone,referralCode:f.referralCode||ref})});localStorage.setItem("token",d.token);await onLogin();onClose()}catch(e){setErr(e.message)}finally{setBusy(false)}};return <div className="modalbackdrop" onClick={onClose}><div className="modal authmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div className="memberbrand"><img src="/nexora-logo.png"/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="authtabs"><button className={mode==="login"?"active":""} onClick={()=>switchMode("login")}>Log in</button><button className={mode==="register"?"active":""} onClick={()=>switchMode("register")}>Create account</button></div><h2>{mode==="login"?"Welcome back":"Start your NEXORA journey"}</h2><p className="muted">{mode==="login"?"Sign in to your member workspace.":"Create your account to access the full member workspace."}</p>{err&&<div className="error">{err}</div>}<form onSubmit={submit}>{mode==="register"&&<><input required placeholder="Full name" autoComplete="name" onChange={e=>setF({...f,name:e.target.value})}/><input required inputMode="tel" maxLength="13" placeholder="Phone: 07…, 011…, 2547… or 2541…" autoComplete="tel" onChange={e=>setF({...f,phone:e.target.value})}/></>}<input required type="email" placeholder="Email" autoComplete="email" onChange={e=>setF({...f,email:e.target.value})}/><div className="passwordfield"><input required minLength="8" type={showPassword?"text":"password"} placeholder="Password (8+ characters)" autoComplete={mode==="login"?"current-password":"new-password"} onChange={e=>setF({...f,password:e.target.value})}/><button type="button" className="passwordtoggle" aria-label={showPassword?"Hide password":"Show password"} title={showPassword?"Hide password":"Show password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showPassword?"Hide":"Show"}</span></button></div>{mode==="register"&&<div className="confirm-password-wrap"><div className="passwordfield"><input required minLength="8" type={showConfirmPassword?"text":"password"} placeholder="Confirm password" autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)}/><button type="button" className="passwordtoggle" aria-label={showConfirmPassword?"Hide confirm password":"Show confirm password"} title={showConfirmPassword?"Hide confirm password":"Show confirm password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowConfirmPassword(v=>!v)}>{showConfirmPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showConfirmPassword?"Hide":"Show"}</span></button></div>{passwordMatch&&<div className="passwordmatch success">✓ Passwords match</div>}{passwordMismatch&&<div className="passwordmatch mismatch">✕ Passwords do not match</div>}</div>}{mode==="register"&&<input placeholder={`Referral code ${ref?"(detected)":"(optional)"}`} defaultValue={ref} onChange={e=>setF({...f,referralCode:e.target.value})}/>}<button disabled={busy} className="primary">{busy?"Please wait…":mode==="login"?"Login securely":"Create my account"}</button></form><p className="muted small">By continuing, you agree to review the NEXORA Terms, Privacy and Membership Rules.</p></div></div>}
-function LegalPage({type}){const content={terms:["Terms of Service","Use NEXORA responsibly. Membership, referral, payment and withdrawal rules shown in the platform apply to your account. No statement on NEXORA is a guarantee of income or financial return. You are responsible for reviewing the applicable rules before purchasing a membership."],privacy:["Privacy Policy","NEXORA uses account information such as your name, email, phone number and platform activity to provide membership, payment, referral, support and security functions. Access is limited to operational needs and applicable legal requirements."],membership:["Membership & Referral Rules","Package levels provide the benefits configured for each level. Referral commissions are recorded only when the qualifying purchase and package eligibility rules are satisfied. Higher packages do not guarantee earnings. Withdrawal requests are subject to your available balance, configured limits and review rules."]};const [title,text]=content[type]||content.terms;return <div className="legalpage"><div className="legalcard"><div className="memberbrand"><img src="/nexora-logo.png"/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div><span className="pill">NEXORA POLICY</span><h1>{title}</h1><p>{text}</p><h3>Questions?</h3><p>Contact NEXORA support through the member Help & Support center.</p><a className="secondary" href="/">← Back to NEXORA</a></div></div>}
+function passwordStrength(pw){
+  if(!pw) return {score:0,label:"",cls:""};
+  let s=0;
+  if(pw.length>=8) s++;
+  if(pw.length>=12) s++;
+  if(/[A-Za-z]/.test(pw) && /\d/.test(pw)) s++;
+  if(/[^A-Za-z0-9]/.test(pw)) s++;
+  if(s<=1) return {score:s,label:"Weak",cls:"weak"};
+  if(s===2) return {score:s,label:"Fair",cls:"fair"};
+  if(s===3) return {score:s,label:"Good",cls:"good"};
+  return {score:s,label:"Strong",cls:"strong"};
+}
+function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
+  const [mode,setMode]=useState(onMode);
+  const [f,setF]=useState({name:"",email:"",phone:"",password:"",referralCode:""});
+  const [confirmPassword,setConfirmPassword]=useState("");
+  const [err,setErr]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [showPassword,setShowPassword]=useState(false);
+  const [showConfirmPassword,setShowConfirmPassword]=useState(false);
+  const [agreed,setAgreed]=useState(false);
+  const [successMsg,setSuccessMsg]=useState("");
+  const [resetToken,setResetToken]=useState(initialResetToken||"");
+  const [devResetToken,setDevResetToken]=useState("");
+  const modalRef=React.useRef(null);
+  const ref=new URLSearchParams(location.search).get("ref")||"";
+
+  useEffect(()=>{setMode(onMode);setErr("");setSuccessMsg("");setDevResetToken("");if(onMode==="reset"&&initialResetToken)setResetToken(initialResetToken);},[onMode,initialResetToken]);
+  useEffect(()=>{
+    if(ref && !f.referralCode) setF(prev=>({...prev,referralCode:ref.toUpperCase()}));
+  },[ref]);
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==="Escape") onClose();};
+    window.addEventListener("keydown",onKey);
+    // basic focus trap: focus first input
+    const t=setTimeout(()=>{const el=modalRef.current?.querySelector("input:not([type=hidden]),button.primary");el?.focus?.();},50);
+    return ()=>{window.removeEventListener("keydown",onKey);clearTimeout(t);};
+  },[mode,onClose]);
+
+  const passwordMatch=mode==="register"&&confirmPassword.length>0&&f.password===confirmPassword;
+  const passwordMismatch=mode==="register"&&confirmPassword.length>0&&f.password!==confirmPassword;
+  const strength=passwordStrength(f.password);
+  const phoneClean=cleanPhone(f.phone);
+  const phoneValid=f.phone?validPhone(f.phone):null;
+  const canSubmit=()=>{
+    if(busy) return false;
+    if(mode==="login") return f.email && f.password;
+    if(mode==="register") return f.name && f.email && f.phone && f.password && confirmPassword && passwordMatch && agreed && phoneValid!==false;
+    if(mode==="forgot") return f.email;
+    if(mode==="reset") return resetToken && f.password && confirmPassword && f.password===confirmPassword;
+    return false;
+  };
+
+  const switchMode=m=>{
+    setMode(m);setErr("");setSuccessMsg("");setShowPassword(false);setShowConfirmPassword(false);
+    setConfirmPassword("");setAgreed(false);setDevResetToken("");
+    if(m!=="reset") setResetToken("");
+  };
+
+  const setField=(k,v)=>setF(prev=>({...prev,[k]:v}));
+
+  const submit=async e=>{
+    e.preventDefault();setErr("");setSuccessMsg("");
+    if(mode==="register"){
+      if(f.password!==confirmPassword) return setErr("Passwords do not match.");
+      if(!validPhone(f.phone)) return setErr("Enter a valid Kenyan phone number: 07…, 011…, 2547… or 2541….");
+      if(!agreed) return setErr("Please accept the Terms, Privacy Policy and Membership Rules.");
+      if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
+    }
+    if(mode==="reset"){
+      if(f.password!==confirmPassword) return setErr("Passwords do not match.");
+      if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
+    }
+    setBusy(true);
+    try{
+      if(mode==="login"||mode==="register"){
+        const body={...f,phone:mode==="register"?cleanPhone(f.phone):f.phone,referralCode:(f.referralCode||ref||"").toUpperCase(),website:""};
+        const d=await api(`/auth/${mode==="login"?"login":"register"}`,{method:"POST",body:JSON.stringify(body)});
+        if(mode==="register"){
+          setSuccessMsg("Account created successfully. Opening your workspace…");
+          localStorage.setItem("token",d.token);
+          await new Promise(r=>setTimeout(r,700));
+          await onLogin();onClose();
+        }else{
+          localStorage.setItem("token",d.token);
+          await onLogin();onClose();
+        }
+      }else if(mode==="forgot"){
+        const d=await api("/auth/forgot-password",{method:"POST",body:JSON.stringify({email:f.email})});
+        setSuccessMsg(d.message||"If an account exists, reset instructions were prepared.");
+        if(d.resetToken){setDevResetToken(d.resetToken);setResetToken(d.resetToken);}
+      }else if(mode==="reset"){
+        const d=await api("/auth/reset-password",{method:"POST",body:JSON.stringify({token:resetToken,password:f.password})});
+        setSuccessMsg(d.message||"Password updated. You can log in now.");
+        setTimeout(()=>switchMode("login"),1200);
+      }
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+
+  const titles={login:"Welcome back",register:"Start your NEXORA journey",forgot:"Reset your password",reset:"Choose a new password"};
+  const subtitles={login:"Sign in to your member workspace.",register:"Create your account to access the full member workspace.",forgot:"Enter the email on your NEXORA account. We will prepare a reset link.",reset:"Enter the reset token and your new password."};
+
+  return <div className="modalbackdrop" onClick={onClose} role="presentation">
+    <div className="modal authmodal" ref={modalRef} onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div className="modalhead">
+        <div className="memberbrand"><img src="/nexora-logo.png" alt=""/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div>
+        <button className="iconbtn" onClick={onClose} aria-label="Close"><X size={20}/></button>
+      </div>
+      {(mode==="login"||mode==="register")&&(
+        <div className="authtabs">
+          <button type="button" className={mode==="login"?"active":""} onClick={()=>switchMode("login")}>Log in</button>
+          <button type="button" className={mode==="register"?"active":""} onClick={()=>switchMode("register")}>Create account</button>
+        </div>
+      )}
+      <h2 id="auth-title">{titles[mode]||titles.login}</h2>
+      <p className="muted">{subtitles[mode]||subtitles.login}</p>
+      {err&&<div className="error" role="alert">{err}</div>}
+      {successMsg&&<div className="successbanner" role="status">{successMsg}</div>}
+      <form onSubmit={submit} noValidate>
+        <input type="text" name="website" value="" readOnly tabIndex={-1} autoComplete="off" className="honeypot" aria-hidden="true"/>
+        {mode==="register"&&<>
+          <label className="fieldlabel">Full name
+            <input required autoComplete="name" value={f.name} onChange={e=>setField("name",e.target.value)} placeholder="Your full name"/>
+          </label>
+          <label className="fieldlabel">Phone (M-Pesa)
+            <input required inputMode="tel" maxLength={13} autoComplete="tel" value={f.phone} onChange={e=>setField("phone",e.target.value)} placeholder="07…, 011…, 2547… or 2541…"/>
+            {f.phone&&phoneValid===true&&<span className="fieldhint ok">✓ Valid Kenyan number</span>}
+            {f.phone&&phoneValid===false&&<span className="fieldhint bad">Use 07…, 011…, 2547… or 2541…</span>}
+            {!f.phone&&<span className="fieldhint">We will use this number for M-Pesa payment requests.</span>}
+          </label>
+        </>}
+        {(mode==="login"||mode==="register"||mode==="forgot")&&(
+          <label className="fieldlabel">Email
+            <input required type="email" autoComplete="email" value={f.email} onChange={e=>setField("email",e.target.value)} placeholder="you@example.com"/>
+          </label>
+        )}
+        {mode==="reset"&&(
+          <label className="fieldlabel">Reset token
+            <input required value={resetToken} onChange={e=>setResetToken(e.target.value.trim())} placeholder="Paste the reset token"/>
+          </label>
+        )}
+        {(mode==="login"||mode==="register"||mode==="reset")&&(
+          <label className="fieldlabel">Password
+            <div className="passwordfield">
+              <input required minLength={8} type={showPassword?"text":"password"} autoComplete={mode==="login"?"current-password":"new-password"} value={f.password} onChange={e=>setField("password",e.target.value)} placeholder={mode==="login"?"Your password":"At least 8 characters, letter + number"}/>
+              <button type="button" className="passwordtoggle" aria-label={showPassword?"Hide password":"Show password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showPassword?"Hide":"Show"}</span></button>
+            </div>
+            {(mode==="register"||mode==="reset")&&f.password&&(
+              <div className={`strengthmeter ${strength.cls}`}><i style={{width:`${Math.min(100,strength.score*25)}%`}}/><span>{strength.label} · use a letter and a number</span></div>
+            )}
+          </label>
+        )}
+        {(mode==="register"||mode==="reset")&&(
+          <label className="fieldlabel">Confirm password
+            <div className="passwordfield">
+              <input required minLength={8} type={showConfirmPassword?"text":"password"} autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password"/>
+              <button type="button" className="passwordtoggle" aria-label={showConfirmPassword?"Hide confirm password":"Show confirm password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowConfirmPassword(v=>!v)}>{showConfirmPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showConfirmPassword?"Hide":"Show"}</span></button>
+            </div>
+            {passwordMatch&&<div className="passwordmatch success">✓ Passwords match</div>}
+            {passwordMismatch&&<div className="passwordmatch mismatch">✕ Passwords do not match</div>}
+          </label>
+        )}
+        {mode==="register"&&(
+          <label className="fieldlabel">Referral code <span className="optional">(optional)</span>
+            <input value={f.referralCode} onChange={e=>setField("referralCode",e.target.value.toUpperCase())} placeholder={ref?"Detected from link":"Optional code"} autoComplete="off"/>
+            {ref&&f.referralCode===ref.toUpperCase()&&<span className="fieldhint ok">Referral code applied from your invite link</span>}
+          </label>
+        )}
+        {mode==="register"&&(
+          <label className="termscheck">
+            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} required/>
+            <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer">Terms</a>, <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="/membership" target="_blank" rel="noreferrer">Membership Rules</a>.</span>
+          </label>
+        )}
+        <button disabled={!canSubmit()} className="primary" type="submit">
+          {busy?"Please wait…":mode==="login"?"Login securely":mode==="register"?"Create my account":mode==="forgot"?"Send reset instructions":"Update password"}
+        </button>
+      </form>
+      {mode==="login"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("forgot")}>Forgot password?</button></p>}
+      {mode==="forgot"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("login")}>← Back to login</button>{devResetToken&&<button type="button" className="linkbtn" onClick={()=>switchMode("reset")}>Continue with reset token</button>}</p>}
+      {mode==="reset"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("login")}>← Back to login</button></p>}
+      {mode==="forgot"&&devResetToken&&<div className="devtokenbox"><small>Development only — email is not configured. Your reset token:</small><code>{devResetToken}</code></div>}
+      {(mode==="login"||mode==="register")&&<p className="muted small">By continuing you confirm that NEXORA does not guarantee income. Review the membership rules before purchasing a package.</p>}
+    </div>
+  </div>;
+}
+
+function LegalPage({type}){
+  const pages={
+    terms:{
+      title:"Terms of Service",
+      sections:[
+        ["Acceptance","By creating a NEXORA account or using the platform you agree to these Terms, the Privacy Policy and the Membership & Referral Rules."],
+        ["Account responsibility","You are responsible for keeping your login details private, for the accuracy of your profile information, and for activity that occurs under your account."],
+        ["Membership & payments","Package purchases and upgrades are processed through the payment providers configured by NEXORA (including Paystack / M-Pesa). Charges, upgrades (price difference only) and refunds follow the rules shown in the platform at the time of the transaction."],
+        ["No income guarantee","Nothing on NEXORA constitutes a guarantee of income, profit or financial return. Referral commissions are recorded only when qualifying purchases and package eligibility rules are satisfied."],
+        ["Acceptable use","You must not misrepresent the platform, make guaranteed-income claims, share accounts, attempt to manipulate referrals, or use NEXORA for unlawful activity."],
+        ["Suspension","NEXORA may suspend or restrict accounts that violate these terms, present security risk, or require review for payment or withdrawal integrity."],
+        ["Contact","Questions about these terms can be raised through the in-app Help & Support centre or the published support channel."]
+      ]
+    },
+    privacy:{
+      title:"Privacy Policy",
+      sections:[
+        ["What we collect","Account data such as name, email, phone number, referral relationships, package status, wallet and transaction records, support messages and basic device/session information needed to operate the service."],
+        ["How we use it","To provide membership, payments, referral tracking, analytics, Academy progress, support, security and account recovery functions."],
+        ["Payments","Payment processing is handled by third-party providers (e.g. Paystack). NEXORA does not store full card or M-Pesa PIN data."],
+        ["Sharing","We share data only as needed with payment processors, infrastructure providers, and when required by law. We do not sell personal data."],
+        ["Security","Access is limited to operational needs. You should use a strong unique password and never share it with anyone, including people claiming to be support."],
+        ["Retention","We keep account and transaction records for as long as needed to operate the platform, meet legal obligations and resolve disputes."],
+        ["Your choices","You may update profile details in the Security Centre and contact support for account-related requests."]
+      ]
+    },
+    membership:{
+      title:"Membership & Referral Rules",
+      sections:[
+        ["Package eligibility","Starter can earn from Starter purchases; Growth from Starter + Growth; Pro from Starter + Growth + Pro; Elite from Starter through Elite; Premium from all five packages. Commission amounts come from the package purchased by the referral."],
+        ["Recorded commissions only","Commissions are recorded when a qualifying referral purchase completes and your package level is eligible. The UI describes eligibility and recorded outcomes — never guaranteed income."],
+        ["Upgrades","Upgrading charges only the price difference between your current package and the new package."],
+        ["Withdrawals","Withdrawal requests depend on available balance, package withdrawal limits and review. Processing times and outcomes can vary."],
+        ["Referrals","Your personal referral code/link attributes new members who register with it. Level 1 and Level 2 structures follow the platform configuration."],
+        ["Fair use","Artificial inflation of referrals, misleading promotion, or abuse of payment flows may result in commission adjustments or account restrictions."],
+        ["Changes","NEXORA may update package prices, commission parameters and platform features. Material changes will be reflected in the live product and, where appropriate, announcements."]
+      ]
+    }
+  };
+  const page=pages[type]||pages.terms;
+  return <div className="legalpage"><div className="legalcard">
+    <div className="memberbrand"><img src="/nexora-logo.png" alt=""/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div>
+    <span className="pill">NEXORA POLICY</span>
+    <h1>{page.title}</h1>
+    {page.sections.map(([h,t])=><div key={h} className="legalsection"><h3>{h}</h3><p>{t}</p></div>)}
+    <h3>Questions?</h3>
+    <p>Contact NEXORA support through the member Help & Support centre.</p>
+    <a className="secondary" href="/">← Back to NEXORA</a>
+  </div></div>;
+}
 
 
 const adminApi=async(path,opts={})=>{const token=localStorage.getItem("adminToken");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Admin request failed");return d};

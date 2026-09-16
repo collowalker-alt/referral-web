@@ -51,6 +51,8 @@ model User {
   packageId         String?
   package           Package? @relation(fields: [packageId], references: [id])
   status            UserStatus @default(ACTIVE)
+  resetToken        String?
+  resetTokenExpires DateTime?
   wallet            Wallet?
   transactions      Transaction[]
   commissionsEarned Commission[] @relation("CommissionReceiver")
@@ -62,6 +64,7 @@ model User {
 
   @@index([referredById])
   @@index([packageId])
+  @@index([resetToken])
 }
 
 model Package {

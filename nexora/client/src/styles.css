@@ -446,3 +446,35 @@ button,input,textarea,select{max-width:100%}
   .authmodal form{padding-bottom:2px}
   .authmodal>p.small{padding-bottom:4px}
 }
+
+/* Auth modal enhancements */
+.authmodal .fieldlabel{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:#9eb2c9;letter-spacing:.02em}
+.authmodal .fieldlabel .optional{font-weight:500;color:#6f829a;text-transform:none;letter-spacing:0}
+.authmodal .fieldhint{font-size:11px;font-weight:500;color:#6f829a;margin-top:2px}
+.authmodal .fieldhint.ok{color:#42e6a4}
+.authmodal .fieldhint.bad{color:#ff6b78}
+.authmodal .honeypot{position:absolute;left:-9999px;opacity:0;height:0;width:0;pointer-events:none}
+.authmodal .termscheck{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;line-height:1.45;color:#b7c6d8;font-weight:500;padding:4px 0}
+.authmodal .termscheck input{width:18px;height:18px;margin-top:2px;accent-color:#38d9a9;flex-shrink:0}
+.authmodal .termscheck a{color:#38d9a9;text-decoration:underline;text-underline-offset:2px}
+.authmodal .strengthmeter{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 10px;margin:6px 0 4px;height:auto}
+.authmodal .strengthmeter i{display:block;grid-column:1/-1;height:6px;border-radius:99px;background:#38d9a9;transition:width .2s ease,background .2s ease;max-width:100%}
+.authmodal .strengthmeter.weak i{background:#ff6b78}
+.authmodal .strengthmeter.fair i{background:#f0b429}
+.authmodal .strengthmeter.good i{background:#38d9a9}
+.authmodal .strengthmeter.strong i{background:#20c997}
+.authmodal .strengthmeter span{grid-column:1/-1;font-size:11px;color:#7f8899;font-weight:500}
+.authmodal .strengthmeter{position:relative}
+.authmodal .strengthmeter::before{content:"";grid-column:1/-1;height:6px;background:#0a1624;border-radius:99px;position:absolute;left:0;right:0;top:0;z-index:0}
+.authmodal .strengthmeter i{position:relative;z-index:1}
+.authmodal .successbanner{margin:0 24px 14px;padding:12px 14px;border-radius:12px;background:rgba(56,217,169,.1);border:1px solid rgba(56,217,169,.35);color:#9af0d0;font-size:13px;font-weight:600}
+.authmodal .authlinks{display:flex;flex-wrap:wrap;gap:12px;padding:0 24px 8px;margin:0}
+.authmodal .linkbtn{background:none;border:none;color:#38d9a9;font-size:13px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
+.authmodal .linkbtn:hover{color:#7eefc7}
+.authmodal .devtokenbox{margin:0 24px 16px;padding:12px;border-radius:12px;background:#0a1624;border:1px dashed #35506d}
+.authmodal .devtokenbox small{display:block;color:#8fa2b9;margin-bottom:6px;font-size:11px}
+.authmodal .devtokenbox code{display:block;word-break:break-all;font-size:12px;color:#e8f4ff;background:#061018;padding:8px;border-radius:8px}
+.authmodal form .primary:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.legalpage .legalsection{margin:18px 0}
+.legalpage .legalsection h3{margin:0 0 6px;font-size:15px;color:#e8f0fa}
+.legalpage .legalsection p{margin:0;color:#9eb2c9;line-height:1.6;font-size:14px}

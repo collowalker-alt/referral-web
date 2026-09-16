@@ -9,6 +9,7 @@ import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
+import { Resend } from "resend";
 
 dotenv.config();
 const prisma = new PrismaClient();
@@ -39,10 +40,57 @@ app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(re
 });
 
 app.use(express.json({ limit: "100kb" }));
-app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 100 }));
+app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 80 }));
+const registerLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, message: { message: "Too many registration attempts. Please try again later." } });
+const forgotLimiter = rateLimit({ windowMs: 60*60*1000, max: 8, message: { message: "Too many password reset requests. Please try again later." } });
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const EMAIL_FROM = process.env.EMAIL_FROM || "NEXORA <onboarding@resend.dev>";
+const APP_URL = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
+
+async function sendPasswordResetEmail({ to, name, rawToken }) {
+  if (!resend) {
+    console.warn("[EMAIL] RESEND_API_KEY not set — password reset email was not sent");
+    return { skipped: true };
+  }
+  const resetUrl = `${APP_URL}/?reset=${encodeURIComponent(rawToken)}`;
+  const displayName = String(name || "there").split(" ")[0];
+  const { data, error } = await resend.emails.send({
+    from: EMAIL_FROM,
+    to: [to],
+    subject: "Reset your NEXORA password",
+    html: `
+      <div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111">
+        <h2 style="margin:0 0 12px;color:#0f172a">Reset your password</h2>
+        <p>Hi ${displayName},</p>
+        <p>We received a request to reset your NEXORA account password. This link expires in <strong>1 hour</strong>.</p>
+        <p style="margin:28px 0">
+          <a href="${resetUrl}" style="background:#0d9488;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block">
+            Choose a new password
+          </a>
+        </p>
+        <p style="color:#555;font-size:14px">Or paste this token in the NEXORA reset form:</p>
+        <code style="display:block;background:#f4f4f5;padding:12px;border-radius:8px;word-break:break-all;font-size:13px">${rawToken}</code>
+        <p style="color:#888;font-size:13px;margin-top:24px">If you did not request this, you can ignore this email. Your password will stay the same.</p>
+        <p style="color:#aaa;font-size:12px;margin-top:32px">NEXORA · Member platform</p>
+      </div>
+    `,
+    text: `Hi ${displayName},\n\nReset your NEXORA password (expires in 1 hour):\n${resetUrl}\n\nOr use this token: ${rawToken}\n\nIf you did not request this, ignore this email.`,
+  });
+  if (error) {
+    console.error("[EMAIL] Resend error:", error);
+    throw new Error(error.message || "Failed to send reset email");
+  }
+  console.log(`[EMAIL] Password reset sent to ${to} id=${data?.id || "?"}`);
+  return data;
+}
+
 
 const sign = user => jwt.sign({ id:user.id }, JWT_SECRET, { expiresIn:"7d" });
 const auth = async (req,res,next) => {
@@ -125,20 +173,24 @@ app.get("/", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0
 app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 
-app.post("/api/auth/register", async (req,res)=>{
+app.post("/api/auth/register", registerLimiter, async (req,res)=>{
   try {
-    const {name,email,phone,password,referralCode}=req.body;
+    const {name,email,phone,password,referralCode,website}=req.body;
+    // Honeypot — bots often fill hidden fields
+    if(website) return res.status(201).json({token:"",user:null,ok:true});
     const normalizedPhone=cleanPhone(phone);
-    if(!name||!email||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
-    if(password.length<8) return res.status(400).json({message:"Password must be at least 8 characters"});
+    const normalizedEmail=String(email||"").trim().toLowerCase();
+    if(!name||!normalizedEmail||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
+    if(!EMAIL_RE.test(normalizedEmail)) return res.status(400).json({message:"Enter a valid email address"});
+    if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
     if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
-    const exists=await prisma.user.findFirst({where:{OR:[{email:email.toLowerCase()},{phone:normalizedPhone}]}});
+    const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
-    if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:referralCode.toUpperCase()}});
+    if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:String(referralCode).trim().toUpperCase()}});
     const hash=await bcrypt.hash(password,12);
     const user=await prisma.user.create({data:{
-      name,email:email.toLowerCase(),phone:normalizedPhone,passwordHash:hash,referralCode:makeCode(name),
+      name:String(name).trim(),email:normalizedEmail,phone:normalizedPhone,passwordHash:hash,referralCode:makeCode(name),
       referredById:parent?.id,wallet:{create:{}}
     }});
     res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
@@ -146,11 +198,56 @@ app.post("/api/auth/register", async (req,res)=>{
 });
 
 app.post("/api/auth/login", async (req,res)=>{
-  const {email,password}=req.body;
-  const user=await prisma.user.findUnique({where:{email:(email||"").toLowerCase()}});
-  if(!user || !(await bcrypt.compare(password||"",user.passwordHash))) return res.status(401).json({message:"Invalid login details"});
-  if(user.status!=="ACTIVE") return res.status(403).json({message:"Account is suspended"});
-  res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+  try {
+    const {email,password}=req.body;
+    const user=await prisma.user.findUnique({where:{email:String(email||"").toLowerCase()}});
+    if(!user || !(await bcrypt.compare(password||"",user.passwordHash))) return res.status(401).json({message:"Invalid login details"});
+    if(user.status!=="ACTIVE") return res.status(403).json({message:"Account is suspended"});
+    res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+  } catch(e){ console.error(e); res.status(500).json({message:"Login failed"}); }
+});
+
+app.post("/api/auth/forgot-password", forgotLimiter, async (req,res)=>{
+  try {
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    if(!email || !EMAIL_RE.test(email)) return res.status(400).json({message:"Enter a valid email address"});
+    const user=await prisma.user.findUnique({where:{email}});
+    // Always return the same message to avoid email enumeration
+    const generic={message:"If an account exists for that email, a password reset link has been sent. Check your inbox (and spam)."};
+    if(!user || user.status!=="ACTIVE") return res.json(generic);
+    const rawToken=crypto.randomBytes(32).toString("hex");
+    const tokenHash=crypto.createHash("sha256").update(rawToken).digest("hex");
+    const expires=new Date(Date.now()+60*60*1000); // 1 hour
+    await prisma.user.update({where:{id:user.id},data:{resetToken:tokenHash,resetTokenExpires:expires}});
+    try {
+      await sendPasswordResetEmail({ to: email, name: user.name, rawToken });
+    } catch (mailErr) {
+      console.error("[PASSWORD RESET EMAIL]", mailErr.message || mailErr);
+      // Do not reveal mail failures to the client
+    }
+    // Dev/staging only: still log and optionally expose token when email is not required
+    console.log(`[PASSWORD RESET] email=${email} expires=${expires.toISOString()}`);
+    const payload={...generic, message:"If an account exists for that email, a password reset link has been sent. Check your inbox (and spam)."};
+    if(process.env.NODE_ENV!=="production" || process.env.EXPOSE_RESET_TOKEN==="1"){
+      payload.resetToken=rawToken;
+      payload.hint="Development only — token also returned in API response.";
+    }
+    res.json(payload);
+  } catch(e){ console.error(e); res.status(500).json({message:"Unable to process password reset request"}); }
+});
+
+app.post("/api/auth/reset-password", async (req,res)=>{
+  try {
+    const {token,password}=req.body||{};
+    if(!token || !password) return res.status(400).json({message:"Token and new password are required"});
+    if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
+    const tokenHash=crypto.createHash("sha256").update(String(token)).digest("hex");
+    const user=await prisma.user.findFirst({where:{resetToken:tokenHash,resetTokenExpires:{gt:new Date()}}});
+    if(!user) return res.status(400).json({message:"Invalid or expired reset token. Request a new password reset."});
+    const hash=await bcrypt.hash(password,12);
+    await prisma.user.update({where:{id:user.id},data:{passwordHash:hash,resetToken:null,resetTokenExpires:null}});
+    res.json({message:"Password updated successfully. You can now log in."});
+  } catch(e){ console.error(e); res.status(500).json({message:"Unable to reset password"}); }
 });
 
 const DEFAULT_PACKAGES=[
@@ -706,12 +803,21 @@ async function ensureSupportTicketTable(){
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx" ON "SupportTicket"("status")`);
 }
 
+async function ensureResetTokenColumns(){
+  try{
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetToken" TEXT`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetTokenExpires" TIMESTAMP(3)`);
+    await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "User_resetToken_idx" ON "User"("resetToken")`);
+  }catch(e){console.error("[RESET TOKEN COLUMNS]",e.message);}
+}
+
 async function startServer(){
   try{
     await ensurePackageSettingsColumns();
-  await ensureAnnouncementTable();
+    await ensureAnnouncementTable();
     await ensureAdminActivityTable();
     await ensureSupportTicketTable();
+    await ensureResetTokenColumns();
     await ensureAdmin();
   }catch(e){
     console.error("[ADMIN] Could not initialize admin account:",e);
