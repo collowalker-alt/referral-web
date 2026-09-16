@@ -4,6 +4,9 @@ import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,Arr
 import "./styles.css";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
 const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
+const waShare=(text)=>{const url=`https://wa.me/?text=${encodeURIComponent(text)}`;window.open(url,"_blank","noopener,noreferrer");};
+const checklistKey=id=>`nexora-checklist-${id}`;
+
 const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 const validPhone=v=>PHONE_RE.test(cleanPhone(v));
@@ -60,17 +63,22 @@ function PublicLanding({onLogin}){
  useEffect(()=>{
   const params=new URLSearchParams(window.location.search);
   const reset=params.get("reset");
+  const join=params.get("join");
   if(reset){
    setInitialResetToken(reset);
    setMode("reset");
-   // Clean URL without reloading
    const url=new URL(window.location.href);
    url.searchParams.delete("reset");
+   window.history.replaceState({},"",url.pathname+url.search+url.hash);
+  } else if(join){
+   setMode("register");
+   const url=new URL(window.location.href);
+   url.searchParams.delete("join");
    window.history.replaceState({},"",url.pathname+url.search+url.hash);
   }
  },[]);
  return <div className="publicsite">
-  <header className="publicnav"><div className="publicbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div></div><nav><a href="#features">Features</a><a href="#how">How it works</a><a href="#packages">Membership</a><a href="#faq">FAQ</a></nav><div className="publicactions"><PWAInstall compact/><button className="secondary" onClick={()=>go("login")}>Log in</button><button className="primary" onClick={()=>go("register")}>Join NEXORA</button></div></header>
+  <header className="publicnav"><div className="publicbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div></div><nav><a href="#features">Features</a><a href="#how">How it works</a><a href="/packages">Packages</a><a href="#faq">FAQ</a></nav><div className="publicactions"><PWAInstall compact/><button className="secondary" onClick={()=>go("login")}>Log in</button><button className="primary" onClick={()=>go("register")}>Join NEXORA</button></div></header>
   <main>
    <section className="publichero"><div className="publicheroCopy"><span className="pill">NEXORA · YOUR MEMBER WORKSPACE</span><h1>Connect. Grow. Learn. <span>Build.</span></h1><p>NEXORA brings membership tools, referral analytics, learning resources, support and a personal workspace together in one platform.</p><div className="heroactions"><button className="primary" onClick={()=>go("register")}>Create your account <ArrowUpRight size={17}/></button><button className="secondary" onClick={()=>document.getElementById("how")?.scrollIntoView({behavior:"smooth"})}>See how it works</button></div><div className="publictrust"><span><ShieldCheck size={16}/> Account-focused workspace</span><span><BarChart3 size={16}/> Transparent activity tracking</span><span><LifeBuoy size={16}/> Member support</span></div></div><div className="publicheroCard"><img src="/nexora-logo.png"/><div className="floatingmetric"><small>MEMBER HUB</small><b>One place for your NEXORA journey</b><span>Dashboard · Learning · Analytics · Support</span></div></div></section>
    <section id="features" className="publicsection"><div className="sectionhead"><div><span className="pill">PLATFORM FEATURES</span><h2>More than a referral link</h2><p className="muted">A useful member experience gives you reasons to return, learn and manage your account.</p></div></div><div className="featuregrid">{[[BarChart2,"Analytics","Understand your network activity, conversions and recorded commissions."],[Megaphone,"Marketing Center","Your personal link, QR sharing and ready-to-edit outreach templates."],[GraduationCap,"NEXORA Academy","Practical lessons on platform use, ethical marketing and account safety."],[Trophy,"Achievements","Track milestones and activity without promising or guaranteeing income."],[LifeBuoy,"Member Support","Create support tickets and keep replies in one place."],[Shield,"Security Center","Manage your profile and keep your account information current."]].map(([I,t,d])=><div className="featurecard" key={t}><div className="featureicon"><I size={22}/></div><h3>{t}</h3><p>{d}</p></div>)}</div></section>
@@ -272,6 +280,56 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
   </div>;
 }
 
+
+function PublicPackagesPage(){
+ const [packages,setPackages]=useState([]);
+ const [loading,setLoading]=useState(true);
+ const [err,setErr]=useState("");
+ useEffect(()=>{
+  (async()=>{
+   try{
+    const rows=await api("/packages");
+    setPackages(Array.isArray(rows)?rows:[]);
+   }catch(e){setErr(e.message||"Unable to load packages");}
+   finally{setLoading(false);}
+  })();
+ },[]);
+ const sorted=[...packages].sort((a,b)=>Number(a.tier||999)-Number(b.tier||999)||Number(a.price)-Number(b.price));
+ return <div className="publicsite publicpackagespage">
+  <header className="publicnav"><div className="publicbrand"><img src="/nexora-logo.png" alt=""/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div></div>
+   <nav><a href="/">Home</a><a href="/packages">Packages</a><a href="/#faq">FAQ</a></nav>
+   <div className="publicactions"><a className="secondary" href="/">Log in</a><a className="primary" href="/?join=1">Join NEXORA</a></div>
+  </header>
+  <main className="publicpackagesmain">
+   <div className="sectionhead"><div><span className="pill">MEMBERSHIP</span><h1>Compare NEXORA packages</h1><p className="muted">Transparent pricing and benefits. Commissions are recorded only when qualifying referral purchases complete — never guaranteed income.</p></div></div>
+   {loading&&<p className="muted">Loading packages…</p>}
+   {err&&<div className="error">{err}</div>}
+   {!loading&&!err&&(
+    <div className="packages">
+     {sorted.map((p,i)=>(
+      <div className={`pkg ${p.popular?"featured":""}`} key={p.id}>
+       {p.popular&&<div className="popular">{p.badge||"POPULAR"}</div>}
+       <span className="pkgname">{p.name}</span>
+       {p.badge&&!p.popular&&<span className="packagebadge">{p.badge}</span>}
+       <div className="price">{money(p.price)}</div>
+       <p className="muted small">{p.description||"Membership package with referral tools and platform access."}</p>
+       <ul className="pkgfeatures">
+        {(p.features&&p.features.length?p.features:["Member dashboard","Referral link after purchase","Academy access","Wallet & support"]).map(f=><li key={f}><Check size={14}/> {f}</li>)}
+       </ul>
+       <div className="pkgmeta"><span>Direct commission record</span><strong>{money(p.directCommission)}</strong></div>
+       <div className="pkgmeta"><span>Level 2 commission record</span><strong>{money(p.level2Commission)}</strong></div>
+       <a className="primary" href="/?join=1">Join to choose this package</a>
+      </div>
+     ))}
+     {!sorted.length&&<p className="muted">No packages available right now.</p>}
+    </div>
+   )}
+   <div className="earningsnotice" style={{marginTop:24}}><div><strong>Important</strong><p>Package levels define which purchases you may be eligible to earn from. NEXORA does not guarantee income. Review Terms and Membership Rules before paying.</p></div></div>
+  </main>
+  <footer className="publicfooter"><div><b>NEXORA.</b><p>Connect. Grow. Learn. Build.</p></div><div className="footerlinks"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/membership">Membership rules</a><a href="/packages">Packages</a></div></footer>
+ </div>;
+}
+
 function LegalPage({type}){
   const pages={
     terms:{
@@ -374,6 +432,7 @@ function NotificationsCenter({me,analytics,tickets}){const notes=[];if(me.packag
 function App(){
  if(window.location.pathname==="/admin" || window.location.pathname.startsWith("/admin/")) return <AdminApp/>;
  if(["/terms","/privacy","/membership"].includes(window.location.pathname)) return <LegalPage type={window.location.pathname.slice(1)}/>;
+ if(window.location.pathname==="/packages")||window.location.pathname==="/packages/") return <PublicPackagesPage/>;
  const [me,setMe]=useState(null),[page,setPage]=useState("dashboard"),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null);
  const load=async(show=true)=>{if(show)setLoading(true);setError("");try{const m=await api("/me");setMe(m);const results=await Promise.allSettled([api("/packages"),api("/referrals"),api("/earnings"),api("/transactions"),api("/member/analytics"),api("/member/leaderboard"),api("/announcements"),api("/support/tickets")]);if(results[0].status==="fulfilled")setPackages(results[0].value);if(results[1].status==="fulfilled")setReferrals(results[1].value);if(results[2].status==="fulfilled")setEarnings(results[2].value);if(results[3].status==="fulfilled")setTransactions(results[3].value);if(results[4].status==="fulfilled")setAnalytics(results[4].value);if(results[5].status==="fulfilled")setLeaderboard(results[5].value);if(results[6].status==="fulfilled")setAnnouncements(results[6].value);if(results[7].status==="fulfilled")setTickets(results[7].value);const failed=results.find(x=>x.status==="rejected");if(failed)setError(failed.reason?.message||"Some account data could not be loaded")}catch(e){if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");setMe(null)}else setError(e.message)}finally{setLoading(false)}};
  useEffect(()=>{if(localStorage.getItem("token"))load();else setLoading(false)},[]);
@@ -404,7 +463,7 @@ function App(){
  const logout=()=>{localStorage.removeItem("token");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
  const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
  return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={page===id?"active":""} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Your NEXORA member workspace</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
- {page==="dashboard"&&<Dashboard me={me} copy={copy} share={share} goPackages={()=>setPage("packages")} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")}/>} 
+ {page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} share={share} goPackages={()=>setPage("packages")} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")}/>} 
  {page==="packages"&&<Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} share={share}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
@@ -417,11 +476,102 @@ function App(){
  {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}</main><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} onCancel={()=>setPhoneModal(null)} onContinue={phone=>startPayment(phone,phoneModal.package)} onWallet={walletPurchase}/>} {payment&&<PaymentModal payment={payment} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your package is now active.")}}catch(e){setError(e.message)}}}/>}</div>
 }
 function Notifications({me,analytics,tickets}){const notes=[];if(!me.package)notes.push([PackageIcon,"Choose a package","Explore the package comparison when you are ready."]);if(me.package)notes.push([CheckCircle2,"Package active",`${me.package.name} is currently active on your account.`]);if((analytics?.month?.directReferrals||0)<5)notes.push([Target,"Monthly challenge",`${5-(analytics?.month?.directReferrals||0)} more direct referral(s) to reach the current activity goal.`]);if(tickets?.some(x=>x.status!=="CLOSED"))notes.push([Bell,"Support update","You have an open support request. Check Help & Support for updates."]);if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push([Clock3,"Payment pending","A payment is still awaiting confirmation. Check Transactions for status."]);return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Smart notifications</h3><span>{notes.length} active</span></div><div className="notificationlist">{notes.slice(0,4).map(([I,t,d],i)=><div className="notification" key={i}><I size={17}/><div><b>{t}</b><p>{d}</p></div></div>)}{!notes.length&&<p className="muted">You're all caught up.</p>}</div></div>}
-function Dashboard({me,copy,share,goPackages,profileStrength,analytics,tickets,goSecurity}){const recent=(me.transactions||[]).slice(0,5);return <><section className="hero"><div><span className="pill">MEMBER WORKSPACE</span><h1>Hello, {me.user.name.split(" ")[0]} 👋</h1><p>Your central place to manage your membership, referrals, learning, wallet and support.</p><div className="heroactions"><button className="primary" onClick={goPackages}><PackageIcon size={16}/> {me.package?"View package":"Choose a package"}</button><button className="secondary" onClick={share}><Share2 size={16}/> Share NEXORA</button></div></div><div className="heroicon"><img src="/nexora-logo.png" alt="NEXORA"/></div></section><div className="cards"><Card title="Available balance" value={money(me.wallet?.balance)}/><Card title="Total earned" value={money(me.wallet?.totalEarned)}/><Card title="Direct referrals" value={me.stats.direct}/><Card title="Level 2 network" value={me.stats.level2}/></div><Notifications me={me} analytics={analytics} tickets={tickets}/><div className="dashboardgrid"><div className="panel"><div className="paneltitle"><h3>Profile strength</h3><span>{profileStrength}%</span></div><div className="progress"><i style={{width:`${profileStrength}%`}}/></div><p className="muted small">Complete your profile and keep your account information current.</p></div><div className="panel"><div className="paneltitle"><h3>Monthly progress</h3><span>{analytics?.month?.directReferrals||0}/5 referrals</span></div><div className="progress"><i style={{width:`${Math.min(100,(analytics?.month?.directReferrals||0)/5*100)}%`}}/></div><p className="muted small">Use the Challenges section to track your monthly activity.</p></div></div><div className="grid2"><div className="panel"><h3>Your package</h3>{me.package?<div className="packageactive"><div><b>{me.package.name}</b><span>{money(me.package.price)}</span></div><div><small>Direct</small><strong>{money(me.package.directCommission)}</strong></div><div><small>Level 2</small><strong>{money(me.package.level2Commission)}</strong></div></div>:<><p className="muted">No active package. Explore the package comparison to see what is available.</p><button className="primary narrow" onClick={goPackages}>View packages</button></>}</div><div className="panel"><h3>Referral marketing</h3>{me.package?<><div className="copybox"><span>{location.origin}/?ref={me.user.referralCode}</span><button onClick={copy}><Copy size={17}/> Copy</button></div><div className="heroactions compact"><button className="secondary" onClick={share}><Share2 size={15}/> Share</button><button className="secondary" onClick={()=>navigator.clipboard?.writeText(me.user.referralCode)}><CopyCheck size={15}/> Copy code</button></div></>:<div className="lockedinline"><LockKeyhole size={18}/><div><b>Link locked</b><p className="muted small">Purchase a package to unlock your referral link and share tools.</p></div><button className="secondary narrow" onClick={goPackages}>View packages</button></div>}</div></div><ProfileCard me={me} strength={profileStrength} goSecurity={goSecurity}/><div className="panel"><div className="paneltitle"><h3>Recent activity</h3><span className="muted small">{recent.length} records</span></div>{recent.length?recent.map(x=><div className="row simple" key={x.id}><div><b>{x.type.replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()}</small></div><strong>{money(x.amount)}</strong></div>):<p className="muted">Your activity will appear here.</p>}</div></>}
+
+function OnboardingChecklist({me,goPackages,goPage}){
+ const uid=me?.user?.id||"guest";
+ const storageKey=checklistKey(uid);
+ const defaults={profile:Boolean(me?.user?.phone&&me?.user?.name),package:Boolean(me?.package),shared:false,academy:false};
+ const [done,setDone]=useState(()=>{
+  try{return {...defaults,...JSON.parse(localStorage.getItem(storageKey)||"{}")};}catch{return defaults;}
+ });
+ useEffect(()=>{
+  setDone(d=>({...d,profile:Boolean(me?.user?.phone&&me?.user?.name),package:Boolean(me?.package)}));
+ },[me?.package,me?.user?.phone,me?.user?.name]);
+ useEffect(()=>{try{localStorage.setItem(storageKey,JSON.stringify(done));}catch{}},[done,storageKey]);
+ const items=[
+  {id:"profile",label:"Complete your profile details",ok:done.profile,action:()=>goPage&&goPage("security")},
+  {id:"package",label:"Choose or activate a package",ok:done.package,action:goPackages},
+  {id:"shared",label:"Share your referral link (after package)",ok:done.shared,action:()=>{if(!me?.package){goPackages&&goPackages();return;}goPage&&goPage("marketing");setDone(x=>({...x,shared:true}));}},
+  {id:"academy",label:"Open one Academy lesson",ok:done.academy,action:()=>{goPage&&goPage("academy");setDone(x=>({...x,academy:true}));}}
+ ];
+ const completed=items.filter(x=>x.ok).length;
+ if(completed>=items.length) return null;
+ return <div className="panel onboardingpanel">
+  <div className="paneltitle"><h3><Sparkles size={17}/> Getting started</h3><span>{completed}/{items.length} done</span></div>
+  <div className="progress"><i style={{width:`${(completed/items.length)*100}%`}}/></div>
+  <div className="checklist">
+   {items.map(x=>(
+    <button type="button" key={x.id} className={`checkitem ${x.ok?"done":""}`} onClick={x.action}>
+     <span className="checkicon">{x.ok?<CheckCircle2 size={18}/>:<span className="checkempty"/>}</span>
+     <span>{x.label}</span>
+    </button>
+   ))}
+  </div>
+  <p className="muted small">Finish these steps to get comfortable with NEXORA. Referral tools unlock after a package is active.</p>
+ </div>;
+}
+
+function Dashboard({me,copy,share,goPackages,goPage,profileStrength,analytics,tickets,goSecurity}){const recent=(me.transactions||[]).slice(0,5);return <><section className="hero"><div><span className="pill">MEMBER WORKSPACE</span><h1>Hello, {me.user.name.split(" ")[0]} 👋</h1><p>Your central place to manage your membership, referrals, learning, wallet and support.</p><div className="heroactions"><button className="primary" onClick={goPackages}><PackageIcon size={16}/> {me.package?"View package":"Choose a package"}</button><button className="secondary" onClick={share}><Share2 size={16}/> Share NEXORA</button></div></div><div className="heroicon"><img src="/nexora-logo.png" alt="NEXORA"/></div></section><div className="cards"><Card title="Available balance" value={money(me.wallet?.balance)}/><Card title="Total earned" value={money(me.wallet?.totalEarned)}/><Card title="Direct referrals" value={me.stats.direct}/><Card title="Level 2 network" value={me.stats.level2}/></div><OnboardingChecklist me={me} goPackages={goPackages} goPage={goPage}/><Notifications me={me} analytics={analytics} tickets={tickets}/><div className="dashboardgrid"><div className="panel"><div className="paneltitle"><h3>Profile strength</h3><span>{profileStrength}%</span></div><div className="progress"><i style={{width:`${profileStrength}%`}}/></div><p className="muted small">Complete your profile and keep your account information current.</p></div><div className="panel"><div className="paneltitle"><h3>Monthly progress</h3><span>{analytics?.month?.directReferrals||0}/5 referrals</span></div><div className="progress"><i style={{width:`${Math.min(100,(analytics?.month?.directReferrals||0)/5*100)}%`}}/></div><p className="muted small">Use the Challenges section to track your monthly activity.</p></div></div><div className="grid2"><div className="panel"><h3>Your package</h3>{me.package?<div className="packageactive"><div><b>{me.package.name}</b><span>{money(me.package.price)}</span></div><div><small>Direct</small><strong>{money(me.package.directCommission)}</strong></div><div><small>Level 2</small><strong>{money(me.package.level2Commission)}</strong></div></div>:<><p className="muted">No active package. Explore the package comparison to see what is available.</p><button className="primary narrow" onClick={goPackages}>View packages</button></>}</div><div className="panel"><h3>Referral marketing</h3>{me.package?<><div className="copybox"><span>{location.origin}/?ref={me.user.referralCode}</span><button onClick={copy}><Copy size={17}/> Copy</button></div><div className="heroactions compact"><button className="secondary" onClick={share}><Share2 size={15}/> Share</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review packages first (no guaranteed income): ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="secondary" onClick={()=>navigator.clipboard?.writeText(me.user.referralCode)}><CopyCheck size={15}/> Copy code</button></div></>:<div className="lockedinline"><LockKeyhole size={18}/><div><b>Link locked</b><p className="muted small">Purchase a package to unlock your referral link and share tools.</p></div><button className="secondary narrow" onClick={goPackages}>View packages</button></div>}</div></div><ProfileCard me={me} strength={profileStrength} goSecurity={goSecurity}/><div className="panel"><div className="paneltitle"><h3>Recent activity</h3><span className="muted small">{recent.length} records</span></div>{recent.length?recent.map(x=><div className="row simple" key={x.id}><div><b>{x.type.replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()}</small></div><strong>{money(x.amount)}</strong></div>):<p className="muted">Your activity will appear here.</p>}</div></>}
 function Analytics({data,earnings,referrals}){if(!data)return <section><div className="panel"><p>Loading analytics…</p></div></section>;return <section><div className="sectionhead"><div><span className="pill">PERFORMANCE CENTER</span><h1>Referral analytics</h1><p className="muted">Understand your network activity and the history of recorded commissions.</p></div><RefreshCw size={18}/></div><div className="cards three"><Card title="Direct members" value={data.directCount}/><Card title="Level 2 members" value={data.level2Count}/><Card title="Members with packages" value={data.paidReferrals}/></div><div className="analyticsgrid"><div className="panel"><h3>Network conversion</h3><div className="bigmetric">{data.conversion}%</div><p className="muted">Percentage of direct referrals with an active package.</p><div className="progress"><i style={{width:`${data.conversion}%`}}/></div></div><div className="panel"><h3>Commission mix</h3><div className="analyticbars"><div><span>Direct</span><b>{money(data.directCommission)}</b><i style={{width:`${data.totalCommission?data.directCommission/data.totalCommission*100:0}%`}}/></div><div><span>Level 2</span><b>{money(data.level2Commission)}</b><i style={{width:`${data.totalCommission?data.level2Commission/data.totalCommission*100:0}%`}}/></div></div></div></div><div className="panel"><h3>Network snapshot</h3><div className="networkcards"><div><span>New this month</span><strong>{data.month.directReferrals}</strong></div><div><span>Commissions this month</span><strong>{money(data.month.commissions)}</strong></div><div><span>All-time commissions</span><strong>{money(data.totalCommission)}</strong></div></div></div></section>}
-function Marketing({me,copy,share}){const hasPackage=Boolean(me?.package);const link=`${location.origin}/?ref=${me.user.referralCode}`;return <section><div className="sectionhead"><div><span className="pill">GROWTH TOOLS</span><h1>Referral marketing center</h1><p className="muted">Everything you need to share NEXORA clearly and consistently.</p></div></div>
-{!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after package purchase</h3><p className="muted">Choose a membership package first. Your personal referral link, QR code and share messages become available once a package is active on your account.</p></div></div>}
-{hasPackage&&<div className="marketinggrid"><div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button onClick={copy}><Copy size={16}/> Copy</button></div><button className="primary" onClick={share}><Share2 size={16}/> Share link</button></div><div className="panel qrcodepanel"><QrCode size={24}/><h3>QR referral card</h3><p className="muted">Let people scan your referral link from your screen.</p><img className="qrcode" alt="Referral QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`}/><small className="muted">Scan to open your NEXORA referral page.</small></div><div className="panel"><Sparkles size={24}/><h3>Ready-to-share messages</h3><div className="template"><b>Short</b><p>Join me on NEXORA and explore the member platform: {link}</p><button className="secondary" onClick={()=>navigator.clipboard?.writeText(`Join me on NEXORA and explore the member platform: ${link}`)}>Copy</button></div><div className="template"><b>Professional</b><p>I'm using NEXORA to manage my membership, network and learning. Take a look here: {link}</p><button className="secondary" onClick={()=>navigator.clipboard?.writeText(`I'm using NEXORA to manage my membership, network and learning. Take a look here: ${link}`)}>Copy</button></div></div></div><div className="panel"><h3>Marketing best practice</h3><div className="tips"><span><Check size={15}/> Explain the platform honestly.</span><span><Check size={15}/> Never promise guaranteed earnings.</span><span><Check size={15}/> Share package details before someone pays.</span><span><Check size={15}/> Encourage people to review the rules and support resources.</span></div></div>}</section>}
+function Marketing({me,copy,share}){
+ const hasPackage=Boolean(me?.package);
+ const link=`${location.origin}/?ref=${me.user.referralCode}`;
+ const scripts=[
+  ["Warm opener","I have been using NEXORA to organise my membership, learning and network in one place. If you want to see how it works, I can share my link."],
+  ["Curiosity","NEXORA is a member workspace with packages, referrals, Academy lessons and a wallet. Want me to walk you through it before you decide?"],
+  ["Value-first","Before anything else, look at the packages and the rules. NEXORA does not promise income — it gives tools. Here is my invite link if you want to explore."],
+  ["Follow-up","Did you get a chance to open NEXORA? I can explain the packages and how referrals are recorded so there is no confusion."]
+ ];
+ const copyText=async(t)=>{try{await navigator.clipboard.writeText(t); }catch{ window.prompt("Copy message:",t); }};
+ return <section>
+  <div className="sectionhead"><div><span className="pill">GROWTH TOOLS</span><h1>Referral marketing center</h1><p className="muted">Share clearly, invite honestly, and help people understand NEXORA before they join.</p></div></div>
+  {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after package purchase</h3><p className="muted">Choose a membership package first. Your personal referral link, QR code and share messages become available once a package is active on your account.</p></div></div>}
+  {hasPackage&&<>
+   <div className="marketinggrid">
+    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button onClick={copy}><Copy size={16}/> Copy</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review packages first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button></div></div>
+    <div className="panel qrcodepanel"><QrCode size={24}/><h3>QR referral card</h3><p className="muted">Let people scan your referral link from your screen.</p><img className="qrcode" alt="Referral QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`}/><small className="muted">Scan to open your NEXORA referral page.</small></div>
+    <div className="panel"><Sparkles size={24}/><h3>Ready-to-share messages</h3>
+     <div className="template"><b>Short</b><p>Join me on NEXORA — member tools, learning and network in one place: {link}</p><button className="secondary" onClick={()=>copyText(`Join me on NEXORA — member tools, learning and network in one place: ${link}`)}>Copy</button></div>
+     <div className="template"><b>Honest invite</b><p>I'm on NEXORA. It is a membership platform with packages, referrals and Academy lessons. No guaranteed income — review the packages first: {link}</p><button className="secondary" onClick={()=>copyText(`I'm on NEXORA. It is a membership platform with packages, referrals and Academy lessons. No guaranteed income — review the packages first: ${link}`)}>Copy</button></div>
+     <div className="template"><b>WhatsApp-friendly</b><p>Hi! I use NEXORA for membership + referrals. If you want to see how it works, open this link and we can talk through the packages: {link}</p><button className="secondary" onClick={()=>copyText(`Hi! I use NEXORA for membership + referrals. If you want to see how it works, open this link and we can talk through the packages: ${link}`)}>Copy</button></div>
+    </div>
+   </div>
+
+   <div className="panel invitetips">
+    <div className="paneltitle"><h3><Target size={18}/> How to invite someone to NEXORA</h3><span className="pill">TIPS</span></div>
+    <div className="tipsteps">
+     <div className="tipstep"><span>1</span><div><b>Lead with clarity, not pressure</b><p>Explain what NEXORA is: a member workspace with packages, learning, wallet and referral tools. Avoid hype and income promises.</p></div></div>
+     <div className="tipstep"><span>2</span><div><b>Show the product first</b><p>Let them open your link, view packages and the public pages. People trust what they can see more than a long pitch.</p></div></div>
+     <div className="tipstep"><span>3</span><div><b>Answer the real questions</b><p>Package prices, how upgrades work, how commissions are recorded, and that earnings depend on qualifying purchases — not guarantees.</p></div></div>
+     <div className="tipstep"><span>4</span><div><b>Use your own experience</b><p>Share what you use (Dashboard, Academy, Marketing Center). Personal honesty converts better than copied scripts alone.</p></div></div>
+     <div className="tipstep"><span>5</span><div><b>Invite, then follow up once</b><p>Send the link, offer to explain packages, and follow up politely. Do not spam or pressure family and friends.</p></div></div>
+     <div className="tipstep"><span>6</span><div><b>Protect trust</b><p>Never ask for someone's M-Pesa PIN or password. Direct them to official support if they need help.</p></div></div>
+    </div>
+   </div>
+
+   <div className="panel">
+    <div className="paneltitle"><h3><MessageCircle size={18}/> Conversation starters</h3></div>
+    <div className="scriptlist">
+     {scripts.map(([t,body])=><div className="scriptcard" key={t}><div><b>{t}</b><p>{body}</p></div><div className="scriptactionsactions"><button className="secondary" onClick={()=>copyText(`${body} ${link}`)}><Copy size={15}/> Copy</button><button className="secondary" onClick={()=>waShare(`${body} ${link}`)}><MessageCircle size={15}/> WhatsApp</button></div></div>)}
+    </div>
+   </div>
+
+   <div className="panel">
+    <h3>Marketing best practice</h3>
+    <div className="tips">
+     <span><Check size={15}/> Explain the platform honestly.</span>
+     <span><Check size={15}/> Never promise guaranteed earnings.</span>
+     <span><Check size={15}/> Share package details before someone pays.</span>
+     <span><Check size={15}/> Encourage people to review Terms and Membership Rules.</span>
+     <span><Check size={15}/> Prefer people who are curious, not people you pressure.</span>
+     <span><Check size={15}/> Keep screenshots and claims consistent with the live app.</span>
+    </div>
+   </div>
+  </>}
+ </section>;
+}
+
+
 function Academy(){
  const [selected,setSelected]=useState(null);
  const lessons=[
@@ -446,12 +596,14 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0}){
  const [err,setErr]=useState("");
  const [method,setMethod]=useState("mpesa");
  const [busy,setBusy]=useState(false);
+ const [walletConfirm,setWalletConfirm]=useState(false);
  const amount=Number(data.chargeAmount||data.package?.price||0);
  const canWallet=walletBalance>=amount && amount>0;
  const submit=async e=>{
   e.preventDefault();setErr("");
   if(method==="wallet"){
    if(!canWallet) return setErr("Insufficient wallet balance for this package.");
+   if(!walletConfirm) return setErr("Please confirm you want to pay from your wallet.");
    setBusy(true);
    try{ await onWallet(data.package); } catch(ex){ setErr(ex.message||"Wallet purchase failed"); } finally{ setBusy(false); }
    return;
@@ -461,11 +613,16 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0}){
  };
  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">PURCHASE PACKAGE</span><h2>Choose how to pay</h2></div><button className="iconbtn" onClick={onCancel}><X size={20}/></button></div><form onSubmit={submit}><div className="paymentbody phonebody"><div className="phonepackage"><div><span>Package</span><strong>{data.package?.name}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(walletBalance)}</strong></div></div>
  <div className="paymethods">
-  <button type="button" className={`paymethod ${method==="mpesa"?"active":""}`} onClick={()=>setMethod("mpesa")}><MessageCircle size={18}/><div><b>M-Pesa</b><span>Pay via STK push on your phone</span></div></button>
-  <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={()=>canWallet&&setMethod("wallet")} disabled={!canWallet}><WalletCards size={18}/><div><b>Wallet balance</b><span>{canWallet?`Use ${money(amount)} from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button>
+  <button type="button" className={`paymethod ${method==="mpesa"?"active":""}`} onClick={()=>{setMethod("mpesa");setWalletConfirm(false);setErr("")}}><MessageCircle size={18}/><div><b>M-Pesa</b><span>Pay via STK push on your phone</span></div></button>
+  <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={()=>{if(canWallet){setMethod("wallet");setErr("")}}} disabled={!canWallet}><WalletCards size={18}/><div><b>Wallet balance</b><span>{canWallet?`Use ${money(amount)} from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button>
  </div>
  {method==="mpesa"&&<><label className="fieldlabel">M-Pesa phone number</label><input autoFocus inputMode="tel" maxLength="13" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07…, 011…, 2547… or 2541…"/><p className="muted small">We will send the payment request to this number. Approve it with your M-Pesa PIN.</p></>}
- {method==="wallet"&&<p className="muted small">Your wallet will be charged {money(amount)} and the package will activate immediately. This cannot be undone.</p>}
+ {method==="wallet"&&<>
+ <div className="walletconfirmbox">
+  <p className="muted small">Your wallet will be charged <strong>{money(amount)}</strong>. The package activates immediately. <strong>This cannot be undone.</strong></p>
+  <label className="termscheck"><input type="checkbox" checked={walletConfirm} onChange={e=>setWalletConfirm(e.target.checked)}/><span>I confirm paying {money(amount)} from my wallet balance for {data.package?.name}.</span></label>
+ </div>
+</>}
  {err&&<div className="error">{err}</div>}</div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button><button type="submit" className="primary" disabled={busy}>{busy?"Please wait…":method==="wallet"?`Pay ${money(amount)} from wallet`:<><MessageCircle size={16}/> Send M-Pesa request</>}</button></div></form></div></div>}
 
 function PaymentModal({payment,onClose,onCheck}){
@@ -487,7 +644,7 @@ function Packages({packages,current,purchase,reload}){
  {sorted.length?<><div className="packages">{sorted.map((p,i)=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>currentPrice;const difference=isUpgrade?Number(p.price)-currentPrice:Number(p.price);return <div className={`pkg ${p.popular||(!p.popular&&i===2) ?"featured":""}`} key={p.id}>{(p.popular||(!p.popular&&i===2))&&<div className="popular">{p.badge||"POPULAR"}</div>}<span className="pkgname">{p.name}</span>{p.badge&&!(p.popular||(!p.popular&&i===2))&&<span className="packagebadge">{p.badge}</span>}<h2>{money(p.price)}</h2>{p.description&&<p className="pkgdesc">{p.description}</p>}<div className="commission"><div><b>{money(p.directCommission)}</b><small>Direct referral</small></div><div><b>{money(p.level2Commission)}</b><small>Level 2 referral</small></div></div><ul className="pkgfeatures">{(p.features||[]).map((x,j)=><li key={j}><Check size={14}/>{x}</li>)}</ul>{current&&isUpgrade&&<div className="upgradecost">Upgrade cost: <strong>{money(difference)}</strong></div>}<button className="primary" disabled={isCurrent} onClick={()=>purchase(p)}>{isCurrent?<><CheckCircle2 size={16}/> Current package</>:isUpgrade?"Upgrade package":"Purchase package"}</button></div>})}</div>
  <div className="comparison"><h2>Package earning access</h2><p className="muted">Higher packages unlock more package levels for referral earning. This is based on the package your referral purchases and your own package tier.</p><div className="earningtiers">{sorted.map((p,i)=><div key={p.id}><strong>{p.name}</strong><span>Can earn from: {sorted.slice(0,i+1).map(x=>x.name).join(" + ")}</span></div>)}</div><h2>Compare package benefits</h2><div className="comparisongrid">{sorted.map(p=><div key={p.id}><h3>{p.name}</h3>{p.description&&<p>{p.description}</p>}<ul>{(p.features||[]).map((x,j)=><li key={j}><Check size={14}/>{x}</li>)}</ul><strong>{money(p.directCommission)} direct · {money(p.level2Commission)} Level 2</strong></div>)}</div></div></>:<div className="panel empty"><PackageIcon size={32}/><h3>No packages available</h3><p className="muted">We couldn't load the package list.</p><button className="primary narrow" onClick={reload}>Reload packages</button></div>}</section>}
 
-function Referrals({data,earnings,me,copy,share}){const hasPackage=Boolean(me?.package);return <section><div className="sectionhead"><div><span className="pill">NETWORK CENTER</span><h1>My Referrals</h1><p className="muted">Manage your direct and Level 2 network and share your referral link.</p></div>{hasPackage&&<div className="heroactions compact"><button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button><button className="primary" onClick={share}><Share2 size={15}/> Share</button></div>}</div><div className="cards three"><Card title="Direct referrals" value={data.direct.length}/><Card title="Level 2 referrals" value={data.level2.length}/><Card title="Commission records" value={earnings.length}/></div>
+function Referrals({data,earnings,me,copy,share}){const hasPackage=Boolean(me?.package);return <section><div className="sectionhead"><div><span className="pill">NETWORK CENTER</span><h1>My Referrals</h1><p className="muted">Manage your direct and Level 2 network and share your referral link.</p></div>{hasPackage&&<div className="heroactions compact"><button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review packages first (no guaranteed income): ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="primary" onClick={share}><Share2 size={15}/> Share</button></div>}</div><div className="cards three"><Card title="Direct referrals" value={data.direct.length}/><Card title="Level 2 referrals" value={data.level2.length}/><Card title="Commission records" value={earnings.length}/></div>
 {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral link locked</h3><p className="muted">Your personal referral link unlocks after you purchase a membership package. You can still view network activity below once people join under you.</p></div></div>}
 {hasPackage&&<div className="panel"><h3>Referral link</h3><div className="copybox"><span>{location.origin}/?ref={me.user.referralCode}</span><button onClick={copy}><Copy size={16}/> Copy</button></div><p className="muted small">Your referral link is also available in the Marketing Center.</p></div>}<div className="panel"><h3>Direct referrals</h3><div className="table">{data.direct.map(x=><div className="row" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No package"}</span><span>{new Date(x.createdAt).toLocaleDateString()}</span></div>)}{!data.direct.length&&<p className="muted">No direct referrals yet.</p>}</div></div><div className="panel"><h3>Level 2 referrals</h3>{data.level2.length?data.level2.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No package"}</span></div>):<p className="muted">No Level 2 referrals yet.</p>}</div><div className="panel"><h3>Recent commissions</h3>{earnings.length?earnings.map(x=><div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser.name}</small></div><strong className="green">+{money(x.amount)}</strong></div>):<p className="muted">No commissions yet.</p>}</div></section>}
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}

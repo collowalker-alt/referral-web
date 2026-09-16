@@ -501,3 +501,39 @@ button,input,textarea,select{max-width:100%}
 .repairdone b{display:block;margin-bottom:4px;color:#9af0d0}
 .repairdone p{margin:0;font-size:13px;color:#c5e6da}
 .repairdone svg{flex-shrink:0;color:#38d9a9;margin-top:1px}
+
+/* Invite tips & conversation scripts */
+.invitetips{margin-top:18px}
+.tipsteps{display:grid;gap:14px;margin-top:12px}
+.tipstep{display:flex;gap:14px;align-items:flex-start}
+.tipstep>span{width:28px;height:28px;border-radius:9px;background:#123047;color:#38d9a9;display:grid;place-items:center;font-size:13px;font-weight:800;flex-shrink:0}
+.tipstep b{display:block;margin-bottom:4px;font-size:14px}
+.tipstep p{margin:0;color:#9eb2c9;font-size:13px;line-height:1.55}
+.scriptlist{display:grid;gap:12px;margin-top:12px}
+.scriptcard{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:14px;border-radius:14px;background:#071321;border:1px solid #24384f}
+.scriptcard b{display:block;margin-bottom:6px;color:#e8f4ff}
+.scriptcard p{margin:0;color:#9eb2c9;font-size:13px;line-height:1.5}
+.scriptcard .secondary{flex-shrink:0}
+@media(max-width:640px){
+  .scriptcard{flex-direction:column}
+  .scriptcard .secondary{align-self:flex-start}
+}
+
+/* Onboarding checklist */
+.onboardingpanel{margin-bottom:18px}
+.checklist{display:grid;gap:8px;margin-top:12px}
+.checkitem{display:flex;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:12px;border:1px solid #24384f;background:#071321;color:#dce8f7;font-weight:600;font-size:13px;cursor:pointer;transition:.15s ease}
+.checkitem:hover{border-color:#35506d;background:#0a1828}
+.checkitem.done{opacity:.75;border-color:#1e4d40}
+.checkicon{display:grid;place-items:center;width:22px;flex-shrink:0}
+.checkicon svg{color:#38d9a9}
+.checkempty{width:16px;height:16px;border-radius:50%;border:2px solid #3a516a;display:block}
+.scriptedactions{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.walletconfirmbox{margin:10px 0;padding:12px;border-radius:12px;background:#0a1624;border:1px solid #29415d}
+.walletconfirmbox .termscheck{margin-top:10px}
+.publicpackagesmain{max-width:1100px;margin:0 auto;padding:32px 20px 60px}
+.publicpackagespage .packages{margin-top:20px}
+.pkgfeatures{list-style:none;padding:0;margin:12px 0;display:grid;gap:8px}
+.pkgfeatures li{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#b7c6d8}
+.pkgfeatures svg{color:#38d9a9;flex-shrink:0;margin-top:2px}
+.pkgmeta{display:flex;justify-content:space-between;font-size:12px;color:#8fa2b9;margin:6px 0}
