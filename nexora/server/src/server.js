@@ -14,6 +14,7 @@ import { Resend } from "resend";
 dotenv.config();
 const prisma = new PrismaClient();
 const app = express();
+app.set("trust proxy", 1);
 
 // FIX 1: Helmet was blocking cross-origin fetches — disable resource policy
 app.use(helmet({ crossOriginResourcePolicy: false }));
@@ -404,6 +405,64 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
   } catch(e){
     console.error("[PAYSTACK INIT EXCEPTION]",e);
     res.status(500).json({message:"Payment initialization failed"});
+  }
+});
+
+// Purchase / upgrade a package using wallet balance (no M-Pesa)
+app.post("/api/payments/wallet-purchase",auth,async(req,res)=>{
+  try{
+    const {packageId}=req.body||{};
+    if(!packageId) return res.status(400).json({message:"Package is required"});
+    const pkg=await prisma.package.findUnique({where:{id:packageId}});
+    if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
+
+    const user=await prisma.user.findUnique({where:{id:req.user.id},include:{wallet:true,package:true}});
+    if(!user) return res.status(401).json({message:"Account unavailable"});
+    if(user.packageId===pkg.id) return res.status(400).json({message:"You already have this package"});
+    if(user.package && pkg.price<=user.package.price) return res.status(400).json({message:"You can only upgrade to a higher package"});
+
+    const chargeAmount=user.package ? pkg.price-user.package.price : pkg.price;
+    if(chargeAmount<=0) return res.status(400).json({message:"Invalid charge amount"});
+
+    const balance=Number(user.wallet?.balance||0);
+    if(balance<chargeAmount){
+      return res.status(400).json({
+        message:`Insufficient wallet balance. You need KSh ${chargeAmount.toLocaleString()} but have KSh ${balance.toLocaleString()}.`
+      });
+    }
+
+    const reference=`NX-WALLET-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+
+    await prisma.$transaction(async db=>{
+      const wallet=await db.wallet.findUnique({where:{userId:user.id}});
+      if(!wallet || wallet.balance<chargeAmount) throw new Error("INSUFFICIENT");
+      await db.wallet.update({where:{userId:user.id},data:{balance:{decrement:chargeAmount}}});
+      await db.transaction.create({
+        data:{
+          userId:user.id,
+          type:"PACKAGE_PURCHASE",
+          amount:chargeAmount,
+          reference,
+          status:"PENDING",
+          metadata:{packageId:pkg.id,chargeAmount,method:"WALLET",currentPackageId:user.packageId||null}
+        }
+      });
+    });
+
+    await activatePaidPackage(reference);
+    const updated=await prisma.user.findUnique({where:{id:user.id},include:{package:true,wallet:true}});
+    res.json({
+      status:"success",
+      reference,
+      message:"Package activated using wallet balance.",
+      package:updated?.package,
+      wallet:updated?.wallet,
+      chargeAmount
+    });
+  }catch(e){
+    if(e.message==="INSUFFICIENT") return res.status(400).json({message:"Insufficient wallet balance"});
+    console.error("[WALLET PURCHASE]",e);
+    res.status(500).json({message:"Unable to complete wallet purchase"});
   }
 });
 

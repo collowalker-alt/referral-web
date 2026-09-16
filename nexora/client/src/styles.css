@@ -478,3 +478,26 @@ button,input,textarea,select{max-width:100%}
 .legalpage .legalsection{margin:18px 0}
 .legalpage .legalsection h3{margin:0 0 6px;font-size:15px;color:#e8f0fa}
 .legalpage .legalsection p{margin:0;color:#9eb2c9;line-height:1.6;font-size:14px}
+
+/* Package purchase methods */
+.paymethods{display:grid;gap:10px;margin:12px 0 16px}
+.paymethod{display:flex;align-items:flex-start;gap:12px;text-align:left;padding:14px;border-radius:14px;border:1px solid #29415d;background:#071321;color:#dce8f7;cursor:pointer;transition:.18s ease}
+.paymethod:hover{border-color:#35506d;background:#0a1828}
+.paymethod.active{border-color:#38d9a9;box-shadow:0 0 0 2px rgba(56,217,169,.15);background:#0b1c2c}
+.paymethod.disabled,.paymethod:disabled{opacity:.45;cursor:not-allowed}
+.paymethod b{display:block;font-size:14px}
+.paymethod span{display:block;font-size:12px;color:#8fa2b9;margin-top:2px;font-weight:500}
+.paymethod svg{flex-shrink:0;margin-top:2px;color:#38d9a9}
+
+/* Referral locked states */
+.lockedpanel{display:flex;gap:16px;align-items:flex-start;padding:20px;border-radius:16px;border:1px dashed #35506d;background:rgba(8,20,35,.7);margin-bottom:18px}
+.lockedpanel svg{color:#38d9a9;flex-shrink:0;margin-top:2px}
+.lockedpanel h3{margin:0 0 6px;font-size:16px}
+.lockedinline{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.lockedinline svg{color:#38d9a9}
+
+/* Admin repair success */
+.repairdone{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;background:rgba(56,217,169,.12);border:1px solid rgba(56,217,169,.4);color:#b8f5de;margin:12px 0}
+.repairdone b{display:block;margin-bottom:4px;color:#9af0d0}
+.repairdone p{margin:0;font-size:13px;color:#c5e6da}
+.repairdone svg{flex-shrink:0;color:#38d9a9;margin-top:1px}
