@@ -613,3 +613,68 @@ button,input,textarea,select{max-width:100%}
 .tillnumber{font-size:20px;letter-spacing:.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9af0d0}
 .copytillbtn{flex-shrink:0;padding:8px 12px;font-size:12px;gap:6px}
 .copyhint{margin:8px 0 0;color:#38d9a9!important;font-weight:600}
+
+
+/* FORCE scrollable payment/till modal — code field must be reachable */
+.modalbackdrop{
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:12px 10px 40px !important;
+}
+.modal.phonemodal{
+  display:flex !important;
+  flex-direction:column !important;
+  width:min(560px, calc(100vw - 20px)) !important;
+  max-height:min(88dvh, 88vh) !important;
+  overflow:hidden !important;
+  margin:12px auto 32px !important;
+}
+.modal.phonemodal .modalhead{
+  flex:0 0 auto !important;
+}
+.modal.phonemodal .phonemodalform{
+  display:flex !important;
+  flex-direction:column !important;
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow:hidden !important;
+}
+.modal.phonemodal .paymentbody,
+.modal.phonemodal .phonebody{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  overscroll-behavior:contain !important;
+  padding:14px 18px 20px !important;
+  padding-bottom:28px !important;
+}
+.modal.phonemodal .modalfoot,
+.modal.phonemodal .paymentfoot{
+  flex:0 0 auto !important;
+  position:sticky !important;
+  bottom:0 !important;
+  background:#0b182a !important;
+  z-index:2 !important;
+  border-top:1px solid #1d3049 !important;
+  padding:12px 16px !important;
+  gap:10px !important;
+  flex-wrap:wrap !important;
+}
+.modal.phonemodal .fieldlabel input{
+  font-size:16px !important; /* avoid iOS zoom */
+  min-height:48px !important;
+}
+@media (max-width:600px){
+  .modal.phonemodal{
+    max-height:min(90dvh, 90vh) !important;
+    border-radius:16px !important;
+  }
+  .modal.phonemodal .paymentbody,
+  .modal.phonemodal .phonebody{
+    padding:12px 14px 24px !important;
+  }
+}
