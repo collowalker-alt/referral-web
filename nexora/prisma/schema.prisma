@@ -52,6 +52,8 @@ model User {
   packageId         String?
   package           Package? @relation(fields: [packageId], references: [id])
   status            UserStatus @default(ACTIVE)
+  sellerVerified    Boolean @default(false)
+  sellerBio         String? @db.Text
   resetToken        String?
   resetTokenExpires DateTime?
   wallet            Wallet?
@@ -66,6 +68,10 @@ model User {
   products          Product[] @relation("SellerProducts")
   buyerOrders       Order[] @relation("BuyerOrders")
   sellerOrders      Order[] @relation("SellerOrders")
+  reviewsWritten    ProductReview[] @relation("ReviewAuthor")
+  reviewsReceived   ProductReview[] @relation("ReviewSeller")
+  wishlists         Wishlist[]
+  disputes          Dispute[]
 
   @@index([referredById])
   @@index([packageId])
@@ -294,6 +300,60 @@ model Product {
   @@index([category, status])
   @@index([location])
   @@index([createdAt])
+  reviews ProductReview[]
+}
+
+model ProductReview {
+  id String @id @default(cuid())
+  productId String
+  authorId String
+  sellerId String
+  rating Int
+  title String?
+  body String? @db.Text
+  createdAt DateTime @default(now())
+  product Product @relation(fields:[productId], references:[id], onDelete: Cascade)
+  author User @relation("ReviewAuthor", fields:[authorId], references:[id], onDelete: Cascade)
+  seller User @relation("ReviewSeller", fields:[sellerId], references:[id], onDelete: Cascade)
+  @@unique([productId, authorId])
+  @@index([sellerId, createdAt])
+}
+
+model Wishlist {
+  id String @id @default(cuid())
+  userId String
+  productId String
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId], references:[id], onDelete: Cascade)
+  product Product @relation(fields:[productId], references:[id], onDelete: Cascade)
+  @@unique([userId, productId])
+}
+
+model Coupon {
+  id String @id @default(cuid())
+  code String @unique
+  percentOff Int @default(0)
+  amountOff Int @default(0)
+  minOrder Int @default(0)
+  active Boolean @default(true)
+  expiresAt DateTime?
+  usageLimit Int?
+  usedCount Int @default(0)
+  createdAt DateTime @default(now())
+}
+
+model Dispute {
+  id String @id @default(cuid())
+  orderId String
+  userId String
+  reason String
+  details String? @db.Text
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  order Order @relation(fields:[orderId], references:[id], onDelete: Cascade)
+  user User @relation(fields:[userId], references:[id], onDelete: Cascade)
+  @@index([orderId, status])
 }
 
 model Order {
@@ -315,6 +375,7 @@ model Order {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   items           OrderItem[]
+  disputes        Dispute[]
   @@index([buyerId, createdAt])
   @@index([sellerId, status])
 }

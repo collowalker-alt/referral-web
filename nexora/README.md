@@ -136,3 +136,13 @@ Run:
 `npx prisma generate --schema prisma/schema.prisma`
 
 Then restart the API.
+
+## Marketplace expansion
+
+The marketplace now includes wishlists, post-purchase reviews, verified-seller profiles, coupon validation, buyer dispute submission, and an admin Marketplace Manager for listing moderation, seller verification and order monitoring. Seller verification is an admin-controlled trust signal; it is not a guarantee of product quality.
+
+After deployment run:
+`npx prisma db push --schema prisma/schema.prisma`
+`npx prisma generate --schema prisma/schema.prisma`
+
+For production, configure object storage for product media before scaling large catalogs, and add an order-specific M-Pesa payment/verification flow before enabling direct mobile-money checkout for marketplace orders.
