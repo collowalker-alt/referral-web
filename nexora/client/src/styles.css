@@ -844,6 +844,20 @@ button,input,textarea,select{max-width:100%}
   .installbackdrop .moderninstall{width:100% !important;max-height:calc(100dvh - 28px) !important;}
 }
 /* Marketplace-first member dashboard */
+
+.pillargrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0 22px;}
+.pillargrid button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:13px;text-align:left;padding:18px;border:1px solid #203747;border-radius:18px;background:linear-gradient(145deg,#0b1722,#0b121c);color:#edf6ff;cursor:pointer;transition:transform .18s ease,border-color .18s ease,background .18s ease;min-height:112px;}
+.pillargrid button:hover{transform:translateY(-2px);border-color:#38d9a9;background:#0d2029;}
+.pillargrid span{display:grid;gap:6px;min-width:0;}
+.pillargrid b{font-size:14px;letter-spacing:.2px;}
+.pillargrid small{color:#8da0b4;font-size:11px;line-height:1.45;}
+.pillaricon{display:grid!important;place-items:center;width:44px;height:44px;border-radius:14px;background:#122534;color:#73e3c5;border:1px solid rgba(115,227,197,.14);}
+.pillargrid button>svg:last-child{color:#71879c;}
+.pillarearn .pillaricon{color:#f5cf70;background:#282313;}
+.pillaradvertise .pillaricon{color:#dba7ff;background:#261a32;}
+.pillaracademy .pillaricon{color:#8db8ff;background:#17243a;}
+@media(max-width:760px){.pillargrid{grid-template-columns:1fr;gap:10px}.pillargrid button{min-height:98px;padding:15px;}}
+
 .marketplacehero{background:linear-gradient(135deg,#102a35 0%,#0d1a2b 55%,#17132b 100%);border-color:#2b4b5a;}
 .marketplaceheroicon{background:linear-gradient(145deg,#153e45,#2a2145);color:#71e6c9;border:1px solid rgba(113,230,201,.16);}
 .marketquick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0 20px;}

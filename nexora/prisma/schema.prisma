@@ -301,6 +301,7 @@ model Product {
   @@index([location])
   @@index([createdAt])
   reviews ProductReview[]
+  wishlists Wishlist[]
 }
 
 model ProductReview {
