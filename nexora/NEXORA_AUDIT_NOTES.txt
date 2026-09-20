@@ -1,0 +1,41 @@
+NEXORA AUDIT / DEPLOYMENT NOTES
+================================
+
+Checked:
+- Client JSX around the Render build error in src/main.jsx.
+- Client API paths against server routes.
+- Button tags for missing click/submit handlers.
+- Modal CSS and long-content scrolling behavior.
+- Payment/deposit flows and payment configuration.
+- Prisma payment method enum compatibility.
+- Server JavaScript syntax with `node --check`.
+
+FIXES INCLUDED
+1. Fixed the JSX build error in client/src/main.jsx:
+   The marketplace review conditional was missing its closing `}` after the review list.
+2. Reworked manual M-Pesa payment UI from Till/Buy Goods to Co-operative Bank Paybill.
+3. Added Co-op account number display/copy controls in package payment and wallet deposit modals.
+4. Paybill payment flow now creates pending transactions and accepts M-Pesa confirmation codes for admin verification.
+5. Admin navigation/verification labels now say Paybill payments.
+6. Added MPESA_PAYBILL_NUMBER (default 400200), MPESA_PAYBILL_ACCOUNT, and MPESA_PAYBILL_NAME environment variables.
+7. Kept the old MPESA_TILL enum value in Prisma for backwards compatibility with any existing records, while the active application flow uses PAYBILL.
+8. Hardened modal scrolling so long headers/bodies/footers do not get trapped behind the viewport; payment/auth/instructions/lesson/admin modals have dedicated scroll containers.
+9. Added paybill styling corresponding to the new UI.
+
+RENDER ENVIRONMENT
+Set these on the BACKEND/API service:
+MPESA_PAYBILL_NUMBER=400200
+MPESA_PAYBILL_ACCOUNT=<your Co-op Bank account number>
+MPESA_PAYBILL_NAME=NEXORA
+
+Do not commit the real bank account number into source control.
+
+VERIFICATION
+- server/src/server.js passes `node --check`.
+- The original JSX error region now has the missing closing conditional brace.
+- Full Vite build could not be executed in this sandbox because npm dependency installation timed out; Render should perform the authoritative `npm install` + `vite build`.
+
+PAYMENT PROCESS
+M-Pesa -> Lipa na M-Pesa -> Paybill -> 400200 -> configured Co-op account number -> exact amount.
+Member submits the M-Pesa confirmation code.
+Admin verifies the code and amount before activating the package / crediting the wallet.

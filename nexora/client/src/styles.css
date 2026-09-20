@@ -538,22 +538,22 @@ button,input,textarea,select{max-width:100%}
 .pkgfeatures svg{color:#38d9a9;flex-shrink:0;margin-top:2px}
 .pkgmeta{display:flex;justify-content:space-between;font-size:12px;color:#8fa2b9;margin:6px 0}
 
-/* Till payment UI */
-.tillbox{margin:12px 0;padding:14px;border-radius:14px;background:#071321;border:1px solid #29415d}
-.tilldetails{display:grid;gap:10px;margin-bottom:14px}
-.tilldetails>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:13px}
-.tilldetails span{color:#8fa2b9}
-.tilldetails strong{color:#e8f4ff;text-align:right}
-.tilldetails .refcode{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
-.tillsteps{margin:0 0 14px 18px;padding:0;color:#b7c6d8;font-size:13px;line-height:1.55}
-.tillsteps li{margin-bottom:6px}
-.tillsteps b{color:#e8f4ff}
-.tillrow{flex-wrap:wrap;gap:10px}
-.admin-till-table .row{align-items:flex-start}
+/* Paybill payment UI */
+.paybillbox{margin:12px 0;padding:14px;border-radius:14px;background:#071321;border:1px solid #29415d}
+.paybilldetails{display:grid;gap:10px;margin-bottom:14px}
+.paybilldetails>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:13px}
+.paybilldetails span{color:#8fa2b9}
+.paybilldetails strong{color:#e8f4ff;text-align:right}
+.paybilldetails .refcode{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+.paybillsteps{margin:0 0 14px 18px;padding:0;color:#b7c6d8;font-size:13px;line-height:1.55}
+.paybillsteps li{margin-bottom:6px}
+.paybillsteps b{color:#e8f4ff}
+.paybillrow{flex-wrap:wrap;gap:10px}
+.admin-paybill-table .row{align-items:flex-start}
 .refcode{font-family:ui-monospace,monospace;font-size:12px}
 
 
-/* Ensure payment / till / auth modals are scrollable so till number and lower content stay visible */
+/* Ensure payment / paybill / auth modals are scrollable so till number and lower content stay visible */
 .modalbackdrop{
   align-items: start;
   justify-items: center;
@@ -607,15 +607,15 @@ button,input,textarea,select{max-width:100%}
   }
 }
 
-/* Copy till number / amount / reference */
-.tillrowcopy{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
-.tillrowcopy>div{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.tillnumber{font-size:20px;letter-spacing:.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9af0d0}
-.copytillbtn{flex-shrink:0;padding:8px 12px;font-size:12px;gap:6px}
+/* Copy paybill / account / amount / reference */
+.paybillrowcopy{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.paybillrowcopy>div{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.paybillnumber{font-size:20px;letter-spacing:.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9af0d0}
+.copypaybillbtn{flex-shrink:0;padding:8px 12px;font-size:12px;gap:6px}
 .copyhint{margin:8px 0 0;color:#38d9a9!important;font-weight:600}
 
 
-/* FORCE scrollable payment/till modal — code field must be reachable */
+/* FORCE scrollable payment/paybill modal — code field must be reachable */
 .modalbackdrop{
   display:flex !important;
   align-items:flex-start !important;
@@ -919,3 +919,13 @@ button,input,textarea,select{max-width:100%}
 .verifiedseller{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#72e2c5;background:rgba(56,217,169,.1);border-radius:999px;padding:5px 8px;}
 @media(max-width:900px){.sellerdashgrid{grid-template-columns:1fr 1fr;}.sellerdashgrid>.panel:last-child{grid-column:1/-1;}}
 @media(max-width:600px){.sellerdashgrid{grid-template-columns:1fr;}.sellerdashgrid>.panel:last-child{grid-column:auto;}}
+
+/* Paybill-specific readability and modal stacking */
+.paybilldetails .paybillrowcopy,
+.paybilldetails>div{min-width:0}
+.paybilldetails .refcode{overflow-wrap:anywhere}
+.paybillsteps{overflow-wrap:anywhere}
+.modalbackdrop{isolation:isolate}
+.modalbackdrop .modalbackdrop{z-index:60}
+.modal{min-height:0}
+.modalhead,.modalfoot{position:relative;z-index:2;background:#0b182a}

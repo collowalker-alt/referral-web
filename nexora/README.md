@@ -102,9 +102,9 @@ Then restart the API.
 UI reliability fixes in this revision: payment/package modals now use dedicated touch scroll containers with sticky actions, all long-form modals have bounded scroll areas, and the service worker prefers fresh JS/CSS after deployments.
 
 ## Latest wallet/payment updates
-- Tapping **M-Pesa Till** in the package payment selector now immediately opens the Till payment details/code step without requiring a second Continue click.
+- Tapping **M-Pesa Paybill** in the package payment selector now immediately opens the Paybill payment details/code step without requiring a second Continue click.
 - Wallet now has **Balance / Deposit / Withdraw** tabs.
-- Deposit uses the configured NEXORA M-Pesa Till, creates a pending DEPOSIT transaction, accepts the M-Pesa confirmation code, and requires admin verification before crediting the member balance.
+- Deposit uses the configured NEXORA M-Pesa Paybill, creates a pending DEPOSIT transaction, accepts the M-Pesa confirmation code, and requires admin verification before crediting the member balance.
 - Admin console includes **Wallet deposits** for approving/rejecting deposits and checking the submitted amount/code.
 - After deployment, run `npx prisma db push --schema prisma/schema.prisma` (or your normal migration workflow) and `npx prisma generate --schema prisma/schema.prisma` before starting the server.
 
@@ -146,3 +146,17 @@ After deployment run:
 `npx prisma generate --schema prisma/schema.prisma`
 
 For production, configure object storage for product media before scaling large catalogs, and add an order-specific M-Pesa payment/verification flow before enabling direct mobile-money checkout for marketplace orders.
+
+
+## Co-operative Bank M-Pesa Paybill configuration
+
+NEXORA now uses Co-operative Bank M-Pesa Paybill instead of an M-Pesa Till for manual package payments and wallet deposits.
+
+Co-operative Bank's official guidance states that **Paybill 400200** is used to send money into a Co-op Bank account. The customer enters the destination Co-op account number, then the amount and M-Pesa PIN.
+
+Set these API environment variables on Render:
+- `MPESA_PAYBILL_NUMBER=400200`
+- `MPESA_PAYBILL_ACCOUNT=<your NEXORA Co-op Bank account number>`
+- `MPESA_PAYBILL_NAME=NEXORA`
+
+The account number is intentionally left blank in `.env.example`; put the real account number in Render's secret environment variables rather than committing it to Git.

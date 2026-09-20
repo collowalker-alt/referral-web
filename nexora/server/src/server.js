@@ -54,8 +54,9 @@ const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const EMAIL_FROM = process.env.EMAIL_FROM || "NEXORA <onboarding@resend.dev>";
 const APP_URL = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
-const MPESA_TILL_NUMBER = String(process.env.MPESA_TILL_NUMBER || "").trim();
-const MPESA_TILL_NAME = String(process.env.MPESA_TILL_NAME || "NEXORA").trim();
+const MPESA_PAYBILL_NUMBER = String(process.env.MPESA_PAYBILL_NUMBER || "400200").trim();
+const MPESA_PAYBILL_ACCOUNT = String(process.env.MPESA_PAYBILL_ACCOUNT || "").trim();
+const MPESA_PAYBILL_NAME = String(process.env.MPESA_PAYBILL_NAME || "NEXORA").trim();
 
 async function sendPasswordResetEmail({ to, name, rawToken }) {
   if (!resend) {
@@ -179,9 +180,10 @@ app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 app.get("/api/payments/methods",(req,res)=>{
   res.json({
     wallet:true,
-    till:Boolean(MPESA_TILL_NUMBER),
-    tillNumber:MPESA_TILL_NUMBER||null,
-    tillName:MPESA_TILL_NAME||"NEXORA",
+    paybill:Boolean(MPESA_PAYBILL_NUMBER && MPESA_PAYBILL_ACCOUNT),
+    paybillNumber:MPESA_PAYBILL_NUMBER||null,
+    paybillAccount:MPESA_PAYBILL_ACCOUNT||null,
+    paybillName:MPESA_PAYBILL_NAME||"NEXORA",
     stkPush:false
   });
 });
@@ -357,7 +359,7 @@ app.get("/api/marketplace/orders",auth,async(req,res)=>{try{const [buying,sellin
 app.post("/api/marketplace/orders",auth,async(req,res)=>{
   try{
     const items=Array.isArray(req.body?.items)?req.body.items:[], deliveryName=cleanMarketplaceText(req.body?.deliveryName,120)||req.user.name,deliveryPhone=cleanMarketplaceText(req.body?.deliveryPhone,20)||req.user.phone,deliveryAddress=cleanMarketplaceText(req.body?.deliveryAddress,300),deliveryNotes=cleanMarketplaceText(req.body?.deliveryNotes,1000)||null,paymentMethod=String(req.body?.paymentMethod||"CASH_ON_DELIVERY").toUpperCase();
-    if(!items.length)return res.status(400).json({message:"Your cart is empty."});if(!deliveryAddress)return res.status(400).json({message:"Delivery address/location is required."});if(!["CASH_ON_DELIVERY","WALLET","MPESA_TILL"].includes(paymentMethod))return res.status(400).json({message:"Unsupported payment method."});
+    if(!items.length)return res.status(400).json({message:"Your cart is empty."});if(!deliveryAddress)return res.status(400).json({message:"Delivery address/location is required."});if(!["CASH_ON_DELIVERY","WALLET","MPESA_PAYBILL"].includes(paymentMethod))return res.status(400).json({message:"Unsupported payment method."});
     const ids=[...new Set(items.map(x=>String(x.productId)))];const products=await prisma.product.findMany({where:{id:{in:ids},status:"ACTIVE"}});if(products.length!==ids.length)return res.status(400).json({message:"One or more products are no longer available."});const sellerIds=[...new Set(products.map(p=>p.sellerId))];if(sellerIds.length!==1)return res.status(400).json({message:"For now, checkout one seller at a time. Remove products from other sellers and try again."});
     const normalized=items.map(x=>{const p=products.find(z=>z.id===x.productId);const quantity=Math.max(1,Math.floor(Number(x.quantity||1)));if(quantity>p.stock)throw new Error(`${p.title} only has ${p.stock} in stock.`);return {p,quantity};});const total=normalized.reduce((a,x)=>a+x.p.price*x.quantity,0);const sellerId=sellerIds[0];
     if(paymentMethod==="WALLET"){const w=await prisma.wallet.findUnique({where:{userId:req.user.id}});if(!w||w.balance<total)return res.status(400).json({message:`Insufficient wallet balance. You need ${money(total)}.`});}
@@ -560,10 +562,10 @@ app.post("/api/payments/wallet-purchase",auth,async(req,res)=>{
 });
 
 
-// Start a till payment: creates PENDING tx and returns till instructions
-app.post("/api/payments/till/initiate",auth,async(req,res)=>{
+// Start a paybill payment: creates PENDING tx and returns paybill instructions
+app.post("/api/payments/paybill/initiate",auth,async(req,res)=>{
   try{
-    if(!MPESA_TILL_NUMBER) return res.status(503).json({message:"M-Pesa till payments are not configured yet"});
+    if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"M-Pesa Paybill payments are not fully configured yet. Set MPESA_PAYBILL_ACCOUNT in Render."});
     const {packageId}=req.body||{};
     if(!packageId) return res.status(400).json({message:"Package is required"});
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
@@ -575,7 +577,7 @@ app.post("/api/payments/till/initiate",auth,async(req,res)=>{
     const chargeAmount=user.package ? pkg.price-user.package.price : pkg.price;
     if(chargeAmount<=0) return res.status(400).json({message:"Invalid charge amount"});
 
-    const reference=`NX-TILL-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    const reference=`NX-PAYBILL-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
     await prisma.transaction.create({
       data:{
         userId:user.id,
@@ -586,9 +588,10 @@ app.post("/api/payments/till/initiate",auth,async(req,res)=>{
         metadata:{
           packageId:pkg.id,
           chargeAmount,
-          method:"TILL",
-          tillNumber:MPESA_TILL_NUMBER,
-          tillName:MPESA_TILL_NAME,
+          method:"PAYBILL",
+          paybillNumber:MPESA_PAYBILL_NUMBER,
+          paybillAccount:MPESA_PAYBILL_ACCOUNT,
+          paybillName:MPESA_PAYBILL_NAME,
           currentPackageId:user.packageId||null,
           mpesaCode:null,
           verified:false
@@ -600,28 +603,29 @@ app.post("/api/payments/till/initiate",auth,async(req,res)=>{
       status:"pending",
       chargeAmount,
       package:{id:pkg.id,name:pkg.name,price:pkg.price},
-      tillNumber:MPESA_TILL_NUMBER,
-      tillName:MPESA_TILL_NAME,
+      paybillNumber:MPESA_PAYBILL_NUMBER,
+      paybillAccount:MPESA_PAYBILL_ACCOUNT,
+      paybillName:MPESA_PAYBILL_NAME,
       accountReference:reference,
       instructions:[
         "Open M-Pesa on your phone",
-        "Choose Lipa na M-Pesa → Buy Goods and Services (or Paybill if your till uses Paybill)",
-        `Enter Till/Buy Goods number: ${MPESA_TILL_NUMBER}`,
+        "Choose Lipa na M-Pesa → Paybill",
+        `Enter Paybill number: ${MPESA_PAYBILL_NUMBER}`,
         `Enter amount: ${chargeAmount}`,
-        `Use account/reference: ${reference} if asked`,
+        `Enter Co-op account number: ${MPESA_PAYBILL_ACCOUNT}`,
         "Complete payment with your M-Pesa PIN",
         "Copy the M-Pesa confirmation code (e.g. QH12XXXX) and submit it below"
       ],
-      message:"Pay the exact amount to the till, then submit your M-Pesa confirmation code."
+      message:"Pay the exact amount to the paybill, then submit your M-Pesa confirmation code."
     });
   }catch(e){
-    console.error("[TILL INITIATE]",e);
-    res.status(500).json({message:"Unable to start till payment"});
+    console.error("[PAYBILL INITIATE]",e);
+    res.status(500).json({message:"Unable to start paybill payment"});
   }
 });
 
-// Member submits M-Pesa confirmation code after paying to till
-app.post("/api/payments/till/submit-code",auth,async(req,res)=>{
+// Member submits M-Pesa confirmation code after paying to paybill
+app.post("/api/payments/paybill/submit-code",auth,async(req,res)=>{
   try{
     const reference=String(req.body?.reference||"").trim();
     const mpesaCode=String(req.body?.mpesaCode||"").trim().toUpperCase().replace(/\s+/g,"");
@@ -651,13 +655,13 @@ app.post("/api/payments/till/submit-code",auth,async(req,res)=>{
       message:"M-Pesa code received. NEXORA will verify the amount and confirmation before activating your package. This usually does not take long."
     });
   }catch(e){
-    console.error("[TILL SUBMIT CODE]",e);
+    console.error("[PAYBILL SUBMIT CODE]",e);
     res.status(500).json({message:"Unable to submit M-Pesa code"});
   }
 });
 
-// Admin: list till payments awaiting verification
-app.get("/api/admin/payments/pending-till",adminAuth,async(req,res)=>{
+// Admin: list Paybill payments awaiting verification
+app.get("/api/admin/payments/pending-paybill",adminAuth,async(req,res)=>{
   try{
     const rows=await prisma.transaction.findMany({
       where:{type:"PACKAGE_PURCHASE",status:"PENDING"},
@@ -665,8 +669,8 @@ app.get("/api/admin/payments/pending-till",adminAuth,async(req,res)=>{
       take:200,
       include:{user:{select:{id:true,name:true,email:true,phone:true}}}
     });
-    const till=rows.filter(t=>(t.metadata?.method==="TILL")||String(t.reference||"").startsWith("NX-TILL-"));
-    res.json(till.map(t=>({
+    const paybill=rows.filter(t=>(t.metadata?.method==="PAYBILL")||String(t.reference||"").startsWith("NX-PAYBILL-"));
+    res.json(paybill.map(t=>({
       id:t.id,
       reference:t.reference,
       amount:t.amount,
@@ -674,18 +678,19 @@ app.get("/api/admin/payments/pending-till",adminAuth,async(req,res)=>{
       createdAt:t.createdAt,
       mpesaCode:t.metadata?.mpesaCode||null,
       packageId:t.metadata?.packageId||null,
-      tillNumber:t.metadata?.tillNumber||MPESA_TILL_NUMBER,
+      paybillNumber:t.metadata?.paybillNumber||MPESA_PAYBILL_NUMBER,
+      paybillAccount:t.metadata?.paybillAccount||MPESA_PAYBILL_ACCOUNT,
       awaitingVerification:Boolean(t.metadata?.awaitingVerification||t.metadata?.mpesaCode),
       user:t.user
     })));
   }catch(e){
     console.error(e);
-    res.status(500).json({message:"Unable to load pending till payments"});
+    res.status(500).json({message:"Unable to load pending Paybill payments"});
   }
 });
 
-// Admin verifies till payment: checks claimed amount matches, then activates package
-app.post("/api/admin/payments/verify-till",adminAuth,async(req,res)=>{
+// Admin verifies paybill payment: checks claimed amount matches, then activates package
+app.post("/api/admin/payments/verify-paybill",adminAuth,async(req,res)=>{
   try{
     const reference=String(req.body?.reference||"").trim();
     const action=String(req.body?.action||"approve").toLowerCase();
@@ -701,7 +706,7 @@ app.post("/api/admin/payments/verify-till",adminAuth,async(req,res)=>{
         where:{id:tx.id},
         data:{status:"FAILED",metadata:{...(tx.metadata||{}),rejectedAt:new Date().toISOString(),rejectNote:note,verifiedBy:req.admin.email}}
       });
-      await logAdminAction(req,"TILL_PAYMENT_REJECTED","TRANSACTION",tx.id,tx.user?.email,{reference,note});
+      await logAdminAction(req,"PAYBILL_PAYMENT_REJECTED","TRANSACTION",tx.id,tx.user?.email,{reference,note});
       return res.json({status:"failed",message:"Payment rejected. Member can start a new payment."});
     }
 
@@ -721,11 +726,11 @@ app.post("/api/admin/payments/verify-till",adminAuth,async(req,res)=>{
       data:{metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}
     });
     await activatePaidPackage(reference);
-    await logAdminAction(req,"TILL_PAYMENT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
+    await logAdminAction(req,"PAYBILL_PAYMENT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
     res.json({status:"success",message:`Payment verified. Package activated for ${tx.user?.email||"member"}.`});
   }catch(e){
-    console.error("[TILL VERIFY]",e);
-    res.status(500).json({message:"Unable to verify till payment"});
+    console.error("[PAYBILL VERIFY]",e);
+    res.status(500).json({message:"Unable to verify paybill payment"});
   }
 });
 
@@ -1062,11 +1067,11 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
 });
 
 
-// Wallet deposits via the NEXORA M-Pesa Till. Deposits remain pending until an administrator
+// Wallet deposits via the NEXORA M-Pesa Paybill. Deposits remain pending until an administrator
 // verifies the M-Pesa confirmation code and the exact amount received.
 app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
   try{
-    if(!MPESA_TILL_NUMBER) return res.status(503).json({message:"M-Pesa till deposits are not configured yet"});
+    if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"M-Pesa Paybill deposits are not fully configured yet. Set MPESA_PAYBILL_ACCOUNT in Render."});
     const amount=Number(req.body?.amount);
     if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum deposit is KSh 100"});
     const user=await prisma.user.findUnique({where:{id:req.user.id}});
@@ -1074,9 +1079,9 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
     const reference=`NX-DEP-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
     await prisma.transaction.create({data:{
       userId:user.id,type:"DEPOSIT",amount,status:"PENDING",reference,
-      metadata:{method:"TILL",tillNumber:MPESA_TILL_NUMBER,tillName:MPESA_TILL_NAME,mpesaCode:null,verified:false}
+      metadata:{method:"PAYBILL",paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,mpesaCode:null,verified:false}
     }});
-    res.status(201).json({reference,amount,tillNumber:MPESA_TILL_NUMBER,tillName:MPESA_TILL_NAME,status:"pending",message:"Pay the exact amount to the NEXORA till, then submit your M-Pesa confirmation code."});
+    res.status(201).json({reference,amount,paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,status:"pending",message:"Pay the exact amount to the NEXORA paybill, then submit your M-Pesa confirmation code."});
   }catch(e){console.error("[DEPOSIT INITIATE]",e);res.status(500).json({message:"Unable to start wallet deposit"});}
 });
 
@@ -1101,7 +1106,7 @@ app.post("/api/wallet/deposit/submit-code",auth,async(req,res)=>{
 app.get("/api/admin/wallet/deposits",adminAuth,async(req,res)=>{
   try{
     const rows=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:"PENDING"},orderBy:{createdAt:"desc"},take:200,include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
-    res.json(rows.map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,tillNumber:x.metadata?.tillNumber||MPESA_TILL_NUMBER})));
+    res.json(rows.map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,paybillNumber:x.metadata?.paybillNumber||MPESA_PAYBILL_NUMBER,paybillAccount:x.metadata?.paybillAccount||MPESA_PAYBILL_ACCOUNT})));
   }catch(e){console.error("[ADMIN DEPOSITS]",e);res.status(500).json({message:"Unable to load pending deposits"});}
 });
 
