@@ -553,7 +553,7 @@ button,input,textarea,select{max-width:100%}
 .refcode{font-family:ui-monospace,monospace;font-size:12px}
 
 
-/* Ensure payment / paybill / auth modals are scrollable so till number and lower content stay visible */
+/* Ensure payment / paybill / auth modals are scrollable so paybill number and lower content stay visible */
 .modalbackdrop{
   align-items: start;
   justify-items: center;
@@ -929,3 +929,69 @@ button,input,textarea,select{max-width:100%}
 .modalbackdrop .modalbackdrop{z-index:60}
 .modal{min-height:0}
 .modalhead,.modalfoot{position:relative;z-index:2;background:#0b182a}
+
+/* Final layout correction: header action buttons must not squeeze the title column. */
+.sectionhead .sectionactions{
+  flex:0 0 auto;
+  min-width:max-content;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+}
+.sectionhead .sectionactions .primary,
+.sectionhead > .primary{
+  width:auto !important;
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+.sectionhead .sectionactions .secondary,
+.sectionhead > .secondary{
+  width:auto;
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+
+/* Authentication modal: never clip the top or hide lower fields on short screens. */
+.modalbackdrop:has(.authmodal){
+  align-items:flex-start !important;
+  justify-content:center !important;
+  padding:12px 10px 32px !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  overscroll-behavior:contain;
+}
+.modalbackdrop:has(.authmodal) .authmodal{
+  width:min(560px,calc(100vw - 20px));
+  max-height:calc(100dvh - 24px) !important;
+  margin:0 auto;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+}
+.modalbackdrop:has(.authmodal) .authmodal .modalhead{
+  position:sticky;
+  top:0;
+  z-index:8;
+  background:rgba(8,18,31,.97);
+  backdrop-filter:blur(12px);
+}
+@media(max-width:600px){
+  .modalbackdrop:has(.authmodal){padding:8px 7px 24px !important;}
+  .modalbackdrop:has(.authmodal) .authmodal{
+    width:calc(100vw - 14px);
+    max-height:calc(100dvh - 16px) !important;
+  }
+  .sectionhead .sectionactions{
+    width:100%;
+    min-width:0;
+    justify-content:flex-start;
+    flex-wrap:wrap;
+  }
+  .sectionhead .sectionactions .primary,
+  .sectionhead .sectionactions .secondary{
+    max-width:100%;
+  }
+}

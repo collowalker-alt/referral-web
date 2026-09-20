@@ -1,0 +1,22 @@
+NEXORA FINAL UI / DEPLOYMENT AUDIT
+
+Fixed in this revision:
+1. Marketplace header layout: fixed flex sizing so the description no longer collapses into a one-character-per-line vertical column. The Cart button stays at the right without squeezing the heading.
+2. Authentication modal: fixed top clipping and short-viewport overflow. The modal now stays inside the viewport, scrolls internally when necessary, keeps the header accessible, and exposes all registration/login fields and controls.
+3. Long modal behavior: retained robust scroll containers for payment, paybill, wallet deposit, advertising submission, instructions, lessons and marketplace detail windows.
+4. Modal layering: modal headers/footers have explicit stacking/background behavior so content cannot visually pass underneath them.
+5. Paybill flow: active manual M-Pesa package and wallet flows use Co-operative Bank Paybill 400200 plus the configured Co-op account number. Old MPESA_TILL enum remains only for backwards compatibility with historical records.
+6. Render JSX build issue: corrected the previously reported adjacent JSX problem in the marketplace review rendering.
+7. Mobile navigation and layout: retained the visible hamburger menu, scrollable sidebar, no horizontal page scrolling, and responsive card layouts.
+8. Payment modals: lower confirmation-code fields and footer actions remain reachable by scrolling.
+9. Marketplace controls: search, filters, wishlist, cart, seller listing, orders and detail modal handlers were reviewed for missing button handlers; submit buttons inside forms intentionally use form submission.
+
+Deployment configuration required on Render backend:
+MPESA_PAYBILL_NUMBER=400200
+MPESA_PAYBILL_ACCOUNT=<your Co-operative Bank account number>
+MPESA_PAYBILL_NAME=NEXORA
+
+The real account number should be entered as a Render environment variable, not committed to source code.
+
+Validation note:
+The sandbox could not complete npm dependency installation within the available execution window, so a fresh local Vite production build could not be executed here. The exact reported JSX location was corrected and the source was statically audited. Render's build log remains the final deployment-level verification.
