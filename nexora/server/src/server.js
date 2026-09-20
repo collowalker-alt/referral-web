@@ -332,6 +332,44 @@ app.patch("/api/admin/ad-submissions/:id",adminAuth,async(req,res)=>{
     await logAdminAction(req,"AD_SUBMISSION_STATUS","AD_SUBMISSION",current.id,current.user.email,{status,approvedPay,payoutFriday:friday.toISOString()});res.json(updated);}
   catch(e){console.error(e);res.status(500).json({message:"Unable to update advertising submission"});}
 });
+
+const cleanMarketplaceText=(v,max=5000)=>String(v||"").trim().slice(0,max);
+const marketplaceImageOk=x=>typeof x==="string" && /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(x) && x.length<2500000;
+
+app.get("/api/marketplace/products",auth,async(req,res)=>{
+  try{
+    const q=cleanMarketplaceText(req.query?.q,100), category=cleanMarketplaceText(req.query?.category,80), location=cleanMarketplaceText(req.query?.location,120);
+    const products=await prisma.product.findMany({where:{status:"ACTIVE",stock:{gt:0},...(category&&category!=="All"?{category}:{}),...(location?{location:{contains:location,mode:"insensitive"}}:{}),...(q?{OR:[{title:{contains:q,mode:"insensitive"}},{description:{contains:q,mode:"insensitive"}},{category:{contains:q,mode:"insensitive"}},{location:{contains:q,mode:"insensitive"}}]}:{})},include:{seller:{select:{id:true,name:true,phone:true}},_count:{select:{orderItems:true}}},orderBy:[{featured:"desc"},{createdAt:"desc"}],take:100});
+    res.json(products);
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to load marketplace products"});}
+});
+app.get("/api/marketplace/my-products",auth,async(req,res)=>{try{res.json(await prisma.product.findMany({where:{sellerId:req.user.id},orderBy:{createdAt:"desc"}}));}catch(e){res.status(500).json({message:"Unable to load your products"});}});
+app.post("/api/marketplace/products",auth,async(req,res)=>{
+  try{
+    const title=cleanMarketplaceText(req.body?.title,120),description=cleanMarketplaceText(req.body?.description,5000),category=cleanMarketplaceText(req.body?.category,80)||"Other",location=cleanMarketplaceText(req.body?.location,160),phone=cleanMarketplaceText(req.body?.phone,20)||req.user.phone,price=Math.floor(Number(req.body?.price)),stock=Math.floor(Number(req.body?.stock||1));
+    const images=Array.isArray(req.body?.images)?req.body.images.filter(marketplaceImageOk).slice(0,6):[];
+    if(!title||!description||!location||!Number.isFinite(price)||price<1||!Number.isFinite(stock)||stock<0)return res.status(400).json({message:"Title, description, price, stock and location are required."});
+    const p=await prisma.product.create({data:{sellerId:req.user.id,title,description,category,location,phone,price,stock,images}});res.status(201).json(p);
+  }catch(e){console.error(e);res.status(500).json({message:"Unable to publish product"});}
+});
+app.patch("/api/marketplace/products/:id",auth,async(req,res)=>{try{const p=await prisma.product.findFirst({where:{id:req.params.id,sellerId:req.user.id}});if(!p)return res.status(404).json({message:"Product not found"});const data={};for(const k of ["title","description","category","location","phone"]){if(req.body?.[k]!==undefined)data[k]=cleanMarketplaceText(req.body[k],k==="description"?5000:160)}if(req.body?.price!==undefined)data.price=Math.max(1,Math.floor(Number(req.body.price)));if(req.body?.stock!==undefined)data.stock=Math.max(0,Math.floor(Number(req.body.stock)));if(Array.isArray(req.body?.images))data.images=req.body.images.filter(marketplaceImageOk).slice(0,6);if(req.body?.status!==undefined && ["ACTIVE","SOLD_OUT","HIDDEN"].includes(String(req.body.status)))data.status=String(req.body.status);const updated=await prisma.product.update({where:{id:p.id},data});res.json(updated);}catch(e){res.status(500).json({message:"Unable to update product"});}});
+app.get("/api/marketplace/orders",auth,async(req,res)=>{try{const [buying,selling]=await Promise.all([prisma.order.findMany({where:{buyerId:req.user.id},include:{items:{include:{product:true}},seller:{select:{name:true,phone:true,location:true}}},orderBy:{createdAt:"desc"},take:100}),prisma.order.findMany({where:{sellerId:req.user.id},include:{items:{include:{product:true}},buyer:{select:{name:true,phone:true,email:true}}},orderBy:{createdAt:"desc"},take:100})]);res.json({buying,selling});}catch(e){res.status(500).json({message:"Unable to load marketplace orders"});}});
+app.post("/api/marketplace/orders",auth,async(req,res)=>{
+  try{
+    const items=Array.isArray(req.body?.items)?req.body.items:[], deliveryName=cleanMarketplaceText(req.body?.deliveryName,120)||req.user.name,deliveryPhone=cleanMarketplaceText(req.body?.deliveryPhone,20)||req.user.phone,deliveryAddress=cleanMarketplaceText(req.body?.deliveryAddress,300),deliveryNotes=cleanMarketplaceText(req.body?.deliveryNotes,1000)||null,paymentMethod=String(req.body?.paymentMethod||"CASH_ON_DELIVERY").toUpperCase();
+    if(!items.length)return res.status(400).json({message:"Your cart is empty."});if(!deliveryAddress)return res.status(400).json({message:"Delivery address/location is required."});if(!["CASH_ON_DELIVERY","WALLET","MPESA_TILL"].includes(paymentMethod))return res.status(400).json({message:"Unsupported payment method."});
+    const ids=[...new Set(items.map(x=>String(x.productId)))];const products=await prisma.product.findMany({where:{id:{in:ids},status:"ACTIVE"}});if(products.length!==ids.length)return res.status(400).json({message:"One or more products are no longer available."});const sellerIds=[...new Set(products.map(p=>p.sellerId))];if(sellerIds.length!==1)return res.status(400).json({message:"For now, checkout one seller at a time. Remove products from other sellers and try again."});
+    const normalized=items.map(x=>{const p=products.find(z=>z.id===x.productId);const quantity=Math.max(1,Math.floor(Number(x.quantity||1)));if(quantity>p.stock)throw new Error(`${p.title} only has ${p.stock} in stock.`);return {p,quantity};});const total=normalized.reduce((a,x)=>a+x.p.price*x.quantity,0);const sellerId=sellerIds[0];
+    if(paymentMethod==="WALLET"){const w=await prisma.wallet.findUnique({where:{userId:req.user.id}});if(!w||w.balance<total)return res.status(400).json({message:`Insufficient wallet balance. You need ${money(total)}.`});}
+    const reference=`ORD-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
+    const order=await prisma.$transaction(async tx=>{for(const x of normalized){const updated=await tx.product.updateMany({where:{id:x.p.id,stock:{gte:x.quantity},status:"ACTIVE"},data:{stock:{decrement:x.quantity}}});if(updated.count!==1)throw new Error(`${x.p.title} is no longer available in the requested quantity.`);}const o=await tx.order.create({data:{buyerId:req.user.id,sellerId,total,paymentMethod,paymentStatus:paymentMethod==="WALLET"?"SUCCESS":"PENDING",status:paymentMethod==="WALLET"?"CONFIRMED":"PENDING",deliveryName,deliveryPhone,deliveryAddress,deliveryNotes,reference,items:{create:normalized.map(x=>({productId:x.p.id,title:x.p.title,price:x.p.price,quantity:x.quantity}))}}});if(paymentMethod==="WALLET"){await tx.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:total}}});await tx.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:total,status:"SUCCESS",reference:`${reference}-WALLET`,metadata:{source:"MARKETPLACE_ORDER",orderId:o.id}}});}return o;});res.status(201).json({message:paymentMethod==="CASH_ON_DELIVERY"?"Order placed. Pay the seller on delivery as agreed.":"Order confirmed using your wallet balance.",order});
+  }catch(e){console.error(e);res.status(400).json({message:e.message||"Unable to place order"});}
+});
+app.patch("/api/marketplace/orders/:id/status",auth,async(req,res)=>{try{const status=String(req.body?.status||"").toUpperCase();if(!["CONFIRMED","PROCESSING","SHIPPED","DELIVERED","CANCELLED"].includes(status))return res.status(400).json({message:"Invalid order status"});const o=await prisma.order.findUnique({where:{id:req.params.id}});if(!o)return res.status(404).json({message:"Order not found"});if(o.sellerId!==req.user.id && o.buyerId!==req.user.id)return res.status(403).json({message:"Not authorized"});const updated=await prisma.order.update({where:{id:o.id},data:{status}});res.json(updated);}catch(e){res.status(500).json({message:"Unable to update order"});}});
+app.get("/api/admin/marketplace/products",adminAuth,async(req,res)=>{try{res.json(await prisma.product.findMany({include:{seller:{select:{name:true,email:true,phone:true}},_count:{select:{orderItems:true}}},orderBy:{createdAt:"desc"},take:500}));}catch(e){res.status(500).json({message:"Unable to load marketplace products"});}});
+app.patch("/api/admin/marketplace/products/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"").toUpperCase();if(!["ACTIVE","SOLD_OUT","HIDDEN","REJECTED"].includes(status))return res.status(400).json({message:"Invalid product status"});const p=await prisma.product.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,"MARKETPLACE_PRODUCT_STATUS","PRODUCT",p.id,null,{status});res.json(p);}catch(e){res.status(500).json({message:"Unable to moderate product"});}});
+app.get("/api/admin/marketplace/orders",adminAuth,async(req,res)=>{try{res.json(await prisma.order.findMany({include:{items:true,buyer:{select:{name:true,email:true,phone:true}},seller:{select:{name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:500}));}catch(e){res.status(500).json({message:"Unable to load marketplace orders"});}});
+
 app.get("/api/packages",async(req,res)=>{
   try{ await ensurePackages(); res.json(await prisma.package.findMany({where:{active:true},orderBy:{tier:"asc"}})); }
   catch(e){ console.error("Packages error:",e); res.status(500).json({message:"Unable to load packages. Please check the database setup."}); }
@@ -1013,6 +1051,76 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
     prisma.withdrawal.create({data:{userId:req.user.id,amount,phone,reference}})
   ]);
   res.status(201).json({message:"Withdrawal request submitted",reference});
+});
+
+
+// Wallet deposits via the NEXORA M-Pesa Till. Deposits remain pending until an administrator
+// verifies the M-Pesa confirmation code and the exact amount received.
+app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
+  try{
+    if(!MPESA_TILL_NUMBER) return res.status(503).json({message:"M-Pesa till deposits are not configured yet"});
+    const amount=Number(req.body?.amount);
+    if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum deposit is KSh 100"});
+    const user=await prisma.user.findUnique({where:{id:req.user.id}});
+    if(!user) return res.status(401).json({message:"Account unavailable"});
+    const reference=`NX-DEP-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    await prisma.transaction.create({data:{
+      userId:user.id,type:"DEPOSIT",amount,status:"PENDING",reference,
+      metadata:{method:"TILL",tillNumber:MPESA_TILL_NUMBER,tillName:MPESA_TILL_NAME,mpesaCode:null,verified:false}
+    }});
+    res.status(201).json({reference,amount,tillNumber:MPESA_TILL_NUMBER,tillName:MPESA_TILL_NAME,status:"pending",message:"Pay the exact amount to the NEXORA till, then submit your M-Pesa confirmation code."});
+  }catch(e){console.error("[DEPOSIT INITIATE]",e);res.status(500).json({message:"Unable to start wallet deposit"});}
+});
+
+app.post("/api/wallet/deposit/submit-code",auth,async(req,res)=>{
+  try{
+    const reference=String(req.body?.reference||"").trim();
+    const mpesaCode=String(req.body?.mpesaCode||"").trim().toUpperCase().replace(/\s+/g,"");
+    if(!reference||!mpesaCode) return res.status(400).json({message:"Deposit reference and M-Pesa confirmation code are required"});
+    if(mpesaCode.length<8||mpesaCode.length>15) return res.status(400).json({message:"Enter a valid M-Pesa confirmation code"});
+    const tx=await prisma.transaction.findUnique({where:{reference}});
+    if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT") return res.status(404).json({message:"Deposit not found"});
+    if(tx.status==="SUCCESS") return res.json({status:"success",message:"This deposit is already confirmed."});
+    if(tx.status==="FAILED") return res.status(400).json({message:"This deposit was rejected. Start a new deposit."});
+    const recent=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:{in:["SUCCESS","PENDING"]},createdAt:{gte:new Date(Date.now()-30*24*60*60*1000)}},select:{reference:true,metadata:true},take:500});
+    const duplicate=recent.some(t=>t.reference!==reference&&String(t.metadata?.mpesaCode||"").toUpperCase()===mpesaCode);
+    if(duplicate) return res.status(409).json({message:"This M-Pesa confirmation code was already used on another deposit."});
+    await prisma.transaction.update({where:{id:tx.id},data:{metadata:{...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true}}});
+    res.json({status:"pending_verification",reference,message:"M-Pesa code received. Your deposit will be credited after the amount and confirmation are verified."});
+  }catch(e){console.error("[DEPOSIT CODE]",e);res.status(500).json({message:"Unable to submit deposit code"});}
+});
+
+app.get("/api/admin/wallet/deposits",adminAuth,async(req,res)=>{
+  try{
+    const rows=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:"PENDING"},orderBy:{createdAt:"desc"},take:200,include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
+    res.json(rows.map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,tillNumber:x.metadata?.tillNumber||MPESA_TILL_NUMBER})));
+  }catch(e){console.error("[ADMIN DEPOSITS]",e);res.status(500).json({message:"Unable to load pending deposits"});}
+});
+
+app.post("/api/admin/wallet/deposits/verify",adminAuth,async(req,res)=>{
+  try{
+    const reference=String(req.body?.reference||"").trim();
+    const action=String(req.body?.action||"approve").toLowerCase();
+    const note=String(req.body?.note||"").trim();
+    const confirmedAmount=req.body?.confirmedAmount!=null?Number(req.body.confirmedAmount):null;
+    const tx=await prisma.transaction.findUnique({where:{reference},include:{user:{select:{id:true,name:true,email:true}}}});
+    if(!tx||tx.type!=="DEPOSIT") return res.status(404).json({message:"Deposit not found"});
+    if(tx.status==="SUCCESS") return res.json({status:"success",message:"Deposit already credited"});
+    if(action==="reject"){
+      await prisma.transaction.update({where:{id:tx.id},data:{status:"FAILED",metadata:{...(tx.metadata||{}),rejectedAt:new Date().toISOString(),rejectNote:note,verifiedBy:req.admin.email}}});
+      await logAdminAction(req,"WALLET_DEPOSIT_REJECTED","TRANSACTION",tx.id,tx.user?.email,{reference,note});
+      return res.json({status:"failed",message:"Deposit rejected."});
+    }
+    const expected=Number(tx.amount);
+    if(confirmedAmount!=null&&Number.isFinite(confirmedAmount)&&confirmedAmount!==expected)return res.status(400).json({message:`Amount mismatch. Expected KSh ${expected.toLocaleString()} but confirmed KSh ${confirmedAmount.toLocaleString()}.`});
+    if(!tx.metadata?.mpesaCode)return res.status(400).json({message:"Member has not submitted an M-Pesa confirmation code yet."});
+    await prisma.$transaction(async db=>{
+      await db.wallet.upsert({where:{userId:tx.userId},create:{userId:tx.userId,balance:expected},update:{balance:{increment:expected}}});
+      await db.transaction.update({where:{id:tx.id},data:{status:"SUCCESS",metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}});
+    });
+    await logAdminAction(req,"WALLET_DEPOSIT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
+    res.json({status:"success",message:`Deposit of KSh ${expected.toLocaleString()} credited to ${tx.user?.email||"member"}.`});
+  }catch(e){console.error("[ADMIN DEPOSIT VERIFY]",e);res.status(500).json({message:"Unable to verify wallet deposit"});}
 });
 
 // -------------------- SERVE NEXORA FRONTEND FROM RENDER --------------------

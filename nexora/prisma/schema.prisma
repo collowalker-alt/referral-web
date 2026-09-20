@@ -21,6 +21,7 @@ enum TransactionStatus {
 
 enum TransactionType {
   PACKAGE_PURCHASE
+  DEPOSIT
   COMMISSION
   WITHDRAWAL
   REFUND
@@ -62,6 +63,9 @@ model User {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   adSubmissions     AdSubmission[]
+  products          Product[] @relation("SellerProducts")
+  buyerOrders       Order[] @relation("BuyerOrders")
+  sellerOrders      Order[] @relation("SellerOrders")
 
   @@index([referredById])
   @@index([packageId])
@@ -243,4 +247,87 @@ model AdSubmission {
   @@index([userId, status, submittedAt])
   @@index([productId, status])
   @@index([payoutFriday, status])
+}
+
+
+enum ProductStatus {
+  ACTIVE
+  SOLD_OUT
+  HIDDEN
+  REJECTED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  WALLET
+  MPESA_TILL
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  sellerId    String
+  seller      User          @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
+  title       String
+  description String        @db.Text
+  price       Int
+  stock       Int           @default(1)
+  category    String        @default("Other")
+  location    String        @default("")
+  phone       String        @default("")
+  images      String[]      @default([])
+  status      ProductStatus @default(ACTIVE)
+  featured    Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  orderItems  OrderItem[]
+  @@index([sellerId, status])
+  @@index([category, status])
+  @@index([location])
+  @@index([createdAt])
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  buyerId         String
+  sellerId        String
+  buyer           User          @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller          User          @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
+  total           Int
+  deliveryFee     Int           @default(0)
+  status          OrderStatus   @default(PENDING)
+  paymentMethod   PaymentMethod
+  paymentStatus   TransactionStatus @default(PENDING)
+  deliveryName    String
+  deliveryPhone   String
+  deliveryAddress String
+  deliveryNotes   String?       @db.Text
+  reference       String        @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  items           OrderItem[]
+  @@index([buyerId, createdAt])
+  @@index([sellerId, status])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  title     String
+  price     Int
+  quantity  Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  @@index([orderId])
+  @@index([productId])
 }

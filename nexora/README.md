@@ -100,3 +100,39 @@ Then restart the API.
 
 
 UI reliability fixes in this revision: payment/package modals now use dedicated touch scroll containers with sticky actions, all long-form modals have bounded scroll areas, and the service worker prefers fresh JS/CSS after deployments.
+
+## Latest wallet/payment updates
+- Tapping **M-Pesa Till** in the package payment selector now immediately opens the Till payment details/code step without requiring a second Continue click.
+- Wallet now has **Balance / Deposit / Withdraw** tabs.
+- Deposit uses the configured NEXORA M-Pesa Till, creates a pending DEPOSIT transaction, accepts the M-Pesa confirmation code, and requires admin verification before crediting the member balance.
+- Admin console includes **Wallet deposits** for approving/rejecting deposits and checking the submitted amount/code.
+- After deployment, run `npx prisma db push --schema prisma/schema.prisma` (or your normal migration workflow) and `npx prisma generate --schema prisma/schema.prisma` before starting the server.
+
+## NEXORA Marketplace
+This version adds a member-to-member marketplace alongside referrals, Premium advertising, wallet and Academy features.
+
+### Marketplace capabilities
+- Browse active member listings by search, category and location.
+- Product/service listings with title, detailed description, KSh price, stock, seller phone and location.
+- Up to six product photos per listing (small web-optimized uploads).
+- Member cart stored locally in the browser.
+- One-seller-at-a-time checkout to keep delivery and seller fulfillment simple.
+- Cash/M-Pesa-on-delivery and NEXORA Wallet checkout.
+- Buyer delivery name, phone, address and notes.
+- Stock is reserved/decremented transactionally when an order is placed.
+- Buyer purchase history and seller order management.
+- Order lifecycle: PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED, plus cancellation.
+- Seller can hide/publish their own listings.
+- Admin API for marketplace product moderation and order oversight.
+
+### Recommended production architecture
+The current implementation is a functional marketplace foundation. Before large-scale launch, move product media out of PostgreSQL/base64 storage into object storage (Cloudflare R2, S3, Cloudinary or equivalent), add M-Pesa checkout callbacks for marketplace orders, add delivery/shipping integrations, seller verification/KYC, buyer/seller ratings, refunds/disputes, product moderation UI in the Admin panel, and marketplace notifications/email/SMS.
+
+### Database update
+Run:
+
+`npx prisma db push --schema prisma/schema.prisma`
+
+`npx prisma generate --schema prisma/schema.prisma`
+
+Then restart the API.
