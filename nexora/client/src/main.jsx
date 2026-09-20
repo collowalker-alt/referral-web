@@ -32,7 +32,14 @@ function PWAInstall({compact=false}){
  },[]);
  if(installed)return null;
  const openInstaller=async()=>{
-  if(deferred){deferred.prompt();try{await deferred.userChoice}catch{}setDeferred(null);return}
+  if(deferred){
+    try{
+      deferred.prompt();
+      const choice=await deferred.userChoice;
+      setDeferred(null);
+      if(choice&&choice.outcome==='accepted') return;
+    }catch(e){setDeferred(null)}
+  }
   setShowHelp(true);
  };
  const androidInstall=async()=>{
@@ -656,7 +663,7 @@ function RecommendedMarketplace({goPage}){
  const [items,setItems]=useState([]),[loading,setLoading]=useState(true);
  useEffect(()=>{let alive=true;(async()=>{try{const rows=await api('/marketplace/products?category=All&location=');if(alive)setItems((rows||[]).filter(x=>x.status==='ACTIVE').slice(0,6));}catch{}finally{if(alive)setLoading(false)}})();return()=>{alive=false}},[]);
  if(loading)return <div className="panel marketplacepreview"><div className="paneltitle"><h3>Latest on NEXORA Marketplace</h3></div><p className="muted">Loading products…</p></div>;
- return <div className="panel marketplacepreview"><div className="paneltitle"><div><span className="pill">MARKETPLACE</span><h3>Latest products</h3><p className="muted small">Discover what NEXORA members are selling today.</p></div><button className="secondary" onClick={()=>goPage('marketplace')}>View all <ArrowUpRight size={14}/></button></div>{items.length?<div className="dashboardproductgrid">{items.map(p=><button className="dashboardproduct" key={p.id} onClick={()=>goPage('marketplace')}><div className="dashboardproductimage">{p.images?.[0]?<img src={p.images[0]} alt=""/>:<Store size={26}/>}</div><div className="dashboardproductinfo"><b>{p.title}</b><strong>{money(p.price)}</strong><span>{p.location||'Kenya'} · {p.category}</span></div></button>)}</div>:<div className="dashboardempty"><Store size={28}/><div><b>No marketplace products yet</b><p className="muted small">Be among the first members to list a product.</p></div><button className="primary" onClick={()=>goPage('marketplace')}>Open marketplace</button></div>}</div>
+ return <div className="panel marketplacepreview"><div className="paneltitle"><div><span className="pill">MARKETPLACE</span><h3>Latest products</h3><p className="muted small">Discover what NEXORA members are selling today.</p></div><button className="secondary" onClick={()=>goPage('marketplace')}>View all <ArrowUpRight size={14}/></button></div>{items.length?<div className="dashboardproductgrid">{items.map(p=><button className="dashboardproduct" key={p.id} onClick={()=>goPage('marketplace')}><div className="dashboardproductimage">{p.images?.[0]?<img src={p.images[0]} alt=""/>:<Store size={26}/>}</div><div className="dashboardproductinfo"><b>{p.title}</b><strong>{money(p.price)}</strong><span>{p.location||'Kenya'} · {p.category}</span></div></button>)}</div>:<div className="dashboardempty"><Store size={32}/><div><b>No marketplace products yet</b><p className="muted small">Be among the first members to list a product.</p></div><button type="button" className="primary" onClick={()=>goPage('marketplace')}>Open marketplace</button></div>}</div>
 }
 
 function SellerDashboard({me,mine,orders,goSell}){
