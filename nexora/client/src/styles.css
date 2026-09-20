@@ -537,3 +537,17 @@ button,input,textarea,select{max-width:100%}
 .pkgfeatures li{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#b7c6d8}
 .pkgfeatures svg{color:#38d9a9;flex-shrink:0;margin-top:2px}
 .pkgmeta{display:flex;justify-content:space-between;font-size:12px;color:#8fa2b9;margin:6px 0}
+
+/* Till payment UI */
+.tillbox{margin:12px 0;padding:14px;border-radius:14px;background:#071321;border:1px solid #29415d}
+.tilldetails{display:grid;gap:10px;margin-bottom:14px}
+.tilldetails>div{display:flex;justify-content:space-between;gap:12px;align-items:baseline;font-size:13px}
+.tilldetails span{color:#8fa2b9}
+.tilldetails strong{color:#e8f4ff;text-align:right}
+.tilldetails .refcode{font-family:ui-monospace,monospace;font-size:12px;word-break:break-all}
+.tillsteps{margin:0 0 14px 18px;padding:0;color:#b7c6d8;font-size:13px;line-height:1.55}
+.tillsteps li{margin-bottom:6px}
+.tillsteps b{color:#e8f4ff}
+.tillrow{flex-wrap:wrap;gap:10px}
+.admin-till-table .row{align-items:flex-start}
+.refcode{font-family:ui-monospace,monospace;font-size:12px}

@@ -54,6 +54,8 @@ const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const EMAIL_FROM = process.env.EMAIL_FROM || "NEXORA <onboarding@resend.dev>";
 const APP_URL = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
+const MPESA_TILL_NUMBER = String(process.env.MPESA_TILL_NUMBER || "").trim();
+const MPESA_TILL_NAME = String(process.env.MPESA_TILL_NAME || "NEXORA").trim();
 
 async function sendPasswordResetEmail({ to, name, rawToken }) {
   if (!resend) {
@@ -173,6 +175,17 @@ const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase(
 app.get("/", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
+
+app.get("/api/payments/methods",(req,res)=>{
+  res.json({
+    wallet:true,
+    till:Boolean(MPESA_TILL_NUMBER),
+    tillNumber:MPESA_TILL_NUMBER||null,
+    tillName:MPESA_TILL_NAME||"NEXORA",
+    stkPush:false
+  });
+});
+
 
 app.post("/api/auth/register", registerLimiter, async (req,res)=>{
   try {
@@ -465,6 +478,177 @@ app.post("/api/payments/wallet-purchase",auth,async(req,res)=>{
     res.status(500).json({message:"Unable to complete wallet purchase"});
   }
 });
+
+
+// Start a till payment: creates PENDING tx and returns till instructions
+app.post("/api/payments/till/initiate",auth,async(req,res)=>{
+  try{
+    if(!MPESA_TILL_NUMBER) return res.status(503).json({message:"M-Pesa till payments are not configured yet"});
+    const {packageId}=req.body||{};
+    if(!packageId) return res.status(400).json({message:"Package is required"});
+    const pkg=await prisma.package.findUnique({where:{id:packageId}});
+    if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
+    const user=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
+    if(!user) return res.status(401).json({message:"Account unavailable"});
+    if(user.packageId===pkg.id) return res.status(400).json({message:"You already have this package"});
+    if(user.package && pkg.price<=user.package.price) return res.status(400).json({message:"You can only upgrade to a higher package"});
+    const chargeAmount=user.package ? pkg.price-user.package.price : pkg.price;
+    if(chargeAmount<=0) return res.status(400).json({message:"Invalid charge amount"});
+
+    const reference=`NX-TILL-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    await prisma.transaction.create({
+      data:{
+        userId:user.id,
+        type:"PACKAGE_PURCHASE",
+        amount:chargeAmount,
+        reference,
+        status:"PENDING",
+        metadata:{
+          packageId:pkg.id,
+          chargeAmount,
+          method:"TILL",
+          tillNumber:MPESA_TILL_NUMBER,
+          tillName:MPESA_TILL_NAME,
+          currentPackageId:user.packageId||null,
+          mpesaCode:null,
+          verified:false
+        }
+      }
+    });
+    res.status(201).json({
+      reference,
+      status:"pending",
+      chargeAmount,
+      package:{id:pkg.id,name:pkg.name,price:pkg.price},
+      tillNumber:MPESA_TILL_NUMBER,
+      tillName:MPESA_TILL_NAME,
+      accountReference:reference,
+      instructions:[
+        "Open M-Pesa on your phone",
+        "Choose Lipa na M-Pesa → Buy Goods and Services (or Paybill if your till uses Paybill)",
+        `Enter Till/Buy Goods number: ${MPESA_TILL_NUMBER}`,
+        `Enter amount: ${chargeAmount}`,
+        `Use account/reference: ${reference} if asked`,
+        "Complete payment with your M-Pesa PIN",
+        "Copy the M-Pesa confirmation code (e.g. QH12XXXX) and submit it below"
+      ],
+      message:"Pay the exact amount to the till, then submit your M-Pesa confirmation code."
+    });
+  }catch(e){
+    console.error("[TILL INITIATE]",e);
+    res.status(500).json({message:"Unable to start till payment"});
+  }
+});
+
+// Member submits M-Pesa confirmation code after paying to till
+app.post("/api/payments/till/submit-code",auth,async(req,res)=>{
+  try{
+    const reference=String(req.body?.reference||"").trim();
+    const mpesaCode=String(req.body?.mpesaCode||"").trim().toUpperCase().replace(/\s+/g,"");
+    if(!reference||!mpesaCode) return res.status(400).json({message:"Payment reference and M-Pesa confirmation code are required"});
+    if(mpesaCode.length<8||mpesaCode.length>15) return res.status(400).json({message:"Enter a valid M-Pesa confirmation code"});
+
+    const tx=await prisma.transaction.findUnique({where:{reference}});
+    if(!tx||tx.userId!==req.user.id) return res.status(404).json({message:"Payment not found"});
+    if(tx.status==="SUCCESS") return res.json({status:"success",message:"This payment is already confirmed and your package is active."});
+    if(tx.status==="FAILED") return res.status(400).json({message:"This payment was rejected. Start a new payment."});
+
+    // Prevent reuse of the same M-Pesa code on another transaction
+    const recent=await prisma.transaction.findMany({
+      where:{type:"PACKAGE_PURCHASE",status:{in:["SUCCESS","PENDING"]},createdAt:{gte:new Date(Date.now()-30*24*60*60*1000)}},
+      select:{reference:true,metadata:true},
+      take:500
+    });
+    const duplicate=recent.some(t=>t.reference!==reference && String(t.metadata?.mpesaCode||"").toUpperCase()===mpesaCode);
+    if(duplicate) return res.status(409).json({message:"This M-Pesa confirmation code was already used on another payment."});
+
+    const meta={...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true};
+    await prisma.transaction.update({where:{id:tx.id},data:{metadata:meta}});
+
+    res.json({
+      status:"pending_verification",
+      reference,
+      message:"M-Pesa code received. NEXORA will verify the amount and confirmation before activating your package. This usually does not take long."
+    });
+  }catch(e){
+    console.error("[TILL SUBMIT CODE]",e);
+    res.status(500).json({message:"Unable to submit M-Pesa code"});
+  }
+});
+
+// Admin: list till payments awaiting verification
+app.get("/api/admin/payments/pending-till",adminAuth,async(req,res)=>{
+  try{
+    const rows=await prisma.transaction.findMany({
+      where:{type:"PACKAGE_PURCHASE",status:"PENDING"},
+      orderBy:{createdAt:"desc"},
+      take:200,
+      include:{user:{select:{id:true,name:true,email:true,phone:true}}}
+    });
+    const till=rows.filter(t=>(t.metadata?.method==="TILL")||String(t.reference||"").startsWith("NX-TILL-"));
+    res.json(till.map(t=>({
+      id:t.id,
+      reference:t.reference,
+      amount:t.amount,
+      status:t.status,
+      createdAt:t.createdAt,
+      mpesaCode:t.metadata?.mpesaCode||null,
+      packageId:t.metadata?.packageId||null,
+      tillNumber:t.metadata?.tillNumber||MPESA_TILL_NUMBER,
+      awaitingVerification:Boolean(t.metadata?.awaitingVerification||t.metadata?.mpesaCode),
+      user:t.user
+    })));
+  }catch(e){
+    console.error(e);
+    res.status(500).json({message:"Unable to load pending till payments"});
+  }
+});
+
+// Admin verifies till payment: checks claimed amount matches, then activates package
+app.post("/api/admin/payments/verify-till",adminAuth,async(req,res)=>{
+  try{
+    const reference=String(req.body?.reference||"").trim();
+    const action=String(req.body?.action||"approve").toLowerCase();
+    const note=String(req.body?.note||"").trim();
+    const confirmedAmount=req.body?.confirmedAmount!=null?Number(req.body.confirmedAmount):null;
+
+    const tx=await prisma.transaction.findUnique({where:{reference},include:{user:{select:{id:true,name:true,email:true}}}});
+    if(!tx) return res.status(404).json({message:"Transaction not found"});
+    if(tx.status==="SUCCESS") return res.json({message:"Already activated",status:"success"});
+
+    if(action==="reject"){
+      await prisma.transaction.update({
+        where:{id:tx.id},
+        data:{status:"FAILED",metadata:{...(tx.metadata||{}),rejectedAt:new Date().toISOString(),rejectNote:note,verifiedBy:req.admin.email}}
+      });
+      await logAdminAction(req,"TILL_PAYMENT_REJECTED","TRANSACTION",tx.id,tx.user?.email,{reference,note});
+      return res.json({status:"failed",message:"Payment rejected. Member can start a new payment."});
+    }
+
+    // approve
+    const expected=Number(tx.amount);
+    if(confirmedAmount!=null && Number.isFinite(confirmedAmount) && confirmedAmount!==expected){
+      return res.status(400).json({
+        message:`Amount mismatch. Expected KSh ${expected.toLocaleString()} but confirmed KSh ${confirmedAmount.toLocaleString()}. Reject or correct before activating.`
+      });
+    }
+    if(!tx.metadata?.mpesaCode){
+      return res.status(400).json({message:"Member has not submitted an M-Pesa confirmation code yet."});
+    }
+
+    await prisma.transaction.update({
+      where:{id:tx.id},
+      data:{metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}
+    });
+    await activatePaidPackage(reference);
+    await logAdminAction(req,"TILL_PAYMENT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
+    res.json({status:"success",message:`Payment verified. Package activated for ${tx.user?.email||"member"}.`});
+  }catch(e){
+    console.error("[TILL VERIFY]",e);
+    res.status(500).json({message:"Unable to verify till payment"});
+  }
+});
+
 
 async function activatePaidPackage(reference){
   const tx=await prisma.transaction.findUnique({where:{reference}});
