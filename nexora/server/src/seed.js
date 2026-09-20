@@ -2,14 +2,14 @@ import dotenv from "dotenv"; dotenv.config();
 import {PrismaClient} from "@prisma/client";
 const p=new PrismaClient();
 const packages=[
-  ["Starter",1,500,200,50,"Start earning with the essentials.",["Basic dashboard","Referral link","Basic referral statistics","Standard support","Withdraw up to KSh 5,000 per request"],"START",false,5000],
-  ["Growth",2,1000,400,150,"Build your network with more tools.",["Everything in Starter","Advanced referral statistics","Marketing templates","Priority support","Withdraw up to KSh 10,000 per request"],"GROWTH",false,10000],
-  ["Pro",3,1600,700,250,"A strong all-round package for serious users.",["Everything in Growth","Advanced analytics","Social-media marketing resources","Pro member badge","Withdraw up to KSh 20,000 per request"],"MOST POPULAR",true,20000],
-  ["Elite",4,2200,900,300,"Advanced tools for professional promoters.",["Everything in Pro","Team statistics","Premium marketing resources","Elite member badge","Priority withdrawal review","Early access to selected features","Withdraw up to KSh 50,000 per request"],"ELITE",false,50000],
-  ["Premium",5,4800,2000,500,"The complete NEXORA member experience.",["Everything in Elite","VIP support","Maximum available limits","Premium badge","VIP marketing resources","Early access to new features","Withdraw up to KSh 100,000 per request"],"VIP",false,100000]
+  ["Starter",1,500,200,50,"Start with referral-based membership tools.",["Basic dashboard","Referral link","Basic referral statistics","Standard support","Referral earning access","Withdraw up to KSh 5,000 per request"],"START",false,5000],
+  ["Growth",2,1000,400,150,"Build your referral network with more tools.",["Everything in Starter","Advanced referral statistics","Marketing templates","Priority support","Referral earning access","Withdraw up to KSh 10,000 per request"],"GROWTH",false,10000],
+  ["Pro",3,1600,700,250,"A strong referral-focused package with advanced tools.",["Everything in Growth","Advanced analytics","Social-media marketing resources","Pro member badge","Referral earning access","Withdraw up to KSh 20,000 per request"],"MOST POPULAR",true,20000],
+  ["Elite",4,2200,900,300,"Advanced referral tools for professional promoters.",["Everything in Pro","Team statistics","Marketing resources","Elite member badge","Priority withdrawal review","Early access to selected features","Referral earning access","Withdraw up to KSh 50,000 per request"],"ELITE",false,50000],
+  ["Premium",5,4800,2000,500,"The complete NEXORA member experience with Premium advertising access.",["Everything in Elite","VIP support","Maximum available limits","Premium badge","VIP marketing resources","Products & Advertising access","Weekly Friday advertising payout processing","Referral earning across all configured package levels","Withdraw up to KSh 100,000 per request"],"VIP",false,100000]
 ];
 for(const [name,tier,price,directCommission,level2Commission,description,features,badge,popular,withdrawalLimit] of packages)
- await p.package.upsert({where:{name},update:{tier},create:{name,tier,price,directCommission,level2Commission,description,features,badge,popular,withdrawalLimit}});
+ await p.package.upsert({where:{name},update:{tier,price,directCommission,level2Commission,description,features,badge,popular,withdrawalLimit},create:{name,tier,price,directCommission,level2Commission,description,features,badge,popular,withdrawalLimit}});
 
 const adminEmail=String(process.env.ADMIN_EMAIL||"").trim().toLowerCase();
 const adminPassword=String(process.env.ADMIN_PASSWORD||"");

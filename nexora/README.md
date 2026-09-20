@@ -66,3 +66,34 @@ The package uses Prisma generation during the root build and also creates/repair
 
 ### Responsible platform language
 NEXORA UI intentionally avoids guaranteed-income claims. Referral commissions are described as recorded platform outcomes subject to package eligibility and qualifying purchases. Before taking real money at scale, have the membership, referral, payment, consumer-protection and tax model reviewed for the jurisdictions in which NEXORA operates.
+
+
+## Premium advertising marketplace
+- Starter, Growth, Pro and Elite: referral earning only, subject to configured referral rules.
+- Premium: referral earning plus access to Products & Advertising.
+- Advertising products are visible only to Premium members.
+- Premium members submit post links and performance figures for approved campaigns on WhatsApp Status, TikTok, Instagram, X or another approved platform.
+- Advertising payout is calculated from verified views and engagements using campaign-configured rates.
+- Approved advertising payouts are scheduled for Friday processing; no fixed income is guaranteed.
+- Admin endpoints are available under `/api/admin/ad-products` and `/api/admin/ad-submissions`.
+
+### Database update
+After deploying, run `npx prisma db push --schema prisma/schema.prisma` and restart the API service.
+
+## Advertising manager & member campaign uploads
+- Premium-only Products & Advertising marketplace is available to active Premium members.
+- Members submit the public social post/status URL, upload the exact image/video creative they published (max 8 MB), and enter current views/engagements.
+- Admins can manage campaigns and rates from **Admin → Advertising** and review submitted creatives before approving or marking payouts paid.
+- Advertising submissions use a configurable KSh-per-1,000-views and KSh-per-engagement model and are intended for Friday payout processing after review.
+- The server JSON body limit is 12 MB to accommodate base64 campaign creatives. For large-scale production use, move media storage to object storage (S3/Cloudinary/etc.) rather than keeping media in PostgreSQL.
+
+### Database update
+After deploying the new version, run:
+`npx prisma db push --schema prisma/schema.prisma`
+Then restart the API.
+
+### Recommended campaign controls
+- Require a public post URL and the exact published creative.
+- Use admin verification before any payout is marked PAID.
+- Keep campaign rates configurable instead of hard-coding them.
+- Consider adding platform API verification/object storage before scaling to large video uploads.

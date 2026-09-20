@@ -61,6 +61,7 @@ model User {
   supportTickets    SupportTicket[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  adSubmissions     AdSubmission[]
 
   @@index([referredById])
   @@index([packageId])
@@ -194,4 +195,52 @@ model Announcement {
   updatedAt DateTime @updatedAt
 
   @@index([active, createdAt])
+}
+
+
+enum AdSubmissionStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  PAID
+}
+
+model AdProduct {
+  id              String   @id @default(cuid())
+  title           String
+  description     String   @default("")
+  platforms       String[] @default([])
+  viewRatePer1000 Int      @default(0)
+  engagementRate  Int      @default(0)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  submissions     AdSubmission[]
+  @@index([active, createdAt])
+}
+
+model AdSubmission {
+  id            String             @id @default(cuid())
+  userId        String
+  productId     String
+  postUrl       String
+  postMediaData String? @db.Text
+  postMediaName String?
+  postMediaType String?
+  proofUrl      String?
+  views         Int                @default(0)
+  engagements   Int                @default(0)
+  calculatedPay Int                @default(0)
+  approvedPay   Int?
+  status        AdSubmissionStatus @default(SUBMITTED)
+  submittedAt   DateTime           @default(now())
+  reviewedAt    DateTime?
+  paidAt        DateTime?
+  payoutFriday  DateTime?
+  reviewNote    String?
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       AdProduct           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@index([userId, status, submittedAt])
+  @@index([productId, status])
+  @@index([payoutFriday, status])
 }

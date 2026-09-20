@@ -678,3 +678,21 @@ button,input,textarea,select{max-width:100%}
     padding:12px 14px 24px !important;
   }
 }
+
+/* NEXORA advertising marketplace */
+.phonemodal,.paymentmodal,.instructions,.lessonmodal,.adsubmitmodal{display:flex;flex-direction:column;min-height:0}
+.phonemodalform,.adsubmitmodal form{display:flex;flex-direction:column;min-height:0;flex:1}
+.phonebody,.paymentbody,.instructionbody,.lessonbody,.adsubmitbody{overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
+.phonemodal .phonebody,.paymentmodal .paymentbody{flex:1}
+.phonemodal .modalfoot,.paymentmodal .modalfoot,.adsubmitmodal .modalfoot{flex-shrink:0}
+.productlock{display:flex;gap:15px;align-items:flex-start;margin-bottom:16px}
+.adpolicygrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.productgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.productcard{border:1px solid #29415f;background:#0b182a;border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.productcard h3{margin:0;font-size:20px}.productcard p{margin:0;line-height:1.6}.producttop{display:flex;justify-content:space-between;gap:10px;align-items:center}.producttop small{color:#73849c}.productmeta{display:grid;gap:6px;border-top:1px solid #1d3049;padding-top:12px;color:#aab8cb;font-size:12px}.productcard .primary{margin-top:auto}
+.adsubmitbody{padding:22px 24px;display:grid;gap:15px}.admetricgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:760px){.adpolicygrid,.productgrid,.admetricgrid{grid-template-columns:1fr}.phonemodal,.paymentmodal,.instructions,.lessonmodal,.adsubmitmodal{max-height:94vh}.phonebody,.paymentbody,.instructionbody,.lessonbody,.adsubmitbody{max-height:calc(94vh - 150px)}}
+
+/* Advertising manager + submitted creative */
+.adtabs{gap:8px;margin:0 0 16px}.adtabs button{border:1px solid #29415f;background:#0b182a;color:#aab8cb;border-radius:10px;padding:9px 13px;cursor:pointer}.adtabs button.active{background:#173252;color:#fff;border-color:#4b76a8}.marketingpostkit{display:grid;gap:14px;margin-bottom:16px}.postpreview{max-width:620px;border:1px solid #4a356d;border-radius:18px;padding:22px;background:linear-gradient(145deg,#0c1023,#17112d);box-shadow:0 16px 50px rgba(0,0,0,.18)}.postpreview strong{font-size:24px}.postpreview p{line-height:1.6;color:#c5cfe0}.postpreview b{font-size:13px}.adsubmissionrow{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid #1d3049}.adsubmissionrow:last-child{border-bottom:0}.adsubmissionrow small{display:block;color:#73849c;margin-top:4px}.mediapreview{border:1px solid #29415f;border-radius:14px;padding:10px;background:#07111e}.mediapreview img,.mediapreview video{display:block;width:100%;max-height:360px;object-fit:contain;border-radius:10px}.mediapreview small{display:block;margin-top:7px;color:#8291a7}.adreviewrow details{margin-top:8px}.adreviewrow details img,.adreviewrow details video{display:block;width:180px;max-height:160px;object-fit:contain;margin-top:8px;border-radius:10px;background:#07111e}.adreviewrow>a{color:#8ab4ff}.adreviewrow{align-items:start}
+@media(max-width:760px){.adsubmissionrow{grid-template-columns:1fr}.adreviewrow{display:grid;grid-template-columns:1fr}.postpreview{max-width:none}}

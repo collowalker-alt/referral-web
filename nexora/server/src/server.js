@@ -40,7 +40,7 @@ app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(re
   }catch(e){console.error(e);res.sendStatus(500);}
 });
 
-app.use(express.json({ limit: "100kb" }));
+app.use(express.json({ limit: "12mb" }));
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 80 }));
 const registerLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, message: { message: "Too many registration attempts. Please try again later." } });
 const forgotLimiter = rateLimit({ windowMs: 60*60*1000, max: 8, message: { message: "Too many password reset requests. Please try again later." } });
@@ -298,6 +298,40 @@ async function ensurePackages(){
     if(!existing) await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true}});
   }
 }
+app.get("/api/ad-products",auth,async(req,res)=>{
+  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Products & Advertising is available only to Premium members."});res.json(await prisma.adProduct.findMany({where:{active:true},orderBy:{createdAt:"desc"}}));}
+  catch(e){console.error(e);res.status(500).json({message:"Unable to load advertising products"});}
+});
+app.post("/api/ad-products/:id/submit",auth,async(req,res)=>{
+  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Only Premium members can submit advertising campaigns."});const product=await prisma.adProduct.findFirst({where:{id:req.params.id,active:true}});if(!product)return res.status(404).json({message:"Advertising product not found"});const postUrl=String(req.body?.postUrl||"").trim(),proofUrl=String(req.body?.proofUrl||"").trim()||null,postMediaData=String(req.body?.postMediaData||"").trim()||null,postMediaName=String(req.body?.postMediaName||"").trim()||null,postMediaType=String(req.body?.postMediaType||"").trim()||null,views=Math.max(0,Math.floor(Number(req.body?.views||0))),engagements=Math.max(0,Math.floor(Number(req.body?.engagements||0)));if(!/^https?:\/\//i.test(postUrl))return res.status(400).json({message:"Enter a valid public post or status URL."});if(!Number.isFinite(views)||!Number.isFinite(engagements))return res.status(400).json({message:"Views and engagements must be valid numbers."});if(postMediaData && postMediaData.length>11000000)return res.status(400).json({message:"Post media is too large. Please use an image/video under 8 MB."});if(postMediaData && !/^data:(image\/|video\/)/i.test(postMediaData))return res.status(400).json({message:"Post media must be an image or video."});const calculatedPay=Math.floor((views/1000)*Number(product.viewRatePer1000||0)+(engagements*Number(product.engagementRate||0)));const sub=await prisma.adSubmission.create({data:{userId:u.id,productId:product.id,postUrl,postMediaData,postMediaName,postMediaType,proofUrl,views,engagements,calculatedPay}});res.json({message:"Advertising performance submitted for review. Approved payouts are processed on Friday.",submission:sub});}
+  catch(e){console.error(e);res.status(500).json({message:"Unable to submit advertising performance"});}
+});
+app.get("/api/ad-submissions",auth,async(req,res)=>{try{res.json(await prisma.adSubmission.findMany({where:{userId:req.user.id},include:{product:true},orderBy:{submittedAt:"desc"},take:50}));}catch(e){res.status(500).json({message:"Unable to load advertising submissions"});}});
+app.get("/api/admin/ad-products",adminAuth,async(req,res)=>{try{res.json(await prisma.adProduct.findMany({include:{_count:{select:{submissions:true}}},orderBy:{createdAt:"desc"}}));}catch(e){res.status(500).json({message:"Unable to load advertising products"});}});
+app.post("/api/admin/ad-products",adminAuth,async(req,res)=>{
+  try{const title=String(req.body?.title||"").trim(),description=String(req.body?.description||"").trim(),platforms=Array.isArray(req.body?.platforms)?req.body.platforms.map(x=>String(x).trim()).filter(Boolean):[],viewRatePer1000=Math.max(0,Math.floor(Number(req.body?.viewRatePer1000||0))),engagementRate=Math.max(0,Math.floor(Number(req.body?.engagementRate||0)));if(!title)return res.status(400).json({message:"Product title is required"});const p=await prisma.adProduct.create({data:{title,description,platforms,viewRatePer1000,engagementRate,active:req.body?.active!==false}});await logAdminAction(req,"AD_PRODUCT_CREATED","AD_PRODUCT",p.id,null,{title,platforms,viewRatePer1000,engagementRate});res.json(p);}
+  catch(e){console.error(e);res.status(500).json({message:"Unable to create advertising product"});}
+});
+app.patch("/api/admin/ad-products/:id",adminAuth,async(req,res)=>{
+  try{const data={};if(req.body?.title!==undefined)data.title=String(req.body.title).trim();if(req.body?.description!==undefined)data.description=String(req.body.description).trim();if(Array.isArray(req.body?.platforms))data.platforms=req.body.platforms.map(x=>String(x).trim()).filter(Boolean);if(req.body?.viewRatePer1000!==undefined)data.viewRatePer1000=Math.max(0,Math.floor(Number(req.body.viewRatePer1000)));if(req.body?.engagementRate!==undefined)data.engagementRate=Math.max(0,Math.floor(Number(req.body.engagementRate)));if(req.body?.active!==undefined)data.active=Boolean(req.body.active);const p=await prisma.adProduct.update({where:{id:req.params.id},data});await logAdminAction(req,"AD_PRODUCT_UPDATED","AD_PRODUCT",p.id,null,data);res.json(p);}
+  catch(e){res.status(500).json({message:"Unable to update advertising product"});}
+});
+app.get("/api/admin/ad-submissions",adminAuth,async(req,res)=>{try{res.json(await prisma.adSubmission.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}},product:true},orderBy:{submittedAt:"desc"},take:200}));}catch(e){res.status(500).json({message:"Unable to load advertising submissions"});}});
+app.patch("/api/admin/ad-submissions/:id",adminAuth,async(req,res)=>{
+  try{const status=String(req.body?.status||"").toUpperCase();if(!["APPROVED","REJECTED","PAID"].includes(status))return res.status(400).json({message:"Status must be APPROVED, REJECTED or PAID"});const current=await prisma.adSubmission.findUnique({where:{id:req.params.id},include:{product:true,user:true}});if(!current)return res.status(404).json({message:"Advertising submission not found"});const approvedPay=req.body?.approvedPay!==undefined?Math.max(0,Math.floor(Number(req.body.approvedPay))):current.calculatedPay;const now=new Date();const friday=new Date(now);const add=(5-friday.getDay()+7)%7;friday.setDate(friday.getDate()+add);friday.setHours(17,0,0,0);const data={status,approvedPay,reviewedAt:now,reviewNote:String(req.body?.reviewNote||"").trim()||null,payoutFriday:friday};if(status==="PAID")data.paidAt=now;const updated=await prisma.adSubmission.update({where:{id:current.id},data});
+    if(status==="PAID"){
+      const reference=`ADPAY-${current.id}`;
+      const existing=await prisma.transaction.findUnique({where:{reference}});
+      if(!existing && approvedPay>0){
+        await prisma.$transaction([
+          prisma.wallet.upsert({where:{userId:current.userId},create:{userId:current.userId,balance:approvedPay,totalEarned:approvedPay},update:{balance:{increment:approvedPay},totalEarned:{increment:approvedPay}}}),
+          prisma.transaction.create({data:{userId:current.userId,type:"COMMISSION",amount:approvedPay,status:"SUCCESS",reference,metadata:{source:"ADVERTISING",submissionId:current.id,productId:current.productId}}})
+        ]);
+      }
+    }
+    await logAdminAction(req,"AD_SUBMISSION_STATUS","AD_SUBMISSION",current.id,current.user.email,{status,approvedPay,payoutFriday:friday.toISOString()});res.json(updated);}
+  catch(e){console.error(e);res.status(500).json({message:"Unable to update advertising submission"});}
+});
 app.get("/api/packages",async(req,res)=>{
   try{ await ensurePackages(); res.json(await prisma.package.findMany({where:{active:true},orderBy:{tier:"asc"}})); }
   catch(e){ console.error("Packages error:",e); res.status(500).json({message:"Unable to load packages. Please check the database setup."}); }
