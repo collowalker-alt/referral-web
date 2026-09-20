@@ -97,3 +97,6 @@ Then restart the API.
 - Use admin verification before any payout is marked PAID.
 - Keep campaign rates configurable instead of hard-coding them.
 - Consider adding platform API verification/object storage before scaling to large video uploads.
+
+
+UI reliability fixes in this revision: payment/package modals now use dedicated touch scroll containers with sticky actions, all long-form modals have bounded scroll areas, and the service worker prefers fresh JS/CSS after deployments.
