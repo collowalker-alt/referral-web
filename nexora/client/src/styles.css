@@ -606,3 +606,10 @@ button,input,textarea,select{max-width:100%}
     margin: 8px auto 20px;
   }
 }
+
+/* Copy till number / amount / reference */
+.tillrowcopy{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tillrowcopy>div{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.tillnumber{font-size:20px;letter-spacing:.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#9af0d0}
+.copytillbtn{flex-shrink:0;padding:8px 12px;font-size:12px;gap:6px}
+.copyhint{margin:8px 0 0;color:#38d9a9!important;font-weight:600}

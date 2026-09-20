@@ -698,6 +698,17 @@ function PhoneModal({data,onCancel,onContinue,onWallet,onTillInitiate,onTillSubm
  const displayTill=tillSession?.tillNumber||tillInfo?.tillNumber||"";
  const displayName=tillSession?.tillName||tillInfo?.tillName||"NEXORA";
  const displayRef=tillSession?.reference||tillSession?.accountReference||"";
+ const [copied,setCopied]=useState("");
+ const copyValue=async(label,value)=>{
+  if(!value) return;
+  try{
+   await navigator.clipboard.writeText(String(value));
+  }catch{
+   window.prompt("Copy this value:", String(value));
+  }
+  setCopied(label);
+  setTimeout(()=>setCopied(""),2000);
+ };
 
  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
   <div className="modalhead"><div><span className="pill">PURCHASE PACKAGE</span><h2>{tillStep==="done"?"Payment submitted":"Choose how to pay"}</h2></div><button className="iconbtn" onClick={onCancel}><X size={20}/></button></div>
@@ -737,11 +748,27 @@ function PhoneModal({data,onCancel,onContinue,onWallet,onTillInitiate,onTillSubm
     {method==="till"&&tillStep==="code"&&tillSession&&(
      <div className="tillbox">
       <div className="tilldetails">
-       <div><span>Till / Buy Goods</span><strong>{displayTill}</strong></div>
+       <div className="tillrowcopy">
+        <div><span>Till / Buy Goods</span><strong className="tillnumber">{displayTill}</strong></div>
+        <button type="button" className="secondary copytillbtn" onClick={()=>copyValue("till",displayTill)}>
+         {copied==="till"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy till</>}
+        </button>
+       </div>
        <div><span>Business name</span><strong>{displayName}</strong></div>
-       <div><span>Amount (exact)</span><strong>{money(tillSession.chargeAmount||amount)}</strong></div>
-       <div><span>Payment reference</span><strong className="refcode">{displayRef}</strong></div>
+       <div className="tillrowcopy">
+        <div><span>Amount (exact)</span><strong>{money(tillSession.chargeAmount||amount)}</strong></div>
+        <button type="button" className="secondary copytillbtn" onClick={()=>copyValue("amount",String(tillSession.chargeAmount||amount))}>
+         {copied==="amount"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy amount</>}
+        </button>
+       </div>
+       <div className="tillrowcopy">
+        <div><span>Payment reference</span><strong className="refcode">{displayRef}</strong></div>
+        <button type="button" className="secondary copytillbtn" onClick={()=>copyValue("ref",displayRef)}>
+         {copied==="ref"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy ref</>}
+        </button>
+       </div>
       </div>
+      {copied&&<p className="muted small copyhint">{copied==="till"?"Till number copied — paste it in M-Pesa.":copied==="amount"?"Amount copied.":"Reference copied."}</p>}
       <ol className="tillsteps">
        <li>Open M-Pesa → Lipa na M-Pesa → Buy Goods and Services</li>
        <li>Enter Till Number <b>{displayTill}</b></li>
