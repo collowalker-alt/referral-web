@@ -1318,3 +1318,81 @@ button,input,textarea,select{max-width:100%}
   .premiumactions{flex-direction:column;align-items:stretch}
   .premiumactions .primary,.premiumactions .secondary{width:100%;justify-content:center}
 }
+
+/* ===== High-impact + growth + UX polish ===== */
+.onboardingpanel{margin:0 0 18px}
+.onboardingpanel .paneltitle{align-items:flex-start}
+.onboardingpanel .checkcount{font-size:12px;color:#8da0b4;font-weight:700}
+.checklist{display:grid;gap:8px;margin-top:12px}
+.checkitem{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;padding:12px 14px;border-radius:14px;border:1px solid #243b56;background:#0a1524;color:inherit;cursor:pointer;transition:.15s ease}
+.checkitem:hover{border-color:#35506d;background:#0d1a2b}
+.checkitem.done{opacity:.72;border-color:#1e3d36}
+.checkitem .checkcopy{display:grid;gap:2px;min-width:0}
+.checkitem .checkcopy b{font-size:13px}
+.checkitem .checkcopy small{font-size:11px;color:#8497aa}
+.checkicon{display:grid;place-items:center;width:28px;height:28px;color:#38d9a9}
+.checkempty{width:16px;height:16px;border-radius:50%;border:2px solid #3a516c;display:block}
+
+.pendingbanner{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:12px 0;padding:12px 16px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(245,158,11,.12),rgba(12,20,32,.9));
+  border:1px solid rgba(245,158,11,.35);color:#f5e6c8;
+}
+.pendingbanner>div{display:grid;gap:2px;flex:1;min-width:180px}
+.pendingbanner b{font-size:13px}
+.pendingbanner span{font-size:12px;color:#cbb896}
+
+.plannudge{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:0 0 16px;padding:12px 16px;border-radius:14px;
+  background:linear-gradient(135deg,rgba(56,217,169,.1),rgba(12,24,40,.95));
+  border:1px solid rgba(56,217,169,.28);
+}
+.plannudge>div{display:grid;gap:2px;flex:1;min-width:180px}
+.plannudge b{font-size:13px}
+.plannudge span{font-size:12px;color:#8da0b4}
+
+.planmatrixwrap{overflow:auto;margin:12px 0 18px;border-radius:14px;border:1px solid #243b56}
+.planmatrix{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+.planmatrix th,.planmatrix td{padding:10px 12px;border-bottom:1px solid #1d3049;text-align:left;vertical-align:middle}
+.planmatrix th{background:#0c1a2c;color:#dce8f7;font-weight:700;position:sticky;top:0}
+.planmatrix th.iscurrent{color:#7fe8c9}
+.planmatrix td:first-child{color:#9eb2c9;font-weight:600;white-space:nowrap}
+.planmatrix .yes{color:#42e6a4;font-weight:700}
+.planmatrix .no{color:#5a6d82}
+.planmatrix .narrow{padding:6px 10px;font-size:11px}
+
+.channelkitgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.channelkit{display:flex;align-items:center;gap:10px;padding:12px;border-radius:12px;border:1px solid #243b56;background:#0a1524;color:inherit;cursor:pointer;text-align:left}
+.channelkit:hover{border-color:#38d9a9}
+.channelkit b{display:block;font-size:12px}
+.channelkit em{margin-left:auto;font-style:normal;font-size:11px;color:#7fe8c9;font-weight:700}
+
+.adtruststrip{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 14px;border-radius:12px;background:rgba(56,217,169,.08);border:1px solid rgba(56,217,169,.2);color:#b7e9d8;font-size:12.5px}
+.campaignweek{display:grid;gap:12px;margin-bottom:16px;border-color:rgba(56,217,169,.3);background:linear-gradient(145deg,#0d1f2e,#0a1522)}
+.campaignweekhead h3{margin:6px 0 4px}
+.campaignweekmeta{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:#8da0b4}
+
+.recentstrip{margin:0 0 14px;padding:14px}
+.recentrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.recentchip{flex:0 0 auto;display:grid;gap:2px;padding:10px 12px;border-radius:12px;border:1px solid #243b56;background:#0a1524;color:inherit;cursor:pointer;text-align:left;max-width:180px}
+.recentchip b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recentchip span{font-size:11px;color:#7fe8c9}
+
+.deliveryhints{margin:-4px 0 12px}
+.deliverychiprow{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+
+.smartempty{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 0}
+.smartempty p{margin:0 8px 0 0}
+
+@media(max-width:760px){
+  aside .navsecondary{opacity:.88}
+  .pendingbanner,.plannudge{align-items:flex-start}
+  .planmatrix{font-size:11px}
+}
+
+/* Optional: de-emphasize secondary nav on very small screens */
+@media(max-width:420px){
+  aside button.navsecondary{font-size:12px}
+}
