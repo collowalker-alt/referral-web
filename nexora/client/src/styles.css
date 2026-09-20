@@ -551,3 +551,58 @@ button,input,textarea,select{max-width:100%}
 .tillrow{flex-wrap:wrap;gap:10px}
 .admin-till-table .row{align-items:flex-start}
 .refcode{font-family:ui-monospace,monospace;font-size:12px}
+
+
+/* Ensure payment / till / auth modals are scrollable so till number and lower content stay visible */
+.modalbackdrop{
+  align-items: start;
+  justify-items: center;
+  padding: 18px 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.modal.phonemodal,
+.modal.paymentmodal,
+.modal.authmodal{
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(92vh, 920px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 24px auto;
+}
+.modal.phonemodal .paymentbody,
+.modal.phonemodal .phonebody,
+.modal.paymentmodal .paymentbody,
+.modal.authmodal form{
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.modal.phonemodal .modalhead,
+.modal.phonemodal .modalfoot,
+.modal.paymentmodal .modalhead,
+.modal.paymentmodal .modalfoot,
+.modal.authmodal .modalhead{
+  flex: 0 0 auto;
+}
+.modal.phonemodal .paymentbody,
+.modal.phonemodal .phonebody{
+  padding: 16px 22px 8px;
+}
+@media (max-width: 600px){
+  .modalbackdrop{
+    padding: 10px 8px 24px;
+    align-items: start;
+  }
+  .modal.phonemodal,
+  .modal.paymentmodal,
+  .modal.authmodal{
+    width: calc(100vw - 16px);
+    max-height: min(94dvh, 94vh);
+    margin: 8px auto 20px;
+  }
+}
