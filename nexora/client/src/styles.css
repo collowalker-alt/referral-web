@@ -995,3 +995,79 @@ button,input,textarea,select{max-width:100%}
     max-width:100%;
   }
 }
+
+/* Definitive marketplace section-header layout fix. The title/content column must
+   keep a flexible share of the row; otherwise a fixed Cart button can collapse it
+   to a few pixels and make every character render on its own line. */
+.sectionhead > div:first-child{
+  flex:1 1 auto !important;
+  min-width:0 !important;
+  width:auto !important;
+}
+.sectionhead .sectionactions{
+  flex:0 0 auto !important;
+  width:auto !important;
+  min-width:max-content !important;
+}
+.sectionhead .sectionactions .primary,
+.sectionhead > .primary{
+  width:auto !important;
+  min-width:max-content;
+  flex:0 0 auto !important;
+}
+
+/* Definitive authentication-modal viewport fix. Keep the complete modal inside
+   the viewport and make only the form area scroll on short displays. */
+.modalbackdrop:has(.authmodal){
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  min-height:100dvh;
+  padding:max(12px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom)) !important;
+  overflow-y:auto !important;
+}
+.modalbackdrop:has(.authmodal) .authmodal{
+  display:flex !important;
+  flex-direction:column !important;
+  width:min(560px, calc(100vw - 20px)) !important;
+  max-height:calc(100dvh - max(24px, env(safe-area-inset-top) + env(safe-area-inset-bottom) + 24px)) !important;
+  height:auto !important;
+  margin:auto !important;
+  overflow:hidden !important;
+}
+.modalbackdrop:has(.authmodal) .authmodal .modalhead,
+.modalbackdrop:has(.authmodal) .authmodal .authtabs,
+.modalbackdrop:has(.authmodal) .authmodal > h2,
+.modalbackdrop:has(.authmodal) .authmodal > p.muted,
+.modalbackdrop:has(.authmodal) .authmodal > .error,
+.modalbackdrop:has(.authmodal) .authmodal > .successbanner,
+.modalbackdrop:has(.authmodal) .authmodal > .authlinks,
+.modalbackdrop:has(.authmodal) .authmodal > .devtokenbox,
+.modalbackdrop:has(.authmodal) .authmodal > p.small{
+  flex:0 0 auto;
+}
+.modalbackdrop:has(.authmodal) .authmodal form{
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  -webkit-overflow-scrolling:touch !important;
+  overscroll-behavior:contain;
+  padding-bottom:18px !important;
+}
+.modalbackdrop:has(.authmodal) .authmodal .modalhead{
+  position:sticky !important;
+  top:0 !important;
+  z-index:8 !important;
+}
+@media(max-width:760px){
+  .modalbackdrop:has(.authmodal){
+    align-items:flex-start !important;
+    padding:8px 7px max(24px, env(safe-area-inset-bottom)) !important;
+  }
+  .modalbackdrop:has(.authmodal) .authmodal{
+    width:calc(100vw - 14px) !important;
+    max-height:calc(100dvh - 16px) !important;
+    margin:0 auto !important;
+  }
+}
