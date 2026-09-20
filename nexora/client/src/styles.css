@@ -1396,3 +1396,82 @@ button,input,textarea,select{max-width:100%}
 @media(max-width:420px){
   aside button.navsecondary{font-size:12px}
 }
+
+/* Earn center — plans under Earn */
+.earntabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.earntabs button{border:1px solid #29405e;background:#10223a;color:#aebccc;border-radius:999px;padding:10px 16px;font-weight:700;cursor:pointer}
+.earntabs button.active{background:#38d9a9;color:#04110c;border-color:#38d9a9}
+.earnnotice{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:flex-start;margin-bottom:16px;border-color:rgba(56,217,169,.25)}
+.earnnotice h3{margin:0 0 6px}
+.earnterms{margin:10px 0 0;padding-left:18px;display:grid;gap:6px}
+.earnterms li{font-size:12.5px;color:#9eb2c9;line-height:1.5}
+.earnterms a{color:#38d9a9}
+.earnterms.compact{margin-top:8px;margin-bottom:12px}
+.earnlock .primary{margin-top:4px;display:inline-flex;align-items:center;gap:8px}
+.earnplans .sectionhead h1{font-size:22px}
+@media(max-width:600px){
+  .earnnotice{grid-template-columns:1fr}
+  .earntabs button{flex:1;text-align:center}
+}
+
+/* Install modal hard fix — never blank */
+.modalbackdrop.installbackdrop,
+.installbackdrop{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:100000 !important;
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  overflow-y:auto !important;
+  padding:max(16px, env(safe-area-inset-top)) 14px 30px !important;
+  background:rgba(2,6,14,.88) !important;
+  backdrop-filter:blur(10px) !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+}
+.installbackdrop .modal.moderninstall,
+.installbackdrop .moderninstall,
+.modal.pwahelp.moderninstall{
+  display:flex !important;
+  flex-direction:column !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  width:min(560px, calc(100vw - 28px)) !important;
+  max-height:min(90dvh, 900px) !important;
+  margin:12px auto !important;
+  background:linear-gradient(145deg,#0d1b2d,#091524) !important;
+  border:1px solid #2b4665 !important;
+  border-radius:20px !important;
+  color:#eaf0ff !important;
+  overflow:hidden !important;
+  box-shadow:0 28px 90px rgba(0,0,0,.55) !important;
+}
+.installbackdrop .installbody,
+.moderninstall .installbody{
+  display:grid !important;
+  gap:12px !important;
+  padding:16px 20px !important;
+  overflow-y:auto !important;
+  flex:1 1 auto !important;
+  min-height:0 !important;
+  visibility:visible !important;
+  opacity:1 !important;
+}
+.installbackdrop .installcard{
+  display:grid !important;
+  grid-template-columns:auto 1fr auto !important;
+  gap:12px !important;
+  align-items:center !important;
+  visibility:visible !important;
+}
+@media(max-width:520px){
+  .installbackdrop .installcard{
+    grid-template-columns:auto 1fr !important;
+  }
+  .installbackdrop .installaction{
+    grid-column:1 / -1 !important;
+    width:100% !important;
+  }
+}
