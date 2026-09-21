@@ -525,7 +525,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     if(!coopConfigured())return res.status(503).json({message:"Co-op Bank STK Push is not configured on the NEXORA server"});
 
     const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    const messageReference=`NEXORA-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const messageReference=`NX${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
     const token=await getCoopToken();
     const payload={
       MessageReference:messageReference,
@@ -536,7 +536,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
       Narration:`NEXORA ${pkg.name}`.slice(0,50),
       Amount:chargeAmount,
       MessageDateTime:new Date().toISOString(),
-      OtherDetails:[{Name:"Identifier",Value:reference}]
+      OtherDetails:[{Name:"Identifier",Value:messageReference}]
     };
     console.log("[COOP STK INIT]",JSON.stringify({reference,messageReference,packageId:pkg.id,package:pkg.name,amountKES:chargeAmount,phone:maskPhone(normalizedPhone),startedAt:new Date().toISOString()}));
 
@@ -1090,9 +1090,9 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
     if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
     if(!coopConfigured())return res.status(503).json({message:"Co-op Bank STK Push is not configured on the NEXORA server"});
     const reference=`NX-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    const messageReference=`NEXORA-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const messageReference=`ND${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
     const token=await getCoopToken();
-    const payload={MessageReference:messageReference,CallBackUrl:COOP_CALLBACK_URL,OperatorCode:COOP_OPERATOR_CODE,TransactionCurrency:"KES",MobileNumber:coopPhone(normalizedPhone),Narration:"NEXORA Wallet Deposit".slice(0,50),Amount:amount,MessageDateTime:new Date().toISOString(),OtherDetails:[{Name:"Identifier",Value:reference}]};
+    const payload={MessageReference:messageReference,CallBackUrl:COOP_CALLBACK_URL,OperatorCode:COOP_OPERATOR_CODE,TransactionCurrency:"KES",MobileNumber:coopPhone(normalizedPhone),Narration:"NEXORA Wallet Deposit".slice(0,50),Amount:amount,MessageDateTime:new Date().toISOString(),OtherDetails:[{Name:"Identifier",Value:messageReference}]};
     const r=await fetch(COOP_STK_URL,{method:"POST",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
     const data=await r.json().catch(()=>({}));
     console.log("[COOP WALLET STK RESPONSE]",JSON.stringify({reference,messageReference,httpStatus:r.status,response:data}));
