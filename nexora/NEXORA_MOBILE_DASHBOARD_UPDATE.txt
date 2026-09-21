@@ -1,0 +1,14 @@
+NEXORA Mobile Dashboard Update
+
+Changes in this revision:
+- Mobile Quick Actions now use a 2-column grid in the requested order: Deposit, Earn / Marketplace, Sell product / Invite, Transactions / Academy, Support / Profile.
+- Removed the single-column mobile Quick Actions behavior that caused the long vertical list.
+- Available Balance is integrated into the Welcome/Dashboard hero card beside the current plan, with show/hide and Deposit controls.
+- Removed the duplicated standalone balance stat from the dashboard statistics row.
+- Moved the mobile Support floating action to the lower-left, above the mobile navigation, so it does not overlap the Quick button or bottom tabs.
+- Kept the existing Earn Quick Action and all existing dashboard functionality.
+
+Build:
+cd client
+npm install
+npm run build

@@ -1709,3 +1709,34 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
 }
 @media(max-width:430px){.dashboardquick-grid{grid-template-columns:1fr}.header-icon-btn{width:34px;height:34px}.theme-toggle{height:34px}.command-main{width:56px;height:56px;border-radius:18px}.dashboardstat strong{font-size:19px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+
+/* NEXORA mobile dashboard refinement — two-column quick actions, integrated balance, safe support placement */
+.dashboardhero-side{gap:14px}
+.dashboardhero-plan,.dashboardhero-balance{width:100%;box-sizing:border-box}
+.dashboardhero-balance{padding-top:14px;border-top:1px solid rgba(255,255,255,.09)}
+.dashboardhero-balance-head{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#7890a7;font-size:10px;font-weight:800;letter-spacing:.1em}
+.dashboardhero-balance .tiny-icon-btn{display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:rgba(255,255,255,.035);color:#93a3b5;cursor:pointer}
+.dashboardhero-balance>strong{display:block;margin:7px 0 9px;font-size:25px;color:#effaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero-balance-btn{border:1px solid rgba(56,217,169,.28);border-radius:10px;padding:7px 10px;background:rgba(56,217,169,.08);color:#8fe9ce;font-size:10px;font-weight:800;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+@media(max-width:760px){
+  .dashboardhero-side{padding:16px;gap:13px}
+  .dashboardhero-balance>strong{font-size:23px}
+  .dashboardquick-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:9px}
+  .quickaction{min-height:76px;grid-template-columns:auto 1fr auto;padding:11px}
+  .quickaction-copy b{font-size:12px}
+  .quickaction-copy small{font-size:9px}
+  .quickaction>svg:last-child{display:block;width:13px}
+  .dashboardstats{grid-template-columns:1fr 1fr;gap:8px}
+  .supportfloat{left:14px;right:auto;bottom:94px;z-index:210;width:48px;height:48px;padding:0;justify-content:center}
+  .supportfloat span{display:none}
+  .command-center{right:16px;bottom:94px;z-index:250}
+}
+@media(max-width:430px){
+  .dashboardquick-grid{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  .quickaction{min-height:78px;padding:10px;gap:8px}
+  .quickaction-icon{width:34px;height:34px;border-radius:10px}
+  .quickaction-copy b{font-size:11px}
+  .quickaction-copy small{font-size:8.5px}
+  .quickaction>svg:last-child{display:none}
+}

@@ -902,10 +902,17 @@ function Dashboard({me,copy,copyCode,copiedKind,share,goPackages,goPage,profileS
     </div>
    </div>
    <div className="dashboardhero-side">
-    <div className="dashboardmini-label">CURRENT PLAN</div>
-    <strong>{me.package?.name||"No plan yet"}</strong>
-    <span>{me.package?`${money(me.package.price)} membership`:"Explore plans when you're ready"}</span>
-    {!me.package&&<button className="hero-plan-btn" onClick={goPackages}>View plans <ArrowUpRight size={14}/></button>}
+    <div className="dashboardhero-plan">
+     <div className="dashboardmini-label">CURRENT PLAN</div>
+     <strong>{me.package?.name||"No plan yet"}</strong>
+     <span>{me.package?`${money(me.package.price)} membership`:"Explore plans when you're ready"}</span>
+     {!me.package&&<button className="hero-plan-btn" onClick={goPackages}>View plans <ArrowUpRight size={14}/></button>}
+    </div>
+    <div className="dashboardhero-balance">
+     <div className="dashboardhero-balance-head"><span>AVAILABLE BALANCE</span><button className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={13}/>:<Eye size={13}/>}</button></div>
+     <strong>{showBalance?money(balance):"KSh •••••"}</strong>
+     <button className="hero-balance-btn" onClick={()=>setDepositOpen(true)}><WalletCards size={13}/> Deposit</button>
+    </div>
    </div>
   </section>
 
@@ -922,7 +929,6 @@ function Dashboard({me,copy,copyCode,copiedKind,share,goPackages,goPage,profileS
   </div>
 
   <div className="dashboardstats">
-   <div className="dashboardstat balance"><span>Available balance <button className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={13}/>:<Eye size={13}/>}</button></span><strong>{showBalance?money(balance):"KSh •••••"}</strong><button onClick={()=>setDepositOpen(true)}><WalletCards size={13}/> Deposit</button></div>
    <div className="dashboardstat"><span>Total recorded earnings</span><strong>{money(earned)}</strong><small>Account history</small></div>
    <div className="dashboardstat"><span>Direct referrals</span><strong>{direct}</strong><small>Level 1 network</small></div>
    <div className="dashboardstat"><span>Level 2 network</span><strong>{level2}</strong><small>Extended network</small></div>
