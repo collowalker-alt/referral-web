@@ -130,6 +130,7 @@ function NexBot({goPage,goPackages,me}){
   return null;
  });
  const drag=React.useRef(null);
+ const fabRef=React.useRef(null);
 
  useEffect(()=>{
   if(sessionStorage.getItem("nexora-nexbot-greeted")==="1") return;
@@ -138,6 +139,13 @@ function NexBot({goPage,goPackages,me}){
   const t=setTimeout(()=>setTip(false),5200);
   return()=>clearTimeout(t);
  },[]);
+
+ useEffect(()=>{
+  if(!open) return;
+  const onKey=e=>{if(e.key==="Escape") setOpen(false)};
+  window.addEventListener("keydown",onKey);
+  return()=>window.removeEventListener("keydown",onKey);
+ },[open]);
 
  const answer=(q)=>{
   const s=String(q||"").toLowerCase().trim();
@@ -175,35 +183,59 @@ function NexBot({goPage,goPackages,me}){
   ["Wallet","How do deposits work?"],
  ];
 
+ const clampPos=(x,y)=>({
+  x:Math.max(8,Math.min((typeof window!=="undefined"?window.innerWidth:400)-64,x)),
+  y:Math.max(8,Math.min((typeof window!=="undefined"?window.innerHeight:700)-64,y)),
+ });
+
  const onPointerDown=(e)=>{
   if(open) return;
+  if(e.button!=null && e.button!==0) return;
   const el=e.currentTarget;
-  const rect=el.getBoundingClientRect();
-  drag.current={dx:e.clientX-rect.left,dy:e.clientY-rect.top,moved:false};
+  drag.current={
+   startX:e.clientX,
+   startY:e.clientY,
+   ox:pos?pos.x:el.getBoundingClientRect().left,
+   oy:pos?pos.y:el.getBoundingClientRect().top,
+   moved:false,
+   pointerId:e.pointerId
+  };
   try{el.setPointerCapture(e.pointerId)}catch{}
  };
  const onPointerMove=(e)=>{
   if(!drag.current) return;
-  drag.current.moved=true;
-  const x=Math.max(8,Math.min(window.innerWidth-72,e.clientX-drag.current.dx));
-  const y=Math.max(8,Math.min(window.innerHeight-72,e.clientY-drag.current.dy));
-  setPos({x,y});
+  const dx=e.clientX-drag.current.startX;
+  const dy=e.clientY-drag.current.startY;
+  if(Math.abs(dx)>10 || Math.abs(dy)>10) drag.current.moved=true;
+  if(!drag.current.moved) return;
+  const next=clampPos(drag.current.ox+dx, drag.current.oy+dy);
+  setPos(next);
  };
- const onPointerUp=()=>{
+ const onPointerUp=(e)=>{
   if(!drag.current) return;
   const moved=drag.current.moved;
   drag.current=null;
-  if(pos) try{localStorage.setItem(storagePos,JSON.stringify(pos))}catch{}
-  if(!moved) setOpen(o=>!o);
+  try{e.currentTarget.releasePointerCapture?.(e.pointerId)}catch{}
+  if(moved){
+   if(pos) try{localStorage.setItem(storagePos,JSON.stringify(pos))}catch{}
+   return;
+  }
+  setTip(false);
+  setOpen(true);
  };
 
- const style=pos?{left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:{};
+ const Face=({size=28})=>(
+  <span className="nexbot-face" style={{width:size,height:size}} aria-hidden="true">
+   <span className="nexbot-eye left"/><span className="nexbot-eye right"/><span className="nexbot-mouth"/>
+  </span>
+ );
 
- return <div className={`nexbot-root ${open?"is-open":""}`} style={style}>
-  {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Here to help with NEXORA. Tap me anytime.</span></div>}
-  {open&&<div className="nexbot-panel">
+ const fabStyle=pos?{position:"fixed",left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:undefined;
+
+ const panel=(
+  <div className="nexbot-panel" role="dialog" aria-label="NexBot help">
    <div className="nexbot-head">
-    <div className="nexbot-avatar" aria-hidden="true"><Bot size={18}/><i className="nexbot-pulse"/></div>
+    <div className="nexbot-avatar" aria-hidden="true"><Face size={30}/></div>
     <div><b>NexBot</b><small>NEXORA guide</small></div>
     <button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button>
    </div>
@@ -219,11 +251,26 @@ function NexBot({goPage,goPackages,me}){
     <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("products")}}>Advertise</button>
     <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("notifications")}}>Alerts</button>
    </div>
-  </div>}
-  <button type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} title="NexBot — drag to move, tap to chat" aria-label="Open NexBot">
-   <span className="nexbot-fab-glow"/><Bot size={22}/><span className="nexbot-fab-dot"/>
-  </button>
- </div>;
+  </div>
+ );
+
+ return <>
+  {open&&createPortal(
+    <div className="nexbot-overlay" onClick={()=>setOpen(false)}>
+      <div className="nexbot-sheet" onClick={e=>e.stopPropagation()}>{panel}</div>
+    </div>,
+    document.body
+  )}
+  <div className={`nexbot-root ${open?"is-open":""}`} style={fabStyle}>
+   {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Here to help with NEXORA. Tap me anytime.</span></div>}
+   <button ref={fabRef} type="button" className="nexbot-fab"
+     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
+     onClick={e=>{e.preventDefault(); /* open handled in pointerup to avoid double */}}
+     title="NexBot — drag to move, tap to chat" aria-label="Open NexBot">
+    <span className="nexbot-fab-glow"/><Face size={34}/><span className="nexbot-fab-dot"/>
+   </button>
+  </div>
+ </>;
 }
 function SupportButton(){return <a className="supportfloat" href="https://wa.me/254703265774" target="_blank" rel="noreferrer" aria-label="Contact NEXORA support on WhatsApp"><MessageCircle size={20}/><span>Support</span></a>}
 function PublicLanding({onLogin}){

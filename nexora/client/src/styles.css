@@ -2012,3 +2012,126 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
   .marketfilters input::placeholder{color:#6f829a}
   .marketfilters select{padding:12px;appearance:auto}
 }
+
+/* NexBot face + on-screen panel (phone-safe) */
+.nexbot-face{
+  position:relative;
+  display:inline-block;
+  border-radius:50%;
+  background:#f4f7fb;
+  box-shadow:inset 0 -2px 4px rgba(0,0,0,.08),0 2px 8px rgba(0,0,0,.2);
+  flex-shrink:0;
+}
+.nexbot-eye{
+  position:absolute;
+  top:32%;
+  width:18%;
+  height:28%;
+  background:#111827;
+  border-radius:50%;
+  animation:nexbotEyeBlink 3.2s ease-in-out infinite;
+}
+.nexbot-eye.left{left:24%}
+.nexbot-eye.right{right:24%;animation-delay:.18s}
+.nexbot-mouth{
+  position:absolute;
+  left:50%;
+  bottom:22%;
+  width:28%;
+  height:10%;
+  transform:translateX(-50%);
+  border:2px solid #111827;
+  border-top:0;
+  border-radius:0 0 12px 12px;
+  box-sizing:border-box;
+  animation:nexbotMouth 2.8s ease-in-out infinite;
+}
+@keyframes nexbotEyeBlink{
+  0%,42%,48%,100%{transform:scaleY(1)}
+  45%{transform:scaleY(.12)}
+}
+@keyframes nexbotMouth{
+  0%,100%{transform:translateX(-50%) scaleX(1)}
+  50%{transform:translateX(-50%) scaleX(1.08)}
+}
+.nexbot-fab{
+  width:58px !important;
+  height:58px !important;
+  border-radius:50% !important;
+  background:linear-gradient(145deg,#1a3d38,#0d1f2a) !important;
+  border:1px solid rgba(56,217,169,.4) !important;
+  display:grid !important;
+  place-items:center !important;
+  overflow:visible !important;
+  touch-action:none;
+  -webkit-user-select:none;
+  user-select:none;
+}
+.nexbot-fab .nexbot-face{width:34px !important;height:34px !important}
+.nexbot-root{
+  z-index:420 !important;
+  pointer-events:none;
+}
+.nexbot-root .nexbot-fab,
+.nexbot-root .nexbot-tip{pointer-events:auto}
+
+/* Panel always fully on screen via fixed overlay */
+.nexbot-overlay{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:5000 !important;
+  background:rgba(2,8,16,.55) !important;
+  display:flex !important;
+  align-items:flex-end !important;
+  justify-content:center !important;
+  padding:12px 12px max(12px, env(safe-area-inset-bottom)) !important;
+  box-sizing:border-box !important;
+}
+.nexbot-sheet{
+  width:min(380px,100%) !important;
+  max-height:min(78dvh,560px) !important;
+  display:flex !important;
+  flex-direction:column !important;
+  margin:0 !important;
+}
+.nexbot-sheet .nexbot-panel{
+  width:100% !important;
+  max-width:100% !important;
+  max-height:min(78dvh,560px) !important;
+  display:flex !important;
+  flex-direction:column !important;
+  margin:0 !important;
+  border-radius:18px 18px 14px 14px !important;
+  overflow:hidden !important;
+  box-shadow:0 24px 60px rgba(0,0,0,.5) !important;
+}
+.nexbot-sheet .nexbot-msgs{
+  flex:1 1 auto !important;
+  min-height:100px !important;
+  max-height:none !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch;
+}
+.nexbot-avatar{
+  background:transparent !important;
+  border:0 !important;
+  width:36px !important;
+  height:36px !important;
+}
+@media(min-width:760px){
+  .nexbot-overlay{
+    align-items:center !important;
+    padding:24px !important;
+  }
+  .nexbot-sheet .nexbot-panel{
+    border-radius:18px !important;
+  }
+}
+@media(max-width:760px){
+  .nexbot-root:not([style*="left"]){
+    right:12px !important;
+    bottom:122px !important;
+    left:auto !important;
+    top:auto !important;
+  }
+}
