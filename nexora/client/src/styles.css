@@ -1475,3 +1475,208 @@ button,input,textarea,select{max-width:100%}
     width:100% !important;
   }
 }
+
+/* Dashboard refresh — clearer hierarchy, quick actions and compact command center */
+.dashboardhero{
+  display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:24px;align-items:stretch;
+  background:
+    radial-gradient(circle at 88% 20%,rgba(76,226,190,.12),transparent 30%),
+    linear-gradient(135deg,#0e2631 0%,#0b1828 58%,#17132a 100%);
+  border-color:rgba(113,230,201,.18);
+}
+.dashboardhero-copy{min-width:0}
+.dashboardhero h1{max-width:780px}
+.dashboardhero-side{
+  display:flex;flex-direction:column;justify-content:center;align-items:flex-start;
+  padding:20px;border-radius:18px;background:rgba(4,12,23,.48);
+  border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.03);
+}
+.dashboardmini-label{font-size:10px;letter-spacing:.12em;color:#7890a7;font-weight:800}
+.dashboardhero-side strong{font-size:25px;margin:7px 0 3px;color:#effaff}
+.dashboardhero-side>span{font-size:12px;color:#8fa3b8;line-height:1.45}
+.hero-plan-btn{
+  margin-top:14px;border:0;border-radius:10px;padding:9px 12px;background:#38d9a9;color:#04110c;
+  font-weight:900;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+}
+.dashboardquick{margin:18px 0 20px}
+.dashboardquick-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:11px}
+.dashboardquick-head h2{margin:5px 0 0;font-size:20px}
+.dashboardquick-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.quickaction{
+  min-width:0;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;
+  text-align:left;padding:13px;border-radius:15px;border:1px solid #20374a;
+  background:#0b1623;color:#eaf5ff;cursor:pointer;transition:.18s ease;
+}
+.quickaction:hover{transform:translateY(-2px);border-color:#3b5b70;background:#0d1c2b}
+.quickaction-icon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.08)}
+.quickaction-copy{display:grid;gap:3px;min-width:0}
+.quickaction-copy b{font-size:12px}
+.quickaction-copy small{font-size:10px;color:#8297ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.quickaction>svg:last-child{color:#71879b}
+.quickaction.mint .quickaction-icon{color:#73e3c5;background:#102d2a}
+.quickaction.blue .quickaction-icon{color:#8dc2ff;background:#14253b}
+.quickaction.purple .quickaction-icon{color:#d9a6ff;background:#271c34}
+.quickaction.gold .quickaction-icon{color:#f5cf70;background:#2b2516}
+.quickaction.slate .quickaction-icon{color:#aebdcd;background:#182431}
+.quickaction.indigo .quickaction-icon{color:#9bb8ff;background:#19243b}
+.quickaction.rose .quickaction-icon{color:#ff9cae;background:#321c26}
+.quickaction.teal .quickaction-icon{color:#7fe8c9;background:#12302d}
+
+.dashboardstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}
+.dashboardstat{
+  position:relative;min-width:0;padding:16px;border:1px solid #1e344a;border-radius:15px;background:#0b1725;
+}
+.dashboardstat span{display:block;font-size:11px;color:#8498ad}
+.dashboardstat strong{display:block;margin-top:7px;font-size:21px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dashboardstat small{display:block;margin-top:5px;color:#61778e;font-size:10px}
+.dashboardstat.balance{background:linear-gradient(145deg,#102a2c,#0b1725);border-color:rgba(56,217,169,.22)}
+.dashboardstat.balance button{
+  margin-top:9px;border:1px solid #245548;background:#12342f;color:#a5f4d9;border-radius:9px;
+  padding:6px 9px;font-size:10px;font-weight:800;display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+}
+.dashboard-main-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:14px;margin-bottom:16px}
+.dashboard-left,.dashboard-right{display:grid;gap:14px;align-content:start}
+.nextaction{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;
+  background:linear-gradient(135deg,rgba(56,217,169,.08),#0b1725 55%);
+  border-color:rgba(56,217,169,.22);
+}
+.nextaction-icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:#12352f;color:#71e3c3}
+.nextaction-copy{min-width:0}
+.nextaction-copy h3{margin:6px 0 2px}
+.nextaction-copy p{margin:0;font-size:12px}
+.progresspanel .paneltitle{align-items:flex-end}
+.progresspanel .paneltitle>strong{font-size:18px;color:#7fe8c9}
+.progressmeta{display:flex;justify-content:space-between;gap:10px;font-size:10px;color:#71879c}
+.activityrow{
+  display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:11px;
+  padding:11px 0;border-bottom:1px solid #172b40;
+}
+.activityrow:last-child{border-bottom:0}
+.activityicon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#122437;color:#7fdcc4}
+.activityrow div{min-width:0;display:grid;gap:3px}
+.activityrow b{font-size:12px;text-transform:capitalize}
+.activityrow small{font-size:10px;color:#72879d}
+.activityrow strong{font-size:12px;white-space:nowrap}
+.referralpanel .copybox{margin:12px 0 10px}
+.referralpanel .heroactions{margin-top:0}
+@media(max-width:900px){
+ .dashboardhero{grid-template-columns:1fr}
+ .dashboardhero-side{min-height:0}
+ .dashboardquick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dashboardstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .dashboard-main-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+ .dashboardhero{padding:17px}
+ .dashboardhero h1{font-size:23px}
+ .dashboardquick-head{align-items:flex-start;flex-direction:column}
+ .dashboardquick-grid{grid-template-columns:1fr 1fr;gap:8px}
+ .quickaction{grid-template-columns:auto 1fr;padding:11px}
+ .quickaction>svg:last-child{display:none}
+ .dashboardstats{gap:8px}
+ .dashboardstat{padding:13px}
+ .dashboardstat strong{font-size:18px}
+ .nextaction{grid-template-columns:auto 1fr}
+ .nextaction .primary{grid-column:1/-1;width:100%}
+ .progressmeta{flex-direction:column;gap:3px}
+}
+
+/* NEXORA UI CONSISTENCY + LIVING INTERACTIONS */
+:root{--nx-mint:#38d9a9;--nx-mint-soft:#79e4c6;--nx-bg:#07101f;--nx-panel:#0b182a;--nx-line:#1d304a;--nx-blue:#8dc2ff}
+html{scroll-behavior:smooth}
+body{overflow-x:hidden}
+body::before{content:"";position:fixed;inset:-20%;pointer-events:none;z-index:-1;background:radial-gradient(circle at 12% 20%,rgba(56,217,169,.07),transparent 25%),radial-gradient(circle at 86% 14%,rgba(76,139,255,.08),transparent 24%);animation:nxAmbient 12s ease-in-out infinite alternate}
+@keyframes nxAmbient{from{transform:translate3d(-1%,0,0) scale(1)}to{transform:translate3d(1%,1%,0) scale(1.04)}}
+
+/* Shared page rhythm */
+main>section{animation:nxPageIn .32s ease both}
+@keyframes nxPageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.sectionhead{position:relative;padding-bottom:3px}
+.sectionhead::after{content:"";position:absolute;left:0;bottom:-8px;width:54px;height:2px;border-radius:99px;background:linear-gradient(90deg,var(--nx-mint),transparent);opacity:.75}
+.sectionhead h1{letter-spacing:-.025em}
+
+/* Buttons feel physical on mouse and touch */
+button,.secondary,.primary,.supportfloat,.marketcard,.productcard,.academycard,.panel,.pkg,.dashboardproduct,.quickaction,.selleractiongrid button,.wallettabs button{transition:transform .16s ease,box-shadow .18s ease,border-color .18s ease,background-color .18s ease,filter .18s ease}
+button:not(:disabled):active,.secondary:active,.primary:active,.supportfloat:active{transform:translateY(2px) scale(.975);filter:brightness(.96)}
+.primary:not(:disabled){box-shadow:0 8px 22px rgba(56,217,169,.10)}
+.primary:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 12px 28px rgba(56,217,169,.18);filter:brightness(1.04)}
+.secondary:hover{transform:translateY(-1px);border-color:#3c587a;background:#162b47;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.iconbtn:hover{transform:translateY(-1px);background:#1a3453}
+
+/* Tap feedback without requiring extra libraries */
+button:focus-visible,.secondary:focus-visible,.primary:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid rgba(121,228,198,.85);outline-offset:2px}
+button:not(:disabled):active::after,.primary:not(:disabled):active::after,.secondary:active::after{content:"";position:absolute;inset:18%;border-radius:50%;background:rgba(255,255,255,.12);animation:nxTap .28s ease-out;pointer-events:none}
+button,.primary,.secondary{position:relative;overflow:hidden}
+@keyframes nxTap{from{transform:scale(.2);opacity:.8}to{transform:scale(1.8);opacity:0}}
+
+/* Shared cards */
+.panel,.pkg,.productcard,.academycard{box-shadow:0 12px 32px rgba(0,0,0,.10)}
+.panel:hover,.pkg:hover,.productcard:hover,.academycard:hover{border-color:#2b4868;box-shadow:0 16px 38px rgba(0,0,0,.18)}
+.panel:hover{transform:translateY(-1px)}
+.dashboardstat,.sellerstatgrid>div,.networkcards>div{transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.dashboardstat:hover,.sellerstatgrid>div:hover,.networkcards>div:hover{transform:translateY(-2px);border-color:#2b4868;box-shadow:0 12px 28px rgba(0,0,0,.16)}
+
+/* Marketplace */
+.marketplacehero{position:relative;overflow:hidden;box-shadow:0 18px 50px rgba(0,0,0,.22)}
+.marketplacehero::after{content:"";position:absolute;width:180px;height:180px;right:-60px;top:-70px;border-radius:50%;background:rgba(113,230,201,.08);filter:blur(2px);animation:nxFloat 6s ease-in-out infinite}
+@keyframes nxFloat{50%{transform:translate(-12px,14px) scale(1.08)}}
+.marketcard:hover{transform:translateY(-4px);border-color:#31516f;box-shadow:0 20px 45px rgba(0,0,0,.22)}
+.marketimage img{transition:transform .35s ease,filter .35s ease}
+.marketcard:hover .marketimage img{transform:scale(1.035);filter:saturate(1.08)}
+.marketactions button{min-height:42px}
+.marketfilters input:focus,.searchbox:focus-within{border-color:rgba(56,217,169,.55);box-shadow:0 0 0 3px rgba(56,217,169,.08)}
+
+/* Earn */
+.pkg{overflow:hidden}
+.pkg::before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,transparent,var(--nx-mint),transparent);opacity:0;transition:opacity .2s}
+.pkg:hover::before,.pkg.featured::before{opacity:1}
+.earnplans .pkg .primary{margin-top:auto}
+
+/* Wallet */
+.walletbig{position:relative;overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,.18)}
+.walletbig::after{content:"";position:absolute;width:220px;height:220px;right:-100px;bottom:-120px;border-radius:50%;background:rgba(56,217,169,.09);animation:nxFloat 7s ease-in-out infinite}
+.wallettabs button:hover{transform:translateY(-1px);border-color:#3b5878}
+.wallettabs button.active{transform:translateY(-1px)}
+.walletsummarygrid .panel{min-height:145px}
+
+/* Academy */
+.academycard{display:flex;flex-direction:column;min-height:235px}
+.academycard button{margin-top:auto}
+.academycard:hover>svg{transform:scale(1.08);transition:transform .18s ease}
+.lessonnum{box-shadow:0 0 0 4px rgba(121,228,198,.04)}
+
+/* Support */
+.supportgrid .panel,.securitygrid .panel{height:100%}
+.supportfloat{backdrop-filter:blur(8px)}
+.supportform input:focus,.supportform textarea:focus,.securitygrid input:focus{border-color:rgba(56,217,169,.65);box-shadow:0 0 0 3px rgba(56,217,169,.08)}
+.ticket{transition:padding-left .18s ease,background .18s ease}
+.ticket:hover{padding-left:8px;background:rgba(255,255,255,.015)}
+
+/* Profile & Security */
+.securitygrid .panel:first-child,.securitygrid .panel:nth-child(2){position:relative;overflow:hidden}
+.securitygrid .panel:first-child::before,.securitygrid .panel:nth-child(2)::before{content:"";position:absolute;right:-35px;top:-35px;width:100px;height:100px;border-radius:50%;background:rgba(56,217,169,.05)}
+.securitychecks span{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.018);border:1px solid rgba(255,255,255,.035)}
+
+/* Navigation and header */
+aside{box-shadow:10px 0 35px rgba(0,0,0,.08)}
+.membernavscroll button{position:relative}
+.membernavscroll button::before{content:"";position:absolute;left:0;top:20%;bottom:20%;width:3px;border-radius:99px;background:var(--nx-mint);transform:scaleY(0);transition:transform .18s ease}
+.membernavscroll button.active::before{transform:scaleY(1)}
+.membernavscroll button:hover{transform:translateX(2px)}
+header{backdrop-filter:blur(10px);background:rgba(7,16,31,.46);position:sticky;top:0;z-index:8}
+.avatarbtn:hover{transform:scale(1.06);box-shadow:0 0 0 4px rgba(56,217,169,.10)}
+
+/* Loading / status moments */
+.notice,.error,.pendingbanner,.plannudge{animation:nxNoticeIn .28s ease both}
+@keyframes nxNoticeIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.progress i{animation:nxProgress 1.1s ease both}
+@keyframes nxProgress{from{width:0!important}to{width:var(--nx-progress,inherit)}}
+
+@media(max-width:760px){
+ main{padding-bottom:80px}
+ .sectionhead::after{bottom:-5px}
+ .panel:hover,.pkg:hover,.productcard:hover,.academycard:hover{transform:none}
+ header{z-index:12}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
