@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {createPortal} from "react-dom";
-import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star} from "lucide-react";
+import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot} from "lucide-react";
 import "./styles.css";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
 const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
@@ -118,6 +118,113 @@ function PWAInstall({compact=false}){
  </>;
 }
 function Instructions({onClose}){return <div className="modalbackdrop" onClick={onClose}><div className="modal instructions" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">NEXORA GUIDE</span><h2>How to use NEXORA</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="instructionbody"><div><b>1. Create your account</b><p>Register with your name, email, password and valid Kenyan M-Pesa phone number. Keep your login details private.</p></div><div><b>2. Explore your workspace</b><p>Dashboard shows your account, plan status, referral activity, wallet, notifications and recent activity.</p></div><div><b>3. Choose or upgrade a membership plan</b><p>Open Earn → Membership plans to review prices and benefits before paying. Upgrades charge only the displayed price difference.</p></div><div><b>4. Understand the two earning paths</b><p>Starter, Growth, Pro and Elite members earn through qualifying referrals according to the plan rules. Premium members can also access Advertise and may earn from approved advertising campaigns.</p></div><div><b>5. Advertising is Premium-only</b><p>Products are not available to non-Premium members. Premium members can select available products, promote them on WhatsApp Status, TikTok, Instagram, X or another approved platform, then submit the public post link, upload the exact post creative you published, and provide the platform performance figures.</p></div><div><b>6. Advertising payouts</b><p>Approved advertising earnings are processed weekly on Friday. The amount is based on verified views and engagements and the rates configured for the specific campaign. Submission does not guarantee approval or a particular payout.</p></div><div><b>7. Grow your referral network</b><p>Open Earn to manage referrals and Marketing Center to share your personal referral link. Referral commissions are recorded only when a qualifying referral plan purchase is completed and your plan is eligible.</p></div><div><b>8. Use analytics, challenges and achievements</b><p>Analytics shows recorded activity. Challenges and achievements track activity milestones; neither guarantees future earnings.</p></div><div><b>9. Learn in NEXORA Academy</b><p>Use Academy to learn membership plans, referrals, advertising, ethical promotion, analytics, payments, security and responsible communication.</p></div><div><b>10. Wallet and payments</b><p>Wallet shows available, pending and withdrawn amounts. Transactions keeps your payment history. Never share your password, M-Pesa PIN or security codes.</p></div><div><b>11. Get help</b><p>Open Help & Support for a ticket or use WhatsApp Support. For payment or advertising questions, include the relevant reference or campaign information, but never send your PIN.</p></div><div><b>12. Use the NEXORA Marketplace</b><p>Marketplace lets members browse, search, wishlist, compare and purchase products, manage a cart, use eligible coupons, provide delivery details, review completed purchases and open a dispute when an order has a problem. Sellers can list products with photos, descriptions, prices, stock, seller information and location, manage orders and build a trustworthy seller profile. Verified sellers and approved listings are highlighted. Keep listings accurate and use safe payment and delivery practices.</p></div><div><b>13. Install NEXORA as an app</b><p>Use the Install NEXORA button when supported. On iPhone/iPad, open NEXORA in Safari and choose Add to Home Screen.</p></div></div><div className="modalfoot"><a className="secondary supportinline" href="https://wa.me/254703265774" target="_blank" rel="noreferrer"><MessageCircle size={17}/> WhatsApp Support <ExternalLink size={14}/></a></div></div></div>}
+
+function NexBot({goPage,goPackages,me}){
+ const storagePos="nexora-nexbot-pos";
+ const [open,setOpen]=useState(false);
+ const [input,setInput]=useState("");
+ const [msgs,setMsgs]=useState([{role:"bot",text:"Ask me anything about NEXORA — plans, Earn, marketplace, Advertise, wallet, or shortcuts."}]);
+ const [tip,setTip]=useState(false);
+ const [pos,setPos]=useState(()=>{
+  try{const p=JSON.parse(localStorage.getItem(storagePos)||"null");if(p&&typeof p.x==="number"&&typeof p.y==="number")return p;}catch{}
+  return null;
+ });
+ const drag=React.useRef(null);
+
+ useEffect(()=>{
+  if(sessionStorage.getItem("nexora-nexbot-greeted")==="1") return;
+  setTip(true);
+  sessionStorage.setItem("nexora-nexbot-greeted","1");
+  const t=setTimeout(()=>setTip(false),5200);
+  return()=>clearTimeout(t);
+ },[]);
+
+ const answer=(q)=>{
+  const s=String(q||"").toLowerCase().trim();
+  if(!s) return "Type a short question — for example: how do plans work?";
+  if(/hi|hello|hey|habari|niaje/.test(s)) return "Hi! I'm NexBot. I can explain plans, Earn, marketplace, Advertise, wallet, referrals, and shortcuts. What do you need?";
+  if(/guarantee|guaranteed|salary|sure income|promised/.test(s)) return "NEXORA does not guarantee income. Commissions are only recorded when platform rules are met (qualifying plan purchases for your plan level). Always review Membership rules before paying.";
+  if(/(plan|membership|upgrade|starter|growth|pro|elite|premium)/.test(s)) return "Membership plans live under Earn → Membership plans. Activate a plan to unlock your referral link. Upgrades charge only the price difference. Higher plans unlock more referral levels; only Premium unlocks Advertise.";
+  if(/earn|referral|commission|invite|link/.test(s)) return "Earn has two tabs: Network & referrals, and Membership plans. You need an active plan before your referral link unlocks. Share honestly — commissions only on qualifying plan purchases under the rules.";
+  if(/advertise|advertising|campaign|friday/.test(s)) return "Advertise is Premium-only. Activate Premium under Earn → Membership plans. Then open Advertise, pick a campaign, post on an approved platform, submit the public link + exact creative, and views/engagements. Approved payouts are reviewed for Friday processing — not guaranteed.";
+  if(/marketplace|shop|sell|cart|wishlist|product/.test(s)) return "Marketplace: browse, wishlist, cart, buy, or Sell a product with photos, price, stock and location. Verified sellers show a badge.";
+  if(/wallet|deposit|withdraw|balance|mpesa|paybill/.test(s)) return "Wallet shows available balance. Deposit via M-Pesa/Paybill when paying for a plan. Never share your M-Pesa PIN. Check Transactions for pending or completed payments.";
+  if(/pending|awaiting|payment status/.test(s)) return "Pending payments appear under Notifications and Transactions — not as page banners. Open Notifications or Transactions to check status.";
+  if(/academy|learn|lesson/.test(s)) return "Academy has short lessons on plans, referrals, advertising, ethics, and platform use. Open Academy from the menu or Home quick actions.";
+  if(/support|help|ticket|whatsapp/.test(s)) return "Use Help & Support for tickets, or the green Support button for WhatsApp. Include payment reference if asking about a payment — never send your PIN.";
+  if(/install|pwa|app|home screen/.test(s)) return "Tap Install in the header. On Android use Chrome install; on iPhone open Safari → Share → Add to Home Screen.";
+  if(/shortcut|navigate|menu|where|go to/.test(s)) return "Shortcuts: Home, Earn (plans + referrals), Marketplace, Advertise (Premium), Wallet, Transactions, Marketing Center, Academy, Notifications, Profile. On phone use the bottom nav for Home, Earn, Shop, Wallet, Profile.";
+  if(/dashboard|home|welcome/.test(s)) return "Home is your command center: welcome, current plan, balance, quick actions, progress, and recent activity.";
+  if(/notification/.test(s)) return "Open Notifications in the menu for plan status, payment awaiting confirmation, support tickets, and activity goals.";
+  if(/thank/.test(s)) return "You're welcome! Tap me anytime.";
+  return "Try asking about: plans, Earn, referrals, marketplace, Advertise, wallet, payments, Academy, or shortcuts. Or open Help & Support for a human.";
+ };
+
+ const send=(textIn)=>{
+  const q=String(textIn??input).trim();
+  if(!q) return;
+  const a=answer(q);
+  setMsgs(m=>[...m,{role:"user",text:q},{role:"bot",text:a}]);
+  setInput("");
+ };
+
+ const quick=[
+  ["Plans","Where are membership plans?"],
+  ["Earn","How do referrals work?"],
+  ["Advertise","How does Premium advertising work?"],
+  ["Wallet","How do deposits work?"],
+ ];
+
+ const onPointerDown=(e)=>{
+  if(open) return;
+  const el=e.currentTarget;
+  const rect=el.getBoundingClientRect();
+  drag.current={dx:e.clientX-rect.left,dy:e.clientY-rect.top,moved:false};
+  try{el.setPointerCapture(e.pointerId)}catch{}
+ };
+ const onPointerMove=(e)=>{
+  if(!drag.current) return;
+  drag.current.moved=true;
+  const x=Math.max(8,Math.min(window.innerWidth-72,e.clientX-drag.current.dx));
+  const y=Math.max(8,Math.min(window.innerHeight-72,e.clientY-drag.current.dy));
+  setPos({x,y});
+ };
+ const onPointerUp=()=>{
+  if(!drag.current) return;
+  const moved=drag.current.moved;
+  drag.current=null;
+  if(pos) try{localStorage.setItem(storagePos,JSON.stringify(pos))}catch{}
+  if(!moved) setOpen(o=>!o);
+ };
+
+ const style=pos?{left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:{};
+
+ return <div className={`nexbot-root ${open?"is-open":""}`} style={style}>
+  {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Here to help with NEXORA. Tap me anytime.</span></div>}
+  {open&&<div className="nexbot-panel">
+   <div className="nexbot-head">
+    <div className="nexbot-avatar" aria-hidden="true"><Bot size={18}/><i className="nexbot-pulse"/></div>
+    <div><b>NexBot</b><small>NEXORA guide</small></div>
+    <button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button>
+   </div>
+   <div className="nexbot-msgs">{msgs.map((m,i)=><div key={i} className={`nexbot-msg ${m.role}`}>{m.text}</div>)}</div>
+   <div className="nexbot-quick">{quick.map(([l,q])=><button type="button" key={l} onClick={()=>send(q)}>{l}</button>)}</div>
+   <form className="nexbot-form" onSubmit={e=>{e.preventDefault();send()}}>
+    <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask about plans, Earn, ads…" autoComplete="off"/>
+    <button type="submit" className="primary narrow">Send</button>
+   </form>
+   <div className="nexbot-links">
+    <button type="button" onClick={()=>{setOpen(false);goPackages&&goPackages()}}>Plans</button>
+    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("marketplace")}}>Shop</button>
+    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("products")}}>Advertise</button>
+    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("notifications")}}>Alerts</button>
+   </div>
+  </div>}
+  <button type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} title="NexBot — drag to move, tap to chat" aria-label="Open NexBot">
+   <span className="nexbot-fab-glow"/><Bot size={22}/><span className="nexbot-fab-dot"/>
+  </button>
+ </div>;
+}
 function SupportButton(){return <a className="supportfloat" href="https://wa.me/254703265774" target="_blank" rel="noreferrer" aria-label="Contact NEXORA support on WhatsApp"><MessageCircle size={20}/><span>Support</span></a>}
 function PublicLanding({onLogin}){
  const [mode,setMode]=useState(null);
@@ -152,7 +259,7 @@ function PublicLanding({onLogin}){
    <section className="publiccta"><div><span className="pill">READY WHEN YOU ARE</span><h2>Build your NEXORA workspace.</h2><p>Start with an account, explore the platform and decide what membership level fits your goals.</p></div><button className="primary" onClick={()=>go("register")}>Create account <ArrowUpRight size={17}/></button></section>
   </main>
   <footer className="publicfooter"><div><b>NEXORA.</b><p>Connect. Grow. Learn. Build.</p></div><div className="footerlinks"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/membership">Membership rules</a><a href="#faq">Support</a></div><small>© {new Date().getFullYear()} NEXORA. Information is provided for platform use and does not constitute a guarantee of income.</small></footer>
-  {mode&&<AuthModal mode={mode} initialResetToken={initialResetToken} onClose={()=>{setMode(null);setInitialResetToken("")}} onLogin={onLogin}/>}<SupportButton/>
+  {mode&&<AuthModal mode={mode} initialResetToken={initialResetToken} onClose={()=>{setMode(null);setInitialResetToken("")}} onLogin={onLogin}/>}<NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>
  </div>
 }
 function passwordStrength(pw){
@@ -744,7 +851,7 @@ function App(){
  const logout=()=>{localStorage.removeItem("token");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
  const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
  return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Earn · Advertise · Learn</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
- <PendingPaymentBanner transactions={transactions} goPage={setPage}/>{page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load}/>} 
+ {page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load}/>} 
  {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><div className="earnnotice panel"><PackageIcon size={20}/><div><h3>Plan required to earn</h3><p className="muted">Activate a membership plan to unlock your referral link. Commissions follow plan rules only; NEXORA does not guarantee income. See <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>.</p></div></div><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 

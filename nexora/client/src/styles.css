@@ -1740,3 +1740,117 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
   .quickaction-copy small{font-size:8.5px}
   .quickaction>svg:last-child{display:none}
 }
+
+/* Compact welcome / plan / balance cards */
+.dashboardhero{
+  grid-template-columns:minmax(0,1fr) 210px !important;
+  gap:16px !important;
+  padding:18px 18px !important;
+  margin-top:14px !important;
+}
+.dashboardhero h1{font-size:26px !important;margin:6px 0 4px !important;line-height:1.2 !important}
+.dashboardhero-copy p{font-size:13px !important;line-height:1.45 !important;margin:0 0 10px !important;max-width:520px}
+.dashboardhero .heroactions{gap:8px !important}
+.dashboardhero .heroactions .primary,
+.dashboardhero .heroactions .secondary{padding:9px 12px !important;font-size:12px !important}
+.dashboardhero-side{
+  padding:12px 13px !important;
+  border-radius:14px !important;
+  gap:10px !important;
+}
+.dashboardmini-label{font-size:9px !important;letter-spacing:.1em !important}
+.dashboardhero-side strong,
+.dashboardhero-plan strong{font-size:17px !important;margin:4px 0 2px !important}
+.dashboardhero-plan span{font-size:11px !important}
+.dashboardhero-balance>strong{font-size:18px !important;margin:4px 0 7px !important}
+.hero-plan-btn{margin-top:8px !important;padding:7px 10px !important;font-size:11px !important}
+.hero-balance-btn{padding:6px 9px !important;font-size:10px !important}
+.dashboardhero-balance{padding-top:10px !important}
+@media(max-width:760px){
+  .dashboardhero{padding:14px 12px !important;gap:12px !important;margin-top:10px !important}
+  .dashboardhero h1{font-size:20px !important;margin:4px 0 3px !important}
+  .dashboardhero-copy p{font-size:12px !important;margin-bottom:8px !important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .dashboardhero .heroactions button{padding:8px 10px !important;font-size:11px !important}
+  .dashboardhero-side{padding:10px 11px !important;gap:8px !important}
+  .dashboardhero-side strong,.dashboardhero-plan strong{font-size:15px !important}
+  .dashboardhero-balance>strong{font-size:16px !important}
+}
+
+/* Hide old banner styles if leftover markup */
+.pendingbanner,.plannudge{display:none !important}
+
+/* NexBot — floating guide */
+.nexbot-root{
+  position:fixed;
+  right:18px;
+  bottom:100px;
+  z-index:260;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+  touch-action:none;
+}
+.nexbot-fab{
+  position:relative;
+  width:56px;height:56px;border-radius:18px;border:1px solid rgba(56,217,169,.35);
+  background:linear-gradient(145deg,#12352f,#0c1c28);
+  color:#7fe8c9;display:grid;place-items:center;cursor:grab;
+  box-shadow:0 12px 32px rgba(0,0,0,.35),0 0 0 0 rgba(56,217,169,.35);
+  animation:nexbotBlink 1.8s ease-in-out infinite;
+}
+.nexbot-fab:active{cursor:grabbing;transform:scale(.96)}
+.nexbot-fab-glow{
+  position:absolute;inset:-4px;border-radius:20px;
+  background:radial-gradient(circle,rgba(56,217,169,.25),transparent 70%);
+  animation:nexbotGlow 2.2s ease-in-out infinite;pointer-events:none;
+}
+.nexbot-fab-dot{
+  position:absolute;top:10px;right:10px;width:9px;height:9px;border-radius:50%;
+  background:#42e6a4;box-shadow:0 0 0 0 rgba(66,230,164,.6);
+  animation:nexbotDot 1.4s ease-out infinite;
+}
+@keyframes nexbotBlink{
+  0%,100%{box-shadow:0 12px 32px rgba(0,0,0,.35),0 0 0 0 rgba(56,217,169,.25)}
+  50%{box-shadow:0 12px 32px rgba(0,0,0,.35),0 0 0 8px rgba(56,217,169,.08);filter:brightness(1.08)}
+}
+@keyframes nexbotGlow{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes nexbotDot{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(66,230,164,.55)}70%{transform:scale(1.15);box-shadow:0 0 0 8px rgba(66,230,164,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(66,230,164,0)}}
+.nexbot-tip{
+  max-width:220px;padding:10px 12px;border-radius:14px;
+  background:#0d1b2a;border:1px solid #2a4660;color:#dce8f4;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+  animation:nxNoticeIn .3s ease both;
+}
+.nexbot-tip b{display:block;font-size:12px;margin-bottom:2px;color:#8fe9ce}
+.nexbot-tip span{font-size:11px;color:#9eb0c3;line-height:1.4}
+.nexbot-panel{
+  width:min(320px,calc(100vw - 28px));
+  max-height:min(420px,70dvh);
+  display:flex;flex-direction:column;
+  background:linear-gradient(160deg,#0d1a2b,#0a1420);
+  border:1px solid #2b4660;border-radius:18px;
+  box-shadow:0 22px 60px rgba(0,0,0,.45);overflow:hidden;
+}
+.nexbot-head{display:flex;align-items:center;gap:10px;padding:12px 12px 10px;border-bottom:1px solid #1d3048}
+.nexbot-head b{display:block;font-size:13px}
+.nexbot-head small{color:#8094a9;font-size:10px}
+.nexbot-avatar{position:relative;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:#12352f;color:#7fe8c9;border:1px solid rgba(56,217,169,.3)}
+.nexbot-pulse{position:absolute;inset:-3px;border-radius:14px;border:1px solid rgba(56,217,169,.35);animation:nexbotGlow 1.6s ease-in-out infinite;pointer-events:none}
+.nexbot-msgs{flex:1;overflow:auto;padding:12px;display:grid;gap:8px;min-height:120px}
+.nexbot-msg{padding:9px 11px;border-radius:12px;font-size:12px;line-height:1.45;max-width:95%}
+.nexbot-msg.bot{background:#102033;color:#d7e6f5;justify-self:start}
+.nexbot-msg.user{background:rgba(56,217,169,.14);color:#c8f5e6;justify-self:end}
+.nexbot-quick{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}
+.nexbot-quick button{border:1px solid #2a455f;background:#0e1a28;color:#b7c9db;border-radius:999px;padding:5px 10px;font-size:10px;font-weight:700;cursor:pointer}
+.nexbot-form{display:flex;gap:6px;padding:0 12px 10px}
+.nexbot-form input{flex:1;min-width:0;height:38px;border-radius:10px;border:1px solid #29415d;background:#071321;color:#f4f8ff;padding:0 10px;font-size:12px}
+.nexbot-links{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 12px;border-top:1px solid #1d3048;padding-top:10px}
+.nexbot-links button{border:0;background:transparent;color:#7fe8c9;font-size:11px;font-weight:700;cursor:pointer;padding:2px 4px}
+@media(max-width:760px){
+  .nexbot-root{right:14px;bottom:110px}
+  .nexbot-fab{width:52px;height:52px;border-radius:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  .nexbot-fab,.nexbot-fab-glow,.nexbot-fab-dot,.nexbot-pulse{animation:none !important}
+}
