@@ -543,7 +543,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     const r=await fetch(COOP_STK_URL,{method:"POST",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
     const data=await r.json().catch(()=>({}));
     console.log("[COOP STK RESPONSE]",JSON.stringify({reference,messageReference,httpStatus:r.status,response:data}));
-    if(!r.ok)return res.status(400).json({message:coopDisplayText(data)||`Unable to start M-Pesa payment (${r.status})`,reference,coop_http_status:r.status});
+    if(!r.ok)return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference,coop_http_status:r.status,coop_code:data?.MessageCode||data?.response?.MessageCode||null});
 
     await prisma.transaction.create({data:{
       userId:req.user.id,type:"PACKAGE_PURCHASE",amount:chargeAmount,reference,status:"PENDING",
@@ -1096,7 +1096,7 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
     const r=await fetch(COOP_STK_URL,{method:"POST",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
     const data=await r.json().catch(()=>({}));
     console.log("[COOP WALLET STK RESPONSE]",JSON.stringify({reference,messageReference,httpStatus:r.status,response:data}));
-    if(!r.ok)return res.status(400).json({message:coopDisplayText(data)||`Unable to start M-Pesa payment (${r.status})`,reference,coop_http_status:r.status});
+    if(!r.ok)return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference,coop_http_status:r.status,coop_code:data?.MessageCode||data?.response?.MessageCode||null});
     await prisma.transaction.create({data:{userId:req.user.id,type:"DEPOSIT",amount,reference,status:"PENDING",metadata:{method:"COOP_STK",phone:normalizedPhone,coop:{provider:"COOP",messageReference,request:payload,response:data,httpStatus:r.status,initializedAt:new Date().toISOString()},diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}}});
     res.status(201).json({reference,messageReference,status:"pending",amount,phone:normalizedPhone,display_text:coopDisplayText(data),message:"STK prompt sent. Enter your M-Pesa PIN, then NEXORA will check the transaction status automatically."});
   }catch(e){console.error("[COOP WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
