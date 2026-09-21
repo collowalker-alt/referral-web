@@ -1050,8 +1050,8 @@ function Dashboard({me,copy,copyCode,copiedKind,share,goPackages,goPage,profileS
     <h1>Welcome back, {me.user.name.split(" ")[0]} <span aria-hidden="true">👋</span></h1>
     <p>Your command center for wallet activity, marketplace, referrals, learning and account support.</p>
     <div className="heroactions">
-     <button className="primary" onClick={()=>goPage("marketplace")}><Store size={16}/> Open Marketplace</button>
-     <button className="secondary" onClick={()=>goPage("referrals")}><WalletCards size={16}/> Open Earn</button>
+     <button className="primary" onClick={()=>goPage("marketplace")}><Store size={16}/> Marketplace</button>
+     <button className="secondary" onClick={()=>goPage("referrals")}><WalletCards size={16}/> Earn</button>
      <button className="secondary" onClick={()=>goPage("academy")}><GraduationCap size={16}/> Learn</button>
     </div>
    </div>

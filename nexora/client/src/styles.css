@@ -2135,3 +2135,50 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
     top:auto !important;
   }
 }
+
+/* Dashboard hero CTAs — never clip button labels */
+.dashboardhero .heroactions,
+.hero.dashboardhero .heroactions{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  flex-direction:row !important;
+  gap:8px !important;
+  width:100% !important;
+  min-width:0 !important;
+}
+.dashboardhero .heroactions .primary,
+.dashboardhero .heroactions .secondary,
+.hero.dashboardhero .heroactions .primary,
+.hero.dashboardhero .heroactions .secondary{
+  flex:0 1 auto !important;
+  width:auto !important;
+  min-width:0 !important;
+  max-width:100% !important;
+  white-space:nowrap !important;
+  overflow:visible !important;
+  text-overflow:clip !important;
+  padding:10px 12px !important;
+  font-size:12.5px !important;
+  justify-content:center !important;
+  box-sizing:border-box !important;
+}
+@media(max-width:760px){
+  .dashboardhero .heroactions .primary,
+  .dashboardhero .heroactions .secondary{
+    flex:1 1 calc(33.33% - 8px) !important;
+    min-width:max-content !important;
+    padding:10px 11px !important;
+    font-size:12px !important;
+  }
+}
+/* Global heroactions should wrap, not squash text */
+.app .heroactions{
+  flex-wrap:wrap !important;
+}
+.app .heroactions .primary,
+.app .heroactions .secondary{
+  flex:0 1 auto !important;
+  white-space:nowrap !important;
+  overflow:visible !important;
+  min-width:max-content !important;
+}
