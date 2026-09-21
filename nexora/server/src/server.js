@@ -57,6 +57,93 @@ const APP_URL = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$
 const MPESA_PAYBILL_NUMBER = String(process.env.MPESA_PAYBILL_NUMBER || "400200").trim();
 const MPESA_PAYBILL_ACCOUNT = String(process.env.MPESA_PAYBILL_ACCOUNT || "").trim();
 const MPESA_PAYBILL_NAME = String(process.env.MPESA_PAYBILL_NAME || "NEXORA").trim();
+// Co-operative Bank STK Push configuration. Secrets stay server-side on Render.
+const COOP_TOKEN_URL = String(process.env.COOP_TOKEN_URL || "https://openapi.co-opbank.co.ke/token").trim();
+const COOP_STK_URL = String(process.env.COOP_STK_URL || "https://openapi.co-opbank.co.ke/FT/stk/1.0.0").trim();
+const COOP_STK_STATUS_URL = String(process.env.COOP_STK_STATUS_URL || "https://openapi.co-opbank.co.ke/Enquiry/STK/1.0.0/").trim();
+const COOP_CLIENT_ID = String(process.env.COOP_CLIENT_ID || "").trim();
+const COOP_CLIENT_SECRET = String(process.env.COOP_CLIENT_SECRET || "").trim();
+const COOP_BASIC_AUTH = String(process.env.COOP_BASIC_AUTH || "").trim();
+const COOP_OPERATOR_CODE = String(process.env.COOP_OPERATOR_CODE || "NEXORA").trim();
+const COOP_CALLBACK_URL = String(process.env.COOP_CALLBACK_URL || `${APP_URL}/api/coop/callback`).trim();
+let coopTokenCache = { accessToken: "", expiresAt: 0 };
+
+function coopPhone(v) {
+  const n = cleanPhone(v);
+  if (/^07\d{8}$/.test(n)) return `254${n.slice(1)}`;
+  if (/^011\d{7}$/.test(n)) return `254${n.slice(1)}`;
+  if (/^254[17]\d{8}$/.test(n)) return n;
+  return n;
+}
+function coopConfigured() {
+  return Boolean(COOP_TOKEN_URL && COOP_STK_URL && COOP_STK_STATUS_URL && COOP_OPERATOR_CODE &&
+    (COOP_BASIC_AUTH || (COOP_CLIENT_ID && COOP_CLIENT_SECRET)));
+}
+function coopBasicHeader() {
+  if (COOP_BASIC_AUTH) return COOP_BASIC_AUTH.toLowerCase().startsWith("basic ") ? COOP_BASIC_AUTH : `Basic ${COOP_BASIC_AUTH}`;
+  return `Basic ${Buffer.from(`${COOP_CLIENT_ID}:${COOP_CLIENT_SECRET}`).toString("base64")}`;
+}
+async function getCoopToken() {
+  if (!coopConfigured()) throw new Error("Co-op Bank payment credentials are not configured");
+  if (coopTokenCache.accessToken && Date.now() < coopTokenCache.expiresAt - 30000) return coopTokenCache.accessToken;
+  const r = await fetch(COOP_TOKEN_URL, {
+    method:"POST",
+    headers:{"Authorization":coopBasicHeader(),"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+    body:"grant_type=client_credentials"
+  });
+  const d = await r.json().catch(()=>({}));
+  if (!r.ok || !d.access_token) {
+    console.error("[COOP TOKEN ERROR]",JSON.stringify({httpStatus:r.status,response:d}));
+    throw new Error(d.error_description || d.message || `Co-op token request failed (${r.status})`);
+  }
+  const expiresIn=Number(d.expires_in||300);
+  coopTokenCache={accessToken:d.access_token,expiresAt:Date.now()+Math.max(60,expiresIn)*1000};
+  return d.access_token;
+}
+function coopExtractStatus(data) {
+  const candidates=[
+    data?.status,data?.Status,data?.transactionStatus,data?.TransactionStatus,
+    data?.data?.status,data?.data?.Status,data?.data?.transactionStatus,data?.data?.TransactionStatus,
+    data?.response?.status,data?.response?.Status,data?.Response?.Status,
+    data?.Result?.Status,data?.result?.status,data?.result?.Status
+  ];
+  const raw=candidates.find(v=>v!==undefined&&v!==null&&String(v).trim()!=="");
+  if(raw===undefined)return "pending";
+  const x=String(raw).trim().toLowerCase();
+  if(["success","successful","completed","complete","paid","approved","processed"].includes(x))return "success";
+  if(["failed","failure","cancelled","canceled","rejected","declined","expired","timeout","timedout"].includes(x))return "failed";
+  return "pending";
+}
+function coopDisplayText(data) {
+  return String(data?.message||data?.Message||data?.responseMessage||data?.ResponseMessage||
+    data?.data?.message||data?.data?.Message||data?.data?.responseMessage||data?.data?.ResponseMessage||"");
+}
+async function coopStatusQuery(messageReference) {
+  const token=await getCoopToken();
+  const r=await fetch(COOP_STK_STATUS_URL,{
+    method:"POST",
+    headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},
+    body:JSON.stringify({MessageReference:messageReference,UserId:COOP_OPERATOR_CODE})
+  });
+  const data=await r.json().catch(()=>({}));
+  return {httpStatus:r.status,ok:r.ok,data,status:coopExtractStatus(data),displayText:coopDisplayText(data)};
+}
+async function queryAndApplyCoopStatus(reference) {
+  const tx=await prisma.transaction.findUnique({where:{reference}});
+  if(!tx)throw new Error("Payment reference not found");
+  if(tx.status==="SUCCESS")return {status:"success",message:"Payment confirmed. Your package is active.",data:{}};
+  const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
+  const coopMeta=(meta.coop&&typeof meta.coop==="object")?meta.coop:{};
+  const messageReference=String(coopMeta.messageReference||reference);
+  const result=await coopStatusQuery(messageReference);
+  await prisma.transaction.update({where:{reference},data:{metadata:{
+    ...meta,coop:{...coopMeta,status:result.status,lastResponse:result.data,lastCheckedAt:new Date().toISOString(),httpStatus:result.httpStatus,display_text:result.displayText}
+  }}});
+  if(result.status==="success")await activatePaidPackage(reference);
+  else if(result.status==="failed")await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+  return {status:result.status,message:result.displayText||(result.status==="pending"?"Payment is still pending.":""),data:result.data};
+}
+
 
 async function sendPasswordResetEmail({ to, name, rawToken }) {
   if (!resend) {
@@ -184,7 +271,8 @@ app.get("/api/payments/methods",(req,res)=>{
     paybillNumber:MPESA_PAYBILL_NUMBER||null,
     paybillAccount:MPESA_PAYBILL_ACCOUNT||null,
     paybillName:MPESA_PAYBILL_NAME||"NEXORA",
-    stkPush:false
+    stkPush:coopConfigured(),
+    provider:coopConfigured()?"coop":"unconfigured"
   });
 });
 
@@ -415,91 +503,57 @@ app.get("/api/transactions",auth,async(req,res)=>{
 
 app.post("/api/payments/initialize",auth,async(req,res)=>{
   const startedAt=Date.now();
-  try {
+  try{
     const {packageId,phone}=req.body;
     const normalizedPhone=cleanPhone(phone||req.user.phone);
-    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
+    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
-    if(!pkg||!pkg.active) return res.status(404).json({message:"Package not found"});
+    if(!pkg||!pkg.active)return res.status(404).json({message:"Package not found"});
     const existingUser=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}});
-    const currentPackage=existingUser?.packageId ? await prisma.package.findUnique({where:{id:existingUser.packageId}}) : null;
-    if(currentPackage && currentPackage.id===pkg.id) return res.status(400).json({message:"You already have this package"});
-    if(currentPackage && pkg.price<=currentPackage.price) return res.status(400).json({message:"You can only upgrade to a higher package"});
-    const chargeAmount=currentPackage ? pkg.price-currentPackage.price : pkg.price;
-    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
+    const currentPackage=existingUser?.packageId?await prisma.package.findUnique({where:{id:existingUser.packageId}}):null;
+    if(currentPackage&&currentPackage.id===pkg.id)return res.status(400).json({message:"You already have this package"});
+    if(currentPackage&&pkg.price<=currentPackage.price)return res.status(400).json({message:"You can only upgrade to a higher package"});
+    const chargeAmount=currentPackage?pkg.price-currentPackage.price:pkg.price;
+    if(chargeAmount<=0)return res.status(400).json({message:"Invalid charge amount"});
+    if(!coopConfigured())return res.status(503).json({message:"Co-op Bank STK Push is not configured on the NEXORA server"});
 
-    const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
-    const formattedPhone=paystackPhone(normalizedPhone);
+    const reference=`NX-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const messageReference=`NEXORA-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const token=await getCoopToken();
     const payload={
-      email:req.user.email,
-      amount:chargeAmount*100,
-      currency:"KES",
-      mobile_money:{phone:formattedPhone,provider:"mpesa"},
-      reference,
-      metadata:{userId:req.user.id,packageId:pkg.id,chargeAmount,currentPackageId:currentPackage?.id||null}
+      MessageReference:messageReference,
+      CallBackUrl:COOP_CALLBACK_URL,
+      OperatorCode:COOP_OPERATOR_CODE,
+      TransactionCurrency:"KES",
+      MobileNumber:coopPhone(normalizedPhone),
+      Narration:`NEXORA ${pkg.name}`.slice(0,50),
+      Amount:chargeAmount,
+      MessageDateTime:new Date().toISOString(),
+      OtherDetails:[{Name:"Identifier",Value:reference}]
     };
+    console.log("[COOP STK INIT]",JSON.stringify({reference,messageReference,packageId:pkg.id,package:pkg.name,amountKES:chargeAmount,phone:maskPhone(normalizedPhone),startedAt:new Date().toISOString()}));
 
-    console.log("[PAYSTACK INIT]",JSON.stringify({
-      reference,mode:paystackMode(),packageId:pkg.id,package:pkg.name,amountKES:chargeAmount,
-      phone:maskPhone(formattedPhone),email:maskEmail(req.user.email),startedAt:new Date().toISOString()
-    }));
-
-    const r=await fetch("https://api.paystack.co/charge",{
-      method:"POST",
-      headers:{"Authorization":`Bearer ${process.env.PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json"},
-      body:JSON.stringify(payload)
-    });
-    const data=await r.json().catch(()=>({status:false,message:"Paystack returned a non-JSON response"}));
-    logPaystackCharge("INIT RESPONSE",{reference,httpStatus:r.status,response:data,phone:formattedPhone,email:req.user.email});
-
-    if(!r.ok||!data.status){
-      console.error("[PAYSTACK INIT ERROR]",JSON.stringify({reference,httpStatus:r.status,mode:paystackMode(),message:data.message||"Unknown Paystack error",response:data}));
-      return res.status(400).json({
-        message:data.message||"Unable to start M-Pesa payment",
-        reference,
-        paystack_http_status:r.status,
-        paystack_status:data.data?.status||null,
-        display_text:data.data?.display_text||""
-      });
-    }
-
-    const chargeStatus=data.data?.status||"pending";
-    const safePaystack={
-      status:data.data?.status||null,
-      display_text:data.data?.display_text||"",
-      gateway_response:data.data?.gateway_response||null,
-      channel:data.data?.channel||null,
-      currency:data.data?.currency||"KES",
-      amount:data.data?.amount??chargeAmount*100,
-      reference:data.data?.reference||reference,
-      id:data.data?.id||null,
-      message:data.message||null,
-      http_status:r.status,
-      mode:paystackMode()
-    };
+    const r=await fetch(COOP_STK_URL,{method:"POST",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
+    const data=await r.json().catch(()=>({}));
+    console.log("[COOP STK RESPONSE]",JSON.stringify({reference,messageReference,httpStatus:r.status,response:data}));
+    if(!r.ok)return res.status(400).json({message:coopDisplayText(data)||`Unable to start M-Pesa payment (${r.status})`,reference,coop_http_status:r.status});
 
     await prisma.transaction.create({data:{
       userId:req.user.id,type:"PACKAGE_PURCHASE",amount:chargeAmount,reference,status:"PENDING",
-      metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,paystack:safePaystack,diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}
+      metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,
+        coop:{provider:"COOP",messageReference,request:payload,response:data,httpStatus:r.status,initializedAt:new Date().toISOString()},
+        diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}
     }});
 
-    if(chargeStatus==="success") await activatePaidPackage(reference);
-    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-
     res.json({
-      reference,
-      status:chargeStatus,
-      display_text:data.data?.display_text||"",
-      message:data.message||"",
-      paystack_http_status:r.status,
-      paystack_status:chargeStatus,
-      gateway_response:data.data?.gateway_response||"",
-      paystack_mode:paystackMode(),
-      chargeAmount
+      reference,messageReference,status:"pending",
+      display_text:coopDisplayText(data),
+      message:"STK prompt sent. Enter your M-Pesa PIN, then NEXORA will check the transaction status automatically.",
+      coop_http_status:r.status,chargeAmount
     });
-  } catch(e){
-    console.error("[PAYSTACK INIT EXCEPTION]",e);
-    res.status(500).json({message:"Payment initialization failed"});
+  }catch(e){
+    console.error("[COOP STK INIT EXCEPTION]",e);
+    res.status(500).json({message:e.message||"Payment initialization failed"});
   }
 });
 
@@ -774,57 +828,25 @@ async function activatePaidPackage(reference){
 
 app.get("/api/payments/status/:reference",auth,async(req,res)=>{
   try{
-    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
-    if(!tx || tx.userId!==req.user.id) return res.status(404).json({message:"Payment reference not found"});
-    if(tx.status==="SUCCESS") return res.json({status:"success",display_text:"Payment confirmed. Your package is active."});
-
-    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
-    const d=await r.json().catch(()=>({status:false,message:"Paystack returned a non-JSON response"}));
-    logPaystackCharge("STATUS RESPONSE",{reference:req.params.reference,httpStatus:r.status,response:d,email:req.user.email});
-
-    if(!r.ok || !d.status){
-      console.error("[PAYSTACK STATUS ERROR]",JSON.stringify({reference:req.params.reference,httpStatus:r.status,mode:paystackMode(),message:d.message||"Unknown Paystack error",response:d}));
-      return res.status(400).json({message:d.message||"Unable to check payment status",reference:req.params.reference,paystack_http_status:r.status});
-    }
-
-    const status=d.data?.status||"pending";
-    const oldMeta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
-    const oldPaystack=(oldMeta.paystack&&typeof oldMeta.paystack==="object")?oldMeta.paystack:{};
-    await prisma.transaction.update({where:{reference:req.params.reference},data:{
-      metadata:{...oldMeta,paystack:{...oldPaystack,status,display_text:d.data?.display_text||"",gateway_response:d.data?.gateway_response||null,channel:d.data?.channel||null,currency:d.data?.currency||"KES",amount:d.data?.amount??null,last_checked_at:new Date().toISOString(),http_status:r.status,mode:paystackMode()}}
-    }});
-
-    if(status==="success") await activatePaidPackage(req.params.reference);
-    else if(["failed","timeout"].includes(status)) await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
-
-    res.json({
-      status,
-      display_text:d.data?.display_text||"",
-      message:d.message||"",
-      reference:req.params.reference,
-      paystack_http_status:r.status,
-      gateway_response:d.data?.gateway_response||"",
-      paystack_mode:paystackMode()
-    });
-  }catch(e){console.error("[PAYMENT STATUS EXCEPTION]",e);res.status(500).json({message:"Payment status check failed"});}
+    if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
+    const result=await queryAndApplyCoopStatus(req.params.reference);
+    res.json({status:result.status,display_text:result.message||"",message:result.message||"",reference:req.params.reference});
+  }catch(e){
+    console.error("[COOP STATUS EXCEPTION]",e);
+    res.status(500).json({message:e.message||"Payment status check failed"});
+  }
 });
-
-// Kept for compatibility with older frontends. The Charge API endpoint above is the
-// preferred status check for M-Pesa charges.
 app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
   try{
-    if(!process.env.PAYSTACK_SECRET_KEY) return res.status(503).json({message:"Paystack is not configured"});
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
-    if(!tx || tx.userId!==req.user.id) return res.status(404).json({message:"Payment reference not found"});
-    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(req.params.reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
-    const d=await r.json();
-    if(!r.ok || !d.status) return res.status(400).json({message:d.message||"Unable to check payment status"});
-    const status=d.data?.status||"pending";
-    if(status==="success") await activatePaidPackage(req.params.reference);
-    else if(status==="failed") await prisma.transaction.update({where:{reference:req.params.reference},data:{status:"FAILED"}});
-    res.json({status,display_text:d.data?.display_text||"",message:d.message||"Charge attempted"});
-  }catch(e){res.status(500).json({message:"Verification failed"});}
+    if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
+    const result=await queryAndApplyCoopStatus(req.params.reference);
+    res.json({status:result.status,display_text:result.message||"",message:result.message||"Payment status checked"});
+  }catch(e){
+    console.error("[COOP VERIFY EXCEPTION]",e);
+    res.status(500).json({message:e.message||"Verification failed"});
+  }
 });
 
 // -------------------- NEXORA ADMIN --------------------
@@ -852,7 +874,7 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
       prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
       prisma.commission.aggregate({_sum:{amount:true}})
     ]);
-    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paystackMode:paystackMode()});
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:coopConfigured()?"Co-op Bank":"unconfigured"});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
 app.get("/api/admin/users",adminAuth,async(req,res)=>{
@@ -952,42 +974,26 @@ app.get("/api/admin/users/:id/details",adminAuth,async(req,res)=>{
 // Admin payment repair: verifies a Paystack charge reference before activating the package.
 app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
   try{
-    if(!process.env.PAYSTACK_SECRET_KEY)return res.status(503).json({message:"Paystack is not configured"});
+    if(!coopConfigured())return res.status(503).json({message:"Co-op Bank STK Push is not configured"});
     const email=String(req.body?.email||"").trim().toLowerCase();
     const reference=String(req.body?.reference||"").trim();
     if(!email||!email.includes("@"))return res.status(400).json({message:"Enter the member email address"});
-    if(!reference)return res.status(400).json({message:"Enter the Paystack transaction reference"});
+    if(!reference)return res.status(400).json({message:"Enter the NEXORA payment reference"});
     const user=await prisma.user.findUnique({where:{email}});
     if(!user)return res.status(404).json({message:"No member was found with that email address"});
-    let tx=await prisma.transaction.findUnique({where:{reference}});
-    if(tx && tx.userId!==user.id)return res.status(409).json({message:"That payment reference belongs to a different member"});
-    const r=await fetch(`https://api.paystack.co/charge/${encodeURIComponent(reference)}`,{headers:{Authorization:`Bearer ${process.env.PAYSTACK_SECRET_KEY}`}});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok||!d.status)return res.status(400).json({message:d.message||"Paystack could not verify this reference"});
-    const status=d.data?.status||"pending";
-    if(!tx){
-      if(status!=="success")return res.status(400).json({message:`Paystack reports this payment as ${status}. A transaction record cannot be created until it is successful.`});
-      const packageCode=d.data?.metadata?.packageId||d.data?.metadata?.package_id||null;
-      let pkg=packageCode?await prisma.package.findUnique({where:{id:String(packageCode)}}):null;
-      if(!pkg){
-        const amountKes=Math.round(Number(d.data?.amount||0)/100);
-        pkg=await prisma.package.findFirst({where:{price:amountKes,active:true},orderBy:{price:"asc"}});
-      }
-      if(!pkg)return res.status(400).json({message:"Payment is successful, but NEXORA could not determine the package. Use manual balance correction or provide the correct package in the transaction metadata."});
-      tx=await prisma.transaction.create({data:{userId:user.id,type:"PACKAGE_PURCHASE",amount:pkg.price,status:"PENDING",reference,metadata:{packageId:pkg.id,phone:d.data?.authorization?.mobile_money_number||null,paystack:{status,display_text:d.data?.display_text||"",gateway_response:d.data?.gateway_response||null,channel:d.data?.channel||null,currency:d.data?.currency||"KES",amount:d.data?.amount||null,reference}}}});
+    const tx=await prisma.transaction.findUnique({where:{reference}});
+    if(!tx)return res.status(404).json({message:"No NEXORA transaction exists for that reference"});
+    if(tx.userId!==user.id)return res.status(409).json({message:"That payment reference belongs to a different member"});
+    const result=await queryAndApplyCoopStatus(reference);
+    if(result.status==="success"){
+      await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,provider:"COOP",status:result.status});
+      return res.json({message:"Co-op payment verified and member account repaired successfully",status:"success",reference});
     }
-    if(status==="success"){
-      await activatePaidPackage(reference);
-      await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,paystackStatus:status,amount:d.data?.amount||null});
-      return res.json({message:"Payment verified and member account repaired successfully",status:"success",reference});
-    }
-    if(["failed","timeout"].includes(status))await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-    await logAdminAction(req,"PAYMENT_CHECKED","TRANSACTION",tx.id,user.email,{reference,paystackStatus:status});
-    res.json({message:`Paystack reports this payment as ${status}. No package activation was performed.`,status,reference});
-  }catch(e){console.error("Admin payment repair error:",e);res.status(500).json({message:"Unable to repair payment"});}
+    await logAdminAction(req,"PAYMENT_CHECKED","TRANSACTION",tx.id,user.email,{reference,provider:"COOP",status:result.status});
+    res.json({message:`Co-op reports this payment as ${result.status}. No package activation was performed.`,status:result.status,reference});
+  }catch(e){console.error("Admin Co-op payment repair error:",e);res.status(500).json({message:e.message||"Unable to repair payment"});}
 });
 
-// Admin activity/audit log
 
 app.get("/api/admin/support/tickets",adminAuth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
 app.patch("/api/admin/support/tickets/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
