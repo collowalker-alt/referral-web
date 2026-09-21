@@ -70,8 +70,7 @@ let coopTokenCache = { accessToken: "", expiresAt: 0 };
 
 function coopPhone(v) {
   const n = cleanPhone(v);
-  if (/^07\d{8}$/.test(n)) return `254${n.slice(1)}`;
-  if (/^011\d{7}$/.test(n)) return `254${n.slice(1)}`;
+  if (/^0[17]\d{8}$/.test(n)) return `254${n.slice(1)}`;
   if (/^254[17]\d{8}$/.test(n)) return n;
   return n;
 }
@@ -131,7 +130,7 @@ async function coopStatusQuery(messageReference) {
 async function queryAndApplyCoopStatus(reference) {
   const tx=await prisma.transaction.findUnique({where:{reference}});
   if(!tx)throw new Error("Payment reference not found");
-  if(tx.status==="SUCCESS")return {status:"success",message:"Payment confirmed. Your package is active.",data:{}};
+  if(tx.status==="SUCCESS")return {status:"success",message:tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active.",data:{}};
   const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
   const coopMeta=(meta.coop&&typeof meta.coop==="object")?meta.coop:{};
   const messageReference=String(coopMeta.messageReference||reference);
@@ -139,9 +138,17 @@ async function queryAndApplyCoopStatus(reference) {
   await prisma.transaction.update({where:{reference},data:{metadata:{
     ...meta,coop:{...coopMeta,status:result.status,lastResponse:result.data,lastCheckedAt:new Date().toISOString(),httpStatus:result.httpStatus,display_text:result.displayText}
   }}});
-  if(result.status==="success")await activatePaidPackage(reference);
-  else if(result.status==="failed")await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-  return {status:result.status,message:result.displayText||(result.status==="pending"?"Payment is still pending.":""),data:result.data};
+  if(result.status==="success"){
+    if(tx.type==="DEPOSIT"){
+      await prisma.$transaction(async db=>{
+        const fresh=await db.transaction.findUnique({where:{reference}});
+        if(!fresh || fresh.status==="SUCCESS") return;
+        await db.transaction.update({where:{reference},data:{status:"SUCCESS",metadata:{...(fresh.metadata||{}),verified:true,completedAt:new Date().toISOString()}}});
+        await db.wallet.upsert({where:{userId:fresh.userId},create:{userId:fresh.userId,balance:fresh.amount},update:{balance:{increment:fresh.amount}}});
+      });
+    } else await activatePaidPackage(reference);
+  } else if(result.status==="failed")await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+  return {status:result.status,message:result.displayText||(result.status==="pending"?"Payment is still pending.":result.status==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active."):""),data:result.data};
 }
 
 
@@ -213,7 +220,7 @@ async function logAdminAction(req, action, targetType=null, targetId=null, targe
   }catch(e){ console.error("[ADMIN AUDIT]",e.message); }
 }
 
-const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
+const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
 const paystackPhone=v=>{
@@ -287,7 +294,7 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
     if(!name||!normalizedEmail||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
     if(!EMAIL_RE.test(normalizedEmail)) return res.status(400).json({message:"Enter a valid email address"});
     if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
-    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
+    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
     const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
@@ -506,7 +513,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
   try{
     const {packageId,phone}=req.body;
     const normalizedPhone=cleanPhone(phone||req.user.phone);
-    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
+    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
     const pkg=await prisma.package.findUnique({where:{id:packageId}});
     if(!pkg||!pkg.active)return res.status(404).json({message:"Package not found"});
     const existingUser=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}});
@@ -1057,7 +1064,7 @@ app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(r
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
   const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
-  if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…."});
+  if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
   if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
   const wallet=await prisma.wallet.findUnique({where:{userId:req.user.id}});
   if(!wallet || wallet.balance<amount) return res.status(400).json({message:"Insufficient balance"});
@@ -1073,40 +1080,36 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
 });
 
 
-// Wallet deposits via the NEXORA M-Pesa Paybill. Deposits remain pending until an administrator
-// verifies the M-Pesa confirmation code and the exact amount received.
+// Wallet deposits via Co-op Bank M-Pesa STK Push.
 app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
+  const startedAt=Date.now();
   try{
-    if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"M-Pesa Paybill deposits are not fully configured yet. Set MPESA_PAYBILL_ACCOUNT in Render."});
     const amount=Number(req.body?.amount);
-    if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum deposit is KSh 100"});
-    const user=await prisma.user.findUnique({where:{id:req.user.id}});
-    if(!user) return res.status(401).json({message:"Account unavailable"});
-    const reference=`NX-DEP-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
-    await prisma.transaction.create({data:{
-      userId:user.id,type:"DEPOSIT",amount,status:"PENDING",reference,
-      metadata:{method:"PAYBILL",paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,mpesaCode:null,verified:false}
-    }});
-    res.status(201).json({reference,amount,paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,status:"pending",message:"Pay the exact amount to the NEXORA paybill, then submit your M-Pesa confirmation code."});
-  }catch(e){console.error("[DEPOSIT INITIATE]",e);res.status(500).json({message:"Unable to start wallet deposit"});}
+    const normalizedPhone=cleanPhone(req.body?.phone||req.user.phone);
+    if(!Number.isInteger(amount)||amount<100)return res.status(400).json({message:"Minimum deposit is KSh 100"});
+    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
+    if(!coopConfigured())return res.status(503).json({message:"Co-op Bank STK Push is not configured on the NEXORA server"});
+    const reference=`NX-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const messageReference=`NEXORA-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const token=await getCoopToken();
+    const payload={MessageReference:messageReference,CallBackUrl:COOP_CALLBACK_URL,OperatorCode:COOP_OPERATOR_CODE,TransactionCurrency:"KES",MobileNumber:coopPhone(normalizedPhone),Narration:"NEXORA Wallet Deposit".slice(0,50),Amount:amount,MessageDateTime:new Date().toISOString(),OtherDetails:[{Name:"Identifier",Value:reference}]};
+    const r=await fetch(COOP_STK_URL,{method:"POST",headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify(payload)});
+    const data=await r.json().catch(()=>({}));
+    console.log("[COOP WALLET STK RESPONSE]",JSON.stringify({reference,messageReference,httpStatus:r.status,response:data}));
+    if(!r.ok)return res.status(400).json({message:coopDisplayText(data)||`Unable to start M-Pesa payment (${r.status})`,reference,coop_http_status:r.status});
+    await prisma.transaction.create({data:{userId:req.user.id,type:"DEPOSIT",amount,reference,status:"PENDING",metadata:{method:"COOP_STK",phone:normalizedPhone,coop:{provider:"COOP",messageReference,request:payload,response:data,httpStatus:r.status,initializedAt:new Date().toISOString()},diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}}});
+    res.status(201).json({reference,messageReference,status:"pending",amount,phone:normalizedPhone,display_text:coopDisplayText(data),message:"STK prompt sent. Enter your M-Pesa PIN, then NEXORA will check the transaction status automatically."});
+  }catch(e){console.error("[COOP WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
 });
 
-app.post("/api/wallet/deposit/submit-code",auth,async(req,res)=>{
+app.get("/api/wallet/deposit/status/:reference",auth,async(req,res)=>{
   try{
-    const reference=String(req.body?.reference||"").trim();
-    const mpesaCode=String(req.body?.mpesaCode||"").trim().toUpperCase().replace(/\s+/g,"");
-    if(!reference||!mpesaCode) return res.status(400).json({message:"Deposit reference and M-Pesa confirmation code are required"});
-    if(mpesaCode.length<8||mpesaCode.length>15) return res.status(400).json({message:"Enter a valid M-Pesa confirmation code"});
+    const reference=String(req.params.reference||"").trim();
     const tx=await prisma.transaction.findUnique({where:{reference}});
-    if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT") return res.status(404).json({message:"Deposit not found"});
-    if(tx.status==="SUCCESS") return res.json({status:"success",message:"This deposit is already confirmed."});
-    if(tx.status==="FAILED") return res.status(400).json({message:"This deposit was rejected. Start a new deposit."});
-    const recent=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:{in:["SUCCESS","PENDING"]},createdAt:{gte:new Date(Date.now()-30*24*60*60*1000)}},select:{reference:true,metadata:true},take:500});
-    const duplicate=recent.some(t=>t.reference!==reference&&String(t.metadata?.mpesaCode||"").toUpperCase()===mpesaCode);
-    if(duplicate) return res.status(409).json({message:"This M-Pesa confirmation code was already used on another deposit."});
-    await prisma.transaction.update({where:{id:tx.id},data:{metadata:{...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true}}});
-    res.json({status:"pending_verification",reference,message:"M-Pesa code received. Your deposit will be credited after the amount and confirmation are verified."});
-  }catch(e){console.error("[DEPOSIT CODE]",e);res.status(500).json({message:"Unable to submit deposit code"});}
+    if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT")return res.status(404).json({message:"Deposit not found"});
+    const result=await queryAndApplyCoopStatus(reference);
+    res.json(result);
+  }catch(e){console.error("[COOP WALLET STATUS]",e);res.status(500).json({message:e.message||"Unable to check deposit status"});}
 });
 
 app.get("/api/admin/wallet/deposits",adminAuth,async(req,res)=>{

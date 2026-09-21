@@ -8,7 +8,7 @@ const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
 const waShare=(text)=>{const url=`https://wa.me/?text=${encodeURIComponent(text)}`;window.open(url,"_blank","noopener,noreferrer");};
 const checklistKey=id=>`nexora-checklist-${id}`;
 
-const PHONE_RE=/^(?:07\d{8}|011\d{7}|2547\d{8}|2541\d{8})$/;
+const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 const validPhone=v=>PHONE_RE.test(cleanPhone(v));
 async function api(path,opts={}){const token=localStorage.getItem("token");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Request failed");return d}
@@ -156,7 +156,7 @@ function NexBot({goPage,goPackages,me}){
   if(/earn|referral|commission|invite|link/.test(s)) return "Earn has two tabs: Network & referrals, and Membership plans. You need an active plan before your referral link unlocks. Share honestly — commissions only on qualifying plan purchases under the rules.";
   if(/advertise|advertising|campaign|friday/.test(s)) return "Advertise is Premium-only. Activate Premium under Earn → Membership plans. Then open Advertise, pick a campaign, post on an approved platform, submit the public link + exact creative, and views/engagements. Approved payouts are reviewed for Friday processing — not guaranteed.";
   if(/marketplace|shop|sell|cart|wishlist|product/.test(s)) return "Marketplace: browse, wishlist, cart, buy, or Sell a product with photos, price, stock and location. Verified sellers show a badge.";
-  if(/wallet|deposit|withdraw|balance|mpesa|paybill/.test(s)) return "Wallet shows available balance. Deposit via M-Pesa/Paybill when paying for a plan. Never share your M-Pesa PIN. Check Transactions for pending or completed payments.";
+  if(/wallet|deposit|withdraw|balance|mpesa|paybill/.test(s)) return "Wallet shows available balance. Deposit via M-Pesa STK Push when paying for a plan. Never share your M-Pesa PIN. Check Transactions for pending or completed payments.";
   if(/pending|awaiting|payment status/.test(s)) return "Pending payments appear under Notifications and Transactions — not as page banners. Open Notifications or Transactions to check status.";
   if(/academy|learn|lesson/.test(s)) return "Academy has short lessons on plans, referrals, advertising, ethics, and platform use. Open Academy from the menu or Home quick actions.";
   if(/support|help|ticket|whatsapp/.test(s)) return "Use Help & Support for tickets, or the green Support button for WhatsApp. Include payment reference if asking about a payment — never send your PIN.";
@@ -374,7 +374,7 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
     e.preventDefault();setErr("");setSuccessMsg("");
     if(mode==="register"){
       if(f.password!==confirmPassword) return setErr("Passwords do not match.");
-      if(!validPhone(f.phone)) return setErr("Enter a valid Kenyan phone number: 07…, 011…, 2547… or 2541….");
+      if(!validPhone(f.phone)) return setErr("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541….");
       if(!agreed) return setErr("Please accept the Terms, Privacy Policy and Membership Rules.");
       if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
     }
@@ -435,9 +435,9 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
             <input required autoComplete="name" value={f.name} onChange={e=>setField("name",e.target.value)} placeholder="Your full name"/>
           </label>
           <label className="fieldlabel">Phone (M-Pesa)
-            <input required inputMode="tel" maxLength={13} autoComplete="tel" value={f.phone} onChange={e=>setField("phone",e.target.value)} placeholder="07…, 011…, 2547… or 2541…"/>
+            <input required inputMode="tel" maxLength={13} autoComplete="tel" value={f.phone} onChange={e=>setField("phone",e.target.value)} placeholder="07…, 01…, 2547… or 2541…"/>
             {f.phone&&phoneValid===true&&<span className="fieldhint ok">✓ Valid Kenyan number</span>}
-            {f.phone&&phoneValid===false&&<span className="fieldhint bad">Use 07…, 011…, 2547… or 2541…</span>}
+            {f.phone&&phoneValid===false&&<span className="fieldhint bad">Use 07…, 01…, 2547… or 2541…</span>}
             {!f.phone&&<span className="fieldhint">We will use this number for M-Pesa payment requests.</span>}
           </label>
         </>}
@@ -607,7 +607,7 @@ function AdminApp(){const [admin,setAdmin]=useState(null),[loading,setLoading]=u
  useEffect(()=>{if(localStorage.getItem("adminToken"))load();else setLoading(false)},[]);
  const action=async(fn,msg)=>{try{await fn();setNotice(msg);await load(false);return true}catch(e){setError(e.message);return false}};
  if(loading&&!admin)return <NexoraSplash label="Opening admin console…"/>;if(!admin)return <AdminLogin onLogin={a=>{setAdmin(a);load(false)}}/>;
- const nav=[["overview","Overview",BarChart3],["users","Users",UsersRound],["transactions","Transactions",ReceiptText],["repair","Payment repair",Wrench],["paybillverify","Paybill payments",CheckCircle2],["deposits","Wallet deposits",WalletCards],["withdrawals","Withdrawals",HandCoins],["packages","Packages",PackageIcon],["advertising","Advertising",Megaphone],["marketplace","Marketplace",Store],["announcements","Announcements",Megaphone],["support","Support tickets",LifeBuoy],["activity","Activity log",Activity]];
+ const nav=[["overview","Overview",BarChart3],["users","Users",UsersRound],["transactions","Transactions",ReceiptText],["repair","Payment repair",Wrench],["deposits","Wallet deposits",WalletCards],["withdrawals","Withdrawals",HandCoins],["packages","Packages",PackageIcon],["advertising","Advertising",Megaphone],["marketplace","Marketplace",Store],["announcements","Announcements",Megaphone],["support","Support tickets",LifeBuoy],["activity","Activity log",Activity]];
  const logout=()=>{localStorage.removeItem("adminToken");setAdmin(null)};
  const title=nav.find(x=>x[0]===page)?.[1]||"Overview";
  return <div className="adminapp"><aside className={mobile?"open":""}><div className="adminnavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>ADMIN</small></div></div>{nav.map(([id,t,I])=><button key={id} className={page===id?"active":""} onClick={()=>{setPage(id);setMobile(false)}}><I size={18}/>{t}</button>)}<div className="adminnavspacer"/><button onClick={()=>setNotice(`Co-op Bank STK is currently ${data.overview?.paymentProvider||"unconfigured"}.`)}><Settings2 size={18}/>Payment mode</button><button onClick={logout}><LogOut size={18}/>Logout</button></aside><main className="adminmain"><header className="adminheader"><button className="mobilemenu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button><div><b>{title}</b><div className="muted small">NEXORA administrator console</div></div><div className="adminuser"><PWAInstall compact/><ShieldCheck size={17}/><span>{admin.name}</span></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{notice&&<div className="notice topmsg"><span>{notice}</span><button onClick={()=>setNotice("")}>×</button></div>}
@@ -840,7 +840,7 @@ function Community({announcements=[]}){const fallback=[["Welcome to NEXORA","Exp
 function NotificationsCenter({me,analytics,tickets}){const notes=[];if(me.package)notes.push({I:CheckCircle2,t:"Membership active",d:`Your ${me.package.name} plan is active.`});else notes.push({I:PackageIcon,t:"Explore membership",d:"Review the membership plans and benefits when you're ready."});if((analytics?.month?.directReferrals||0)<5)notes.push({I:Target,t:"Monthly activity goal",d:`${5-(analytics?.month?.directReferrals||0)} direct referral(s) remaining for the current activity goal.`});if(tickets?.some(x=>x.status!=="CLOSED"))notes.push({I:LifeBuoy,t:"Support ticket open",d:"You have an active support request. Check Help & Support for replies."});if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push({I:Clock3,t:"Payment awaiting confirmation",d:"A plan payment is still pending. Open Transactions to check it."});return <section><div className="sectionhead"><div><span className="pill">NOTIFICATION CENTER</span><h1>Stay up to date</h1><p className="muted">Useful account reminders and platform activity in one place.</p></div></div><div className="notificationcenter">{notes.map((n,i)=><div className="notification large" key={i}><n.I size={20}/><div><b>{n.t}</b><p>{n.d}</p><small>Account update</small></div></div>)}</div><div className="panel"><h3>Notification guidance</h3><p className="muted">NEXORA notifications describe recorded account activity and useful reminders. They do not represent guaranteed earnings or future financial outcomes.</p></div></section>}
 function App(){
  const path=window.location.pathname || "/";
- const [me,setMe]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,paybill:false}),[page,setPage]=useState("dashboard"),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState("");
+ const [me,setMe]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState("dashboard"),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState("");
  if(path === "/admin" || path.startsWith("/admin/")) return <AdminApp/>;
  if(path === "/terms" || path === "/privacy" || path === "/membership") return <LegalPage type={path.slice(1)}/>;
  if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
@@ -851,19 +851,9 @@ function App(){
   ["dashboard","Home",BarChart3],["marketplace","🛒 Marketplace",Store],["referrals","💰 Earn",WalletCards],["products","📣 Advertise",Megaphone],["wallet","Wallet",WalletCards],["transactions","Transactions",History],["marketing","Marketing Center",Megaphone],["academy","🎓 Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
  ];
  const primaryNavIds=new Set(["dashboard","marketplace","referrals","products","wallet"]);
- const startPayment=async(phone,p)=>{setPhoneModal(null);setMsg("");setError("");try{const normalized=cleanPhone(phone);if(!validPhone(normalized))return setError("Invalid Kenyan phone number. Use 07…, 011…, 2547… or 2541…. ");const d=await api("/payments/initialize",{method:"POST",body:JSON.stringify({packageId:p.id,phone:normalized})});const charge=Number(d.chargeAmount||p.price);setPayment({reference:d.reference,package:p,phone:normalized,status:d.status||"pending",chargeAmount:charge,display_text:d.display_text||"",message:d.message&&d.message!=="Charge attempted"?d.message:""});if(d.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(d.status==="failed")return;let tries=0;const poll=async()=>{if(tries>=12)return;tries++;try{const v=await api(`/payments/status/${d.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(v.status==="failed")return}catch{}if(tries<12)setTimeout(poll,10000)};setTimeout(poll,10000)}catch(e){setError(e.message)}};
+ const startPayment=async(phone,p)=>{setPhoneModal(null);setMsg("");setError("");try{const normalized=cleanPhone(phone);if(!validPhone(normalized))return setError("Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…. ");const d=await api("/payments/initialize",{method:"POST",body:JSON.stringify({packageId:p.id,phone:normalized})});const charge=Number(d.chargeAmount||p.price);setPayment({reference:d.reference,package:p,phone:normalized,status:d.status||"pending",chargeAmount:charge,display_text:d.display_text||"",message:d.message&&d.message!=="Charge attempted"?d.message:""});if(d.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(d.status==="failed")return;let tries=0;const poll=async()=>{if(tries>=12)return;tries++;try{const v=await api(`/payments/status/${d.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(v.status==="failed")return}catch{}if(tries<12)setTimeout(poll,10000)};setTimeout(poll,10000)}catch(e){setError(e.message)}};
  const hasPackage=Boolean(me?.package);
  const purchase=p=>{setMsg("");setError("");if(p?.id)setPhoneModal({package:p,chargeAmount:Math.max(0,Number(p.price)-Number(me.package?.price||0)),phone:cleanPhone(me.user.phone||"")})};
- const paybillInitiate=async(p)=>{
-  const d=await api("/payments/paybill/initiate",{method:"POST",body:JSON.stringify({packageId:p.id})});
-  return d;
- };
- const paybillSubmitCode=async(reference,mpesaCode)=>{
-  const d=await api("/payments/paybill/submit-code",{method:"POST",body:JSON.stringify({reference,mpesaCode})});
-  await load(false);
-  setMsg(d.message||"Payment submitted for verification.");
-  return d;
- };
  const walletPurchase=async(p)=>{
   setMsg("");setError("");
   const d=await api("/payments/wallet-purchase",{method:"POST",body:JSON.stringify({packageId:p.id})});
@@ -908,7 +898,7 @@ function App(){
  {page==="challenges"&&<Challenges referrals={referrals} earnings={earnings}/>} 
  {page==="wallet"&&<Wallet me={me} load={()=>load(false)}/>} 
  {page==="transactions"&&<Transactions rows={transactions} onOpenPending={x=>{const packageId=x.metadata?.packageId;const pkg=packages.find(p=>p.id===packageId);if(pkg)setPayment({reference:x.reference,package:pkg,phone:cleanPhone(x.metadata?.phone||me.user.phone||""),status:String(x.status||"PENDING").toLowerCase(),chargeAmount:Number(x.metadata?.chargeAmount||x.amount),display_text:x.metadata?.coop?.display_text||"",message:""})}}/>} 
- {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}</main><CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/><nav className="mobile-bottom-nav">{[["dashboard","Home",BarChart3],["referrals","Earn",TrendingUp],["marketplace","Shop",Store],["wallet","Wallet",CreditCard],["security","Profile",UserCog]].map(([id,label,I])=><button key={id} className={page===id?"active":""} onClick={()=>setPage(id)}><I size={18}/><span>{label}</span></button>)}</nav><NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} paybillInfo={payMethods} onCancel={()=>{setPhoneModal(null);load(false)}} onContinue={phone=>startPayment(phone,phoneModal.package)} onWallet={walletPurchase} onPaybillInitiate={paybillInitiate} onPaybillSubmitCode={paybillSubmitCode}/>} {payment&&<PaymentModal payment={payment} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{}}}catch(e){setError(e.message)}}}/>}</div>
+ {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}</main><CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/><nav className="mobile-bottom-nav">{[["dashboard","Home",BarChart3],["referrals","Earn",TrendingUp],["marketplace","Shop",Store],["wallet","Wallet",CreditCard],["security","Profile",UserCog]].map(([id,label,I])=><button key={id} className={page===id?"active":""} onClick={()=>setPage(id)}><I size={18}/><span>{label}</span></button>)}</nav><NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} onCancel={()=>{setPhoneModal(null);load(false)}} onContinue={phone=>startPayment(phone,phoneModal.package)} onWallet={walletPurchase}/>} {payment&&<PaymentModal payment={payment} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{}}}catch(e){setError(e.message)}}}/>}</div>
 }
 function Notifications({me,analytics,tickets}){const notes=[];if(!me.package)notes.push([PackageIcon,"Choose a plan","Explore the membership plans when you are ready."]);if(me.package)notes.push([CheckCircle2,"Plan active",`${me.package.name} is currently active on your account.`]);if((analytics?.month?.directReferrals||0)<5)notes.push([Target,"Monthly challenge",`${5-(analytics?.month?.directReferrals||0)} more direct referral(s) to reach the current activity goal.`]);if(tickets?.some(x=>x.status!=="CLOSED"))notes.push([Bell,"Support update","You have an open support request. Check Help & Support for updates."]);if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push([Clock3,"Payment pending","A payment is still awaiting confirmation. Check Transactions for status."]);return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Smart notifications</h3><span>{notes.length} active</span></div><div className="notificationlist">{notes.slice(0,4).map(([I,t,d],i)=><div className="notification" key={i}><I size={17}/><div><b>{t}</b><p>{d}</p></div></div>)}{!notes.length&&<p className="muted">You're all caught up.</p>}</div></div>}
 
@@ -1124,7 +1114,7 @@ function Dashboard({me,copy,copyCode,copiedKind,share,goPackages,goPage,profileS
   <RecommendedMarketplace goPage={goPage}/>
   {!me.package&&<OnboardingChecklist me={me} goPackages={goPackages} goPage={goPage}/>}
   <Notifications me={me} analytics={analytics} tickets={tickets}/>
-  {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load}/>}
+  {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>}
  </>
 }
 function Analytics({data,earnings,referrals}){if(!data)return <section><div className="panel"><p>Loading analytics…</p></div></section>;return <section><div className="sectionhead"><div><span className="pill">PERFORMANCE CENTER</span><h1>Referral analytics</h1><p className="muted">Understand your network activity and the history of recorded commissions.</p></div><RefreshCw size={18}/></div><div className="cards three"><Card title="Direct members" value={data.directCount}/><Card title="Level 2 members" value={data.level2Count}/><Card title="Members with plans" value={data.paidReferrals}/></div><div className="analyticsgrid"><div className="panel"><h3>Network conversion</h3><div className="bigmetric">{data.conversion}%</div><p className="muted">Percentage of direct referrals with an active plan.</p><div className="progress"><i style={{width:`${data.conversion}%`}}/></div></div><div className="panel"><h3>Commission mix</h3><div className="analyticbars"><div><span>Direct</span><b>{money(data.directCommission)}</b><i style={{width:`${data.totalCommission?data.directCommission/data.totalCommission*100:0}%`}}/></div><div><span>Level 2</span><b>{money(data.level2Commission)}</b><i style={{width:`${data.totalCommission?data.level2Commission/data.totalCommission*100:0}%`}}/></div></div></div></div><div className="panel"><h3>Network snapshot</h3><div className="networkcards"><div><span>New this month</span><strong>{data.month.directReferrals}</strong></div><div><span>Commissions this month</span><strong>{money(data.month.commissions)}</strong></div><div><span>All-time commissions</span><strong>{money(data.totalCommission)}</strong></div></div></div></section>}
@@ -1220,178 +1210,46 @@ function Challenges({referrals,earnings}){const now=new Date(),month=now.getMont
 function Achievement({icon,title,text,unlocked}){return <div className={`achievement ${unlocked?"unlocked":""}`}>{icon}<div><b>{title}</b><p>{text}</p></div><span>{unlocked?<CheckCheck size={17}/>:"Locked"}</span></div>}
 function SupportCenter({tickets,reload}){const [subject,setSubject]=useState(""),[message,setMessage]=useState(""),[busy,setBusy]=useState(false),[err,setErr]=useState("");const submit=async e=>{e.preventDefault();if(!subject.trim()||!message.trim())return setErr("Enter a subject and message.");setBusy(true);setErr("");try{await api("/support/tickets",{method:"POST",body:JSON.stringify({subject,message})});setSubject("");setMessage("");await reload()}catch(e){setErr(e.message)}finally{setBusy(false)}};return <section><div className="sectionhead"><div><span className="pill">MEMBER CARE</span><h1>Help & Support</h1><p className="muted">Get help, track your requests and use the direct WhatsApp support option.</p></div><a className="secondary" href="https://wa.me/254703265774" target="_blank" rel="noreferrer"><MessageCircle size={16}/> WhatsApp</a></div><div className="supportgrid"><div className="panel"><LifeBuoy size={24}/><h3>Open a support ticket</h3>{err&&<div className="error">{err}</div>}<form className="supportform" onSubmit={submit}><input required maxLength="120" placeholder="Subject" value={subject} onChange={e=>setSubject(e.target.value)}/><textarea required maxLength="3000" rows="7" placeholder="Describe what you need help with…" value={message} onChange={e=>setMessage(e.target.value)}/><button className="primary" disabled={busy}><Send size={16}/>{busy?"Sending…":"Send support request"}</button></form></div><div className="panel"><h3>Your tickets</h3>{tickets.length?tickets.map(t=><div className="ticket" key={t.id}><div><b>{t.subject}</b><small>{new Date(t.createdAt).toLocaleString()}</small></div><span className={`ticketstatus ${t.status.toLowerCase()}`}>{t.status}</span><p>{t.message}</p>{t.response&&<div className="ticketresponse"><b>Support reply</b><p>{t.response}</p></div>}</div>):<p className="muted">No support tickets yet.</p>}</div></div><div className="notice"><Bell size={16}/> For payment issues, include your transaction reference. Never send your password or PIN to support.</div></section>}
 function Security({me,reload,strength}){const [name,setName]=useState(me.user.name),[phone,setPhone]=useState(me.user.phone),[oldPass,setOld]=useState(""),[newPass,setNew]=useState(""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);const saveProfile=async()=>{setBusy(true);setMsg("");try{const d=await api("/member/profile",{method:"PATCH",body:JSON.stringify({name,phone})});setMsg(d.message);await reload()}catch(e){setMsg(e.message)}finally{setBusy(false)}};const changePassword=async()=>{setBusy(true);setMsg("");try{const d=await api("/member/password",{method:"POST",body:JSON.stringify({currentPassword:oldPass,newPassword:newPass})});setMsg(d.message);setOld("");setNew("")}catch(e){setMsg(e.message)}finally{setBusy(false)}};return <section><div className="sectionhead"><div><span className="pill">ACCOUNT SECURITY</span><h1>Security center</h1><p className="muted">Keep your profile accurate and protect your account.</p></div><Shield size={22}/></div>{msg&&<div className="notice">{msg}</div>}<div className="securitygrid"><div className="panel"><UserCog size={23}/><h3>Profile</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Phone<input inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></label><button className="primary" disabled={busy} onClick={saveProfile}>Save profile</button></div><div className="panel"><KeyRound size={23}/><h3>Change password</h3><label>Current password<input type="password" value={oldPass} onChange={e=>setOld(e.target.value)}/></label><label>New password<input type="password" minLength="8" value={newPass} onChange={e=>setNew(e.target.value)} placeholder="8+ characters"/></label><button className="primary" disabled={busy} onClick={changePassword}>Update password</button></div></div><div className="panel"><h3>Security checklist</h3><div className="securitychecks"><span><Check size={15}/> Use a unique password</span><span><Check size={15}/> Never share your M-Pesa PIN</span><span><Check size={15}/> Verify payment references before reporting a problem</span><span><Check size={15}/> Keep your phone number current</span></div><div className="profilemeter"><b>Profile completeness: {strength}%</b><div className="progress"><i style={{width:`${strength}%`}}/></div></div></div></section>}
-function PhoneModal({data,onCancel,onContinue,onWallet,onPaybillInitiate,onPaybillSubmitCode,walletBalance=0,paybillInfo}){
+function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0}){
  const [phone,setPhone]=useState(data.phone||"");
  const [err,setErr]=useState("");
- const [method,setMethod]=useState(walletBalance>=Number(data.chargeAmount||0)?"wallet":"paybill");
+ const [method,setMethod]=useState(walletBalance>=Number(data.chargeAmount||0)?"wallet":"stk");
  const [busy,setBusy]=useState(false);
  const [walletConfirm,setWalletConfirm]=useState(false);
- const [paybillStep,setPaybillStep]=useState(data.paybillSession?"code":"instructions"); // instructions | code | done
- const [paybillSession,setPaybillSession]=useState(data.paybillSession||null);
- const [mpesaCode,setMpesaCode]=useState("");
  const amount=Number(data.chargeAmount||data.package?.price||0);
  const canWallet=walletBalance>=amount && amount>0;
- const paybillReady=Boolean((paybillInfo?.paybillNumber&&paybillInfo?.paybillAccount)|| (paybillSession?.paybillNumber&&paybillSession?.paybillAccount));
-
+ const phoneValid=validPhone(phone);
  const submit=async e=>{
   e.preventDefault();setErr("");
   if(method==="wallet"){
-   if(!canWallet) return setErr("Insufficient wallet balance for this plan.");
-   if(!walletConfirm) return setErr("Please confirm you want to pay from your wallet.");
-   setBusy(true);
-   try{ await onWallet(data.package); } catch(ex){ setErr(ex.message||"Wallet purchase failed"); } finally{ setBusy(false); }
+   if(!canWallet)return setErr("Insufficient wallet balance for this plan.");
+   if(!walletConfirm)return setErr("Please confirm you want to pay from your wallet.");
+   setBusy(true);try{await onWallet(data.package)}catch(ex){setErr(ex.message||"Wallet purchase failed")}finally{setBusy(false)}
    return;
   }
-  // paybill
-  if(paybillStep==="instructions"){
-   if(!paybillReady && !onPaybillInitiate) return setErr("Paybill payments are not configured.");
-   setBusy(true);
-   try{
-    const session=await onPaybillInitiate(data.package);
-    setPaybillSession(session);
-    setPaybillStep("code");
-   }catch(ex){ setErr(ex.message||"Could not start paybill payment"); }
-   finally{ setBusy(false); }
-   return;
-  }
-  if(paybillStep==="code"){
-   if(!mpesaCode.trim()) return setErr("Enter the M-Pesa confirmation code from your SMS.");
-   setBusy(true);
-   try{
-    const r=await onPaybillSubmitCode(paybillSession?.reference, mpesaCode.trim());
-    setPaybillStep("done");
-    setErr("");
-    setPaybillSession(s=>({...s, status:r.status, message:r.message}));
-   }catch(ex){ setErr(ex.message||"Could not submit code"); }
-   finally{ setBusy(false); }
-  }
+  const normalized=cleanPhone(phone);
+  if(!validPhone(normalized))return setErr("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541….");
+  setBusy(true);try{await onContinue(normalized)}catch(ex){setErr(ex.message||"Could not start M-Pesa STK payment")}finally{setBusy(false)}
  };
-
- const displayPaybill=paybillSession?.paybillNumber||paybillInfo?.paybillNumber||"";
- const displayName=paybillSession?.paybillName||paybillInfo?.paybillName||"NEXORA";
- const displayAccount=paybillSession?.paybillAccount||paybillInfo?.paybillAccount||"";
- const displayRef=paybillSession?.reference||paybillSession?.accountReference||"";
- const [copied,setCopied]=useState("");
- const copyValue=async(label,value)=>{
-  if(!value) return;
-  try{
-   await navigator.clipboard.writeText(String(value));
-  }catch{
-   window.prompt("Copy this value:", String(value));
-  }
-  setCopied(label);
-  setTimeout(()=>setCopied(""),2000);
- };
-
  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
-  <div className="modalhead"><div><span className="pill">PURCHASE PACKAGE</span><h2>{paybillStep==="done"?"Payment submitted":"Choose how to pay"}</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close payment window"><X size={20}/></button></div>
-  <form className="phonemodalform" onSubmit={submit}>
-   <div className="paymentbody phonebody">
-    <div className="phonepackage">
-     <div><span>Plan</span><strong>{data.package?.name}</strong></div>
-     <div><span>Amount due</span><strong>{money(amount)}</strong></div>
-     <div><span>Wallet balance</span><strong>{money(walletBalance)}</strong></div>
-    </div>
-
-    {paybillStep!=="done"&&paybillStep!=="code"&&(
-     <div className="paymethods">
-      <button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={async()=>{
-       setMethod("paybill");setErr("");
-       if(paybillStep!=="instructions" || !onPaybillInitiate) return;
-       if(!paybillReady) return setErr("Paybill payments are not configured yet.");
-       setBusy(true);
-       try{const session=await onPaybillInitiate(data.package);setPaybillSession(session);setPaybillStep("code");}
-       catch(ex){setErr(ex.message||"Could not start paybill payment");}
-       finally{setBusy(false);}
-      }}>
-       <MessageCircle size={18}/><div><b>{busy&&method==="paybill"?"Opening M-Pesa payment…":"M-Pesa Paybill"}</b><span>Tap to continue directly to the paybill payment details</span></div>
-      </button>
-      <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={()=>{if(canWallet){setMethod("wallet");setErr("")}}} disabled={!canWallet}>
-       <WalletCards size={18}/><div><b>Wallet balance</b><span>{canWallet?`Use ${money(amount)} from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div>
-      </button>
-     </div>
-    )}
-
-    {method==="wallet"&&paybillStep!=="done"&&(
-     <div className="walletconfirmbox">
-      <p className="muted small">Your wallet will be charged <strong>{money(amount)}</strong>. The plan activates immediately. <strong>This cannot be undone.</strong></p>
-      <label className="termscheck"><input type="checkbox" checked={walletConfirm} onChange={e=>setWalletConfirm(e.target.checked)}/><span>I confirm paying {money(amount)} from my wallet for {data.package?.name}.</span></label>
-     </div>
-    )}
-
-    {method==="paybill"&&paybillStep==="instructions"&&(
-     <div className="paybillbox">
-      <p className="muted small">You will pay <strong>{money(amount)}</strong> to the NEXORA M-Pesa Paybill. After paying, you must submit the M-Pesa confirmation code. Your plan activates only after we verify the payment amount and code.</p>
-      {!paybillReady&&<div className="error">Paybill number is not configured yet. Contact support or use wallet balance.</div>}
-     </div>
-    )}
-
-    {method==="paybill"&&paybillStep==="code"&&paybillSession&&(
-     <div className="paybillbox">
-      <div className="paybilldetails">
-       <div className="paybillrowcopy">
-        <div><span>Paybill</span><strong className="paybillnumber">{displayPaybill}</strong></div>
-        <button type="button" className="secondary copypaybillbtn" onClick={()=>copyValue("paybill",displayPaybill)}>
-         {copied==="paybill"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy paybill</>}
-        </button>
-       </div>
-       <div className="paybillrowcopy">
-        <div><span>Co-op account</span><strong className="refcode">{displayAccount}</strong></div>
-        <button type="button" className="secondary copypaybillbtn" onClick={()=>copyValue("account",displayAccount)}>
-         {copied==="account"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy account</>}
-        </button>
-       </div>
-       <div><span>Business name</span><strong>{displayName}</strong></div>
-       <div className="paybillrowcopy">
-        <div><span>Amount (exact)</span><strong>{money(paybillSession.chargeAmount||amount)}</strong></div>
-        <button type="button" className="secondary copypaybillbtn" onClick={()=>copyValue("amount",String(paybillSession.chargeAmount||amount))}>
-         {copied==="amount"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy amount</>}
-        </button>
-       </div>
-       <div className="paybillrowcopy">
-        <div><span>Payment reference</span><strong className="refcode">{displayRef}</strong></div>
-        <button type="button" className="secondary copypaybillbtn" onClick={()=>copyValue("ref",displayRef)}>
-         {copied==="ref"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy ref</>}
-        </button>
-       </div>
-      </div>
-      {copied&&<p className="muted small copyhint">{copied==="paybill"?"Paybill number copied — paste it in M-Pesa.":copied==="account"?"Co-op account number copied.":copied==="amount"?"Amount copied.":"Reference copied."}</p>}
-      <ol className="paybillsteps">
-       <li>Open M-Pesa → Lipa na M-Pesa → Paybill</li>
-       <li>Enter Paybill Number <b>{displayPaybill}</b></li>
-       <li>Enter account number <b>{displayAccount}</b></li><li>Enter amount <b>{money(paybillSession.chargeAmount||amount)}</b> (exact)</li>
-       <li>Use the Co-op account number exactly as shown above. Keep the NEXORA reference for support.</li>
-       <li>Enter your M-Pesa PIN and confirm</li>
-       <li>Paste the confirmation code from the SMS below</li>
-      </ol>
-      <label className="fieldlabel">M-Pesa confirmation code
-       <input required value={mpesaCode} onChange={e=>setMpesaCode(e.target.value.toUpperCase())} placeholder="e.g. QH12ABCDE1" autoComplete="off"/>
-      </label>
-      <p className="muted small">We verify the code and that the amount matches before activating your plan.</p>
-     </div>
-    )}
-
-    {paybillStep==="done"&&(
-     <div className="repairdone" style={{margin:"12px 0"}}>
-      <CheckCircle2 size={22}/>
-      <div><b>Submitted for verification</b><p>{paybillSession?.message||"We will confirm your M-Pesa payment and activate the plan once the amount matches."}</p></div>
-     </div>
-    )}
-
-    {err&&<div className="error">{err}</div>}
+  <div className="modalhead"><div><span className="pill">PURCHASE PACKAGE</span><h2>Choose how to pay</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close payment window"><X size={20}/></button></div>
+  <form className="phonemodalform" onSubmit={submit}><div className="paymentbody phonebody">
+   <div className="phonepackage"><div><span>Plan</span><strong>{data.package?.name}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(walletBalance)}</strong></div></div>
+   <div className="paymethods">
+    <button type="button" className={`paymethod ${method==="stk"?"active":""}`} disabled={busy} onClick={()=>{setMethod("stk");setErr("")}}><MessageCircle size={18}/><div><b>M-Pesa STK Push</b><span>Get an M-Pesa PIN prompt on your phone</span></div></button>
+    <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={()=>{if(canWallet){setMethod("wallet");setErr("")}}} disabled={!canWallet}><WalletCards size={18}/><div><b>Wallet balance</b><span>{canWallet?`Use ${money(amount)} from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button>
    </div>
-   <div className="modalfoot paymentfoot">
-    <button type="button" className="secondary" onClick={onCancel} disabled={busy}>{paybillStep==="done"?"Close":"Cancel"}</button>
-    {paybillStep!=="done"&&(
-     <button type="submit" className="primary" disabled={busy||(method==="paybill"&&paybillStep==="instructions"&&!paybillReady)}>
-      {busy?"Please wait…":method==="wallet"?`Pay ${money(amount)} from wallet`:paybillStep==="code"?"Submit M-Pesa code":"Continue to paybill payment"}
-     </button>
-    )}
-   </div>
-  </form>
+   {method==="stk"&&<div className="panel" style={{marginTop:12}}>
+    <label className="fieldlabel">M-Pesa phone number
+     <input required inputMode="tel" maxLength="13" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07…, 01…, 2547… or 2541…"/>
+    </label>
+    <p className={`muted small ${phone&&phoneValid?"":""}`}>Accepted: 07xxxxxxxx, 01xxxxxxxx, 2547xxxxxxxx or 2541xxxxxxxx. You will receive the M-Pesa PIN prompt on this number.</p>
+   </div>}
+   {method==="wallet"&&<div className="walletconfirmbox"><p className="muted small">Your wallet will be charged <strong>{money(amount)}</strong>. The plan activates immediately. <strong>This cannot be undone.</strong></p><label className="termscheck"><input type="checkbox" checked={walletConfirm} onChange={e=>setWalletConfirm(e.target.checked)}/><span>I confirm paying {money(amount)} from my wallet for {data.package?.name}.</span></label></div>}
+   {err&&<div className="error">{err}</div>}
+  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button><button type="submit" className="primary" disabled={busy}>{busy?"Please wait…":method==="wallet"?`Pay ${money(amount)} from wallet`:`Send M-Pesa STK Push`}</button></div></form>
  </div></div>;
 }
-
 
 function PaymentModal({payment,onClose,onCheck}){
  const status=payment.status||"pending";
@@ -1480,22 +1338,21 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
  </section>}
 
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}
-function DepositModal({onClose,load}){
- const [amount,setAmount]=useState("");const [step,setStep]=useState("amount");const [session,setSession]=useState(null);const [code,setCode]=useState("");const [busy,setBusy]=useState(false);const [msg,setMsg]=useState("");const [copied,setCopied]=useState("");
- const copy=async(v,k)=>{try{await navigator.clipboard.writeText(String(v))}catch{window.prompt("Copy this value:",String(v))}setCopied(k);setTimeout(()=>setCopied(""),1800)};
- const initiate=async e=>{e.preventDefault();setMsg("");const n=Number(amount);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole deposit amount of at least KSh 100.");setBusy(true);try{const d=await api("/wallet/deposit/initiate",{method:"POST",body:JSON.stringify({amount:n})});setSession(d);setStep("code")}catch(e){setMsg(e.message)}finally{setBusy(false)}};
- const submit=async e=>{e.preventDefault();if(!code.trim())return setMsg("Enter the M-Pesa confirmation code from your SMS.");setBusy(true);setMsg("");try{const d=await api("/wallet/deposit/submit-code",{method:"POST",body:JSON.stringify({reference:session.reference,mpesaCode:code.trim()})});setMsg(d.message||"Deposit submitted for verification.");setStep("done");await load()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
- return <div className="modalbackdrop" onClick={onClose}><div className="modal depositmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">WALLET DEPOSIT</span><h2>{step==="amount"?"Deposit to wallet":step==="code"?"Complete M-Pesa deposit":"Deposit submitted"}</h2></div><button type="button" className="iconbtn" onClick={onClose}><X size={20}/></button></div>
-  <div className="depositbody">
-   {step==="amount"&&<form onSubmit={initiate}><p className="muted">Add funds to your NEXORA wallet using the NEXORA M-Pesa Paybill. Deposits are credited after the payment and confirmation code are verified by NEXORA.</p><label>Deposit amount (KSh)<input required type="number" min="100" step="1" placeholder="e.g. 1,000" value={amount} onChange={e=>setAmount(e.target.value)}/></label>{msg&&<div className="error">{msg}</div>}<button className="primary" disabled={busy}>{busy?"Opening payment…":"Continue to M-Pesa Paybill"}</button></form>}
-   {step==="code"&&session&&<form onSubmit={submit}><div className="paybillbox"><div className="paybilldetails"><div className="paybillrowcopy"><div><span>Paybill</span><strong className="paybillnumber">{session.paybillNumber}</strong></div><button type="button" className="secondary copypaybillbtn" onClick={()=>copy(session.paybillNumber,"paybill")}>{copied==="paybill"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy paybill</>}</button></div><div><span>Business name</span><strong>{session.paybillName||"NEXORA"}</strong></div><div className="paybillrowcopy"><div><span>Co-op account</span><strong className="refcode">{session.paybillAccount}</strong></div><button type="button" className="secondary copypaybillbtn" onClick={()=>copy(session.paybillAccount,"account")}>{copied==="account"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy account</>}</button></div><div className="paybillrowcopy"><div><span>Amount</span><strong>{money(session.amount)}</strong></div><button type="button" className="secondary copypaybillbtn" onClick={()=>copy(session.amount,"amount")}>{copied==="amount"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy amount</>}</button></div><div className="paybillrowcopy"><div><span>Reference</span><strong className="refcode">{session.reference}</strong></div><button type="button" className="secondary copypaybillbtn" onClick={()=>copy(session.reference,"ref")}>{copied==="ref"?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy ref</>}</button></div></div><ol className="paybillsteps"><li>Open M-Pesa → Lipa na M-Pesa → Paybill.</li><li>Enter Paybill <b>{session.paybillNumber}</b>.</li><li>Enter account number <b>{session.paybillAccount}</b>.</li><li>Enter amount <b>{money(session.amount)}</b>.</li><li>If asked for a reference, use <b>{session.reference}</b>.</li><li>Complete the payment and keep the confirmation SMS.</li></ol><label className="fieldlabel">M-Pesa confirmation code<input required value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="e.g. QH12ABCDE1" autoComplete="off"/></label>{msg&&<div className="error">{msg}</div>}<button className="primary" disabled={busy}>{busy?"Submitting…":"Submit confirmation code"}</button></div></form>}
-   {step==="done"&&<div className="successbox"><CheckCircle2 size={34}/><h3>Deposit submitted</h3><p className="muted">Your deposit is awaiting verification. Once approved, the amount will be added to your available wallet balance.</p>{msg&&<p className="notice">{msg}</p>}<button className="primary" onClick={onClose}>Done</button></div>}
-  </div><div className="modalfoot"><button type="button" className="secondary" onClick={onClose}>{step==="done"?"Close":"Cancel"}</button></div>
- </div></div>
+function DepositModal({onClose,load,defaultPhone=""}){
+ const [amount,setAmount]=useState("");const [phone,setPhone]=useState(defaultPhone||"");const [step,setStep]=useState("form");const [payment,setPayment]=useState(null);const [busy,setBusy]=useState(false);const [msg,setMsg]=useState("");
+ const initiate=async e=>{e.preventDefault();setMsg("");const n=Number(amount);const normalized=cleanPhone(phone);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole deposit amount of at least KSh 100.");if(!validPhone(normalized))return setMsg("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541…. ");setBusy(true);try{const d=await api("/wallet/deposit/initiate",{method:"POST",body:JSON.stringify({amount:n,phone:normalized})});setPayment({reference:d.reference,amount:n,phone:normalized,status:d.status||"pending",display_text:d.display_text||"",message:d.message||""});setStep("waiting");poll(d.reference)}catch(e){setMsg(e.message)}finally{setBusy(false)}};
+ const poll=async reference=>{let tries=0;const check=async()=>{if(tries>=12)return;tries++;try{const v=await api(`/wallet/deposit/status/${reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message||x.message}:x);if(v.status==="success"){setStep("done");await load(false);return}if(v.status==="failed"){setStep("failed");return}}catch(e){setMsg(e.message)}if(tries<12)setTimeout(check,10000)};setTimeout(check,5000)};
+ const checkNow=async()=>{if(!payment?.reference)return;setBusy(true);try{const v=await api(`/wallet/deposit/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message||x.message}:x);if(v.status==="success"){setStep("done");await load(false)}else if(v.status==="failed")setStep("failed")}catch(e){setMsg(e.message)}finally{setBusy(false)}};
+ return <div className="modalbackdrop" onClick={onClose}><div className="modal depositmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">WALLET DEPOSIT</span><h2>{step==="form"?"Deposit to wallet":step==="done"?"Deposit successful":step==="failed"?"Deposit failed":"M-Pesa STK Push"}</h2></div><button type="button" className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="depositbody">
+  {step==="form"&&<form onSubmit={initiate}><p className="muted">Add funds to your NEXORA wallet using M-Pesa STK Push. Enter the number that should receive the M-Pesa PIN prompt.</p><label>Deposit amount (KSh)<input required type="number" min="100" step="1" placeholder="e.g. 1,000" value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>M-Pesa phone number<input required inputMode="tel" maxLength="13" autoComplete="tel" placeholder="07…, 01…, 2547… or 2541…" value={phone} onChange={e=>setPhone(e.target.value)}/></label><p className="muted small">Accepted: 07xxxxxxxx · 01xxxxxxxx · 2547xxxxxxxx · 2541xxxxxxxx</p>{msg&&<div className="error">{msg}</div>}<button className="primary" disabled={busy}>{busy?"Sending STK Push…":"Send M-Pesa STK Push"}</button></form>}
+  {step==="waiting"&&payment&&<div className="paymentbody"><div className="paymentstatus"><div className="paymenticon pending"><RefreshCw size={28}/></div><div><b>Check your phone for the M-Pesa PIN prompt</b><p className="muted">Approve the payment on {payment.phone}. NEXORA is checking Co-op Bank for the final status.</p></div></div><div className="paymentdetails"><div><span>Amount</span><strong>{money(payment.amount)}</strong></div><div><span>M-Pesa number</span><strong>{payment.phone}</strong></div><div><span>Reference</span><strong>{payment.reference}</strong></div></div>{msg&&<div className="error">{msg}</div>}<button className="secondary" disabled={busy} onClick={checkNow}><RefreshCw size={16}/> Check payment status</button></div>}
+  {step==="done"&&<div className="successbox"><CheckCircle2 size={34}/><h3>Deposit successful</h3><p className="muted">{payment?.message||"Your wallet has been credited."}</p><button className="primary" onClick={onClose}>Done</button></div>}
+  {step==="failed"&&<div className="error"><b>M-Pesa payment failed.</b><p>{payment?.message||"The payment was not completed. Please try again."}</p><button className="primary" onClick={()=>{setStep("form");setPayment(null)}}>Try again</button></div>}
+ </div><div className="modalfoot"><button type="button" className="secondary" onClick={onClose}>{step==="done"?"Close":"Cancel"}</button></div></div></div>;
 }
 function Wallet({me,load}){
  const [tab,setTab]=useState("balance"),[depositOpen,setDepositOpen]=useState(false);const [amount,setAmount]=useState(""),[phone,setPhone]=useState(me.user.phone||""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
- const withdraw=async()=>{setMsg("");const n=Number(amount);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole amount of at least KSh 100.");if(n>Number(me.wallet?.balance||0))return setMsg("The withdrawal amount exceeds your available balance.");if(!validPhone(phone))return setMsg("Enter a valid Kenyan phone number: 07…, 011…, 2547… or 2541…. ");setBusy(true);try{const d=await api("/withdrawals",{method:"POST",body:JSON.stringify({amount:n,phone:cleanPhone(phone)})});setMsg(`${d.message}. Reference: ${d.reference}`);setAmount("");await load()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
- return <section><div className="sectionhead"><div><span className="pill">WALLET</span><h1>Balance & funds</h1><p className="muted">Manage your available balance, add funds and request withdrawals.</p></div></div><div className="walletbig"><span>Available balance</span><strong>{money(me.wallet?.balance)}</strong><p>Total earned {money(me.wallet?.totalEarned)} · Pending {money(me.wallet?.pendingBalance)} · Withdrawn {money(me.wallet?.totalWithdrawn)}</p></div><div className="wallettabs"><button className={tab==="balance"?"active":""} onClick={()=>setTab("balance")}>Balance</button><button className={tab==="deposit"?"active":""} onClick={()=>setTab("deposit")}>Deposit</button><button className={tab==="withdraw"?"active":""} onClick={()=>setTab("withdraw")}>Withdraw</button></div>{tab==="balance"&&<div className="walletsummarygrid"><div className="panel"><h3>Available</h3><strong className="walletmetric">{money(me.wallet?.balance)}</strong><p className="muted">Funds currently available for eligible wallet purchases or withdrawals.</p></div><div className="panel"><h3>Pending</h3><strong className="walletmetric">{money(me.wallet?.pendingBalance)}</strong><p className="muted">Funds currently reserved for withdrawal processing.</p></div><div className="panel"><h3>Total earned</h3><strong className="walletmetric">{money(me.wallet?.totalEarned)}</strong><p className="muted">Recorded earnings credited to your wallet over time.</p></div></div>}{tab==="deposit"&&<div className="panel formpanel"><h3>Deposit to wallet</h3><p className="muted">Add money through the NEXORA M-Pesa Paybill. Your deposit is credited after admin verification of the M-Pesa confirmation code and amount.</p><button className="primary" onClick={()=>setDepositOpen(true)}><WalletCards size={16}/> Deposit via M-Pesa Paybill</button><p className="muted small">Minimum deposit: KSh 100. Never share your M-Pesa PIN with anyone.</p></div>}{tab==="withdraw"&&<div className="panel formpanel"><h3>Request withdrawal</h3>{msg&&<div className="notice">{msg}</div>}<input type="number" min="100" step="1" placeholder="Amount (KSh)" value={amount} onChange={e=>setAmount(e.target.value)}/><input inputMode="tel" maxLength="13" placeholder="M-Pesa phone: 07…, 011…, 2547… or 2541…" value={phone} onChange={e=>setPhone(e.target.value)}/><p className="muted small phonehint">Accepted: 07xxxxxxxx · 011xxxxxxx · 2547xxxxxxxx · 2541xxxxxxxx</p><button disabled={busy} className="primary" onClick={withdraw}>{busy?"Submitting…":"Request withdrawal"}</button><p className="muted small">Minimum withdrawal: KSh 100. Withdrawals are reviewed/processed by the administrator.</p></div>}{depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load}/>}</section>}
+ const withdraw=async()=>{setMsg("");const n=Number(amount);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole amount of at least KSh 100.");if(n>Number(me.wallet?.balance||0))return setMsg("The withdrawal amount exceeds your available balance.");if(!validPhone(phone))return setMsg("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541…. ");setBusy(true);try{const d=await api("/withdrawals",{method:"POST",body:JSON.stringify({amount:n,phone:cleanPhone(phone)})});setMsg(`${d.message}. Reference: ${d.reference}`);setAmount("");await load()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
+ return <section><div className="sectionhead"><div><span className="pill">WALLET</span><h1>Balance & funds</h1><p className="muted">Manage your available balance, add funds and request withdrawals.</p></div></div><div className="walletbig"><span>Available balance</span><strong>{money(me.wallet?.balance)}</strong><p>Total earned {money(me.wallet?.totalEarned)} · Pending {money(me.wallet?.pendingBalance)} · Withdrawn {money(me.wallet?.totalWithdrawn)}</p></div><div className="wallettabs"><button className={tab==="balance"?"active":""} onClick={()=>setTab("balance")}>Balance</button><button className={tab==="deposit"?"active":""} onClick={()=>setTab("deposit")}>Deposit</button><button className={tab==="withdraw"?"active":""} onClick={()=>setTab("withdraw")}>Withdraw</button></div>{tab==="balance"&&<div className="walletsummarygrid"><div className="panel"><h3>Available</h3><strong className="walletmetric">{money(me.wallet?.balance)}</strong><p className="muted">Funds currently available for eligible wallet purchases or withdrawals.</p></div><div className="panel"><h3>Pending</h3><strong className="walletmetric">{money(me.wallet?.pendingBalance)}</strong><p className="muted">Funds currently reserved for withdrawal processing.</p></div><div className="panel"><h3>Total earned</h3><strong className="walletmetric">{money(me.wallet?.totalEarned)}</strong><p className="muted">Recorded earnings credited to your wallet over time.</p></div></div>}{tab==="deposit"&&<div className="panel formpanel"><h3>Deposit to wallet</h3><p className="muted">Add money through M-Pesa STK Push. You approve the payment on your phone and NEXORA checks Co-op Bank for the final status.</p><button className="primary" onClick={()=>setDepositOpen(true)}><WalletCards size={16}/> Deposit via M-Pesa STK Push</button><p className="muted small">Minimum deposit: KSh 100. Never share your M-Pesa PIN with anyone.</p></div>}{tab==="withdraw"&&<div className="panel formpanel"><h3>Request withdrawal</h3>{msg&&<div className="notice">{msg}</div>}<input type="number" min="100" step="1" placeholder="Amount (KSh)" value={amount} onChange={e=>setAmount(e.target.value)}/><input inputMode="tel" maxLength="13" placeholder="M-Pesa phone: 07…, 01…, 2547… or 2541…" value={phone} onChange={e=>setPhone(e.target.value)}/><p className="muted small phonehint">Accepted: 07xxxxxxxx · 01xxxxxxxx · 2547xxxxxxxx · 2541xxxxxxxx</p><button disabled={busy} className="primary" onClick={withdraw}>{busy?"Submitting…":"Request withdrawal"}</button><p className="muted small">Minimum withdrawal: KSh 100. Withdrawals are reviewed/processed by the administrator.</p></div>}{depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>}</section>}
 function Transactions({rows,onOpenPending}){return <section><div className="sectionhead"><div><h1>Transactions</h1><p className="muted">Your recent account activity.</p></div></div><div className="panel">{rows.length?rows.map(x=><div className="row simple" key={x.id}><div><b>{x.type.replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()} · {x.reference}</small></div><div className="transactionright"><strong>{money(x.amount)}</strong><small className={`txstatus ${String(x.status||"").toLowerCase()}`}>{x.status}</small>{String(x.status||"").toUpperCase()==="PENDING"&&x.type==="PACKAGE_PURCHASE"&&<button className="txcheck" onClick={()=>onOpenPending(x)}><RefreshCw size={13}/> Check payment</button>}</div></div>):<p className="muted">No transactions yet.</p>}</div></section>}
 createRoot(document.getElementById("root")).render(<App/>);
