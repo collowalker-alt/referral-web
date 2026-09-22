@@ -860,9 +860,9 @@ function App(){
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
  if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
  const nav=[
-  ["dashboard","Home",BarChart3],["marketplace","🛒 Marketplace",Store],["referrals","💰 Earn",WalletCards],["products","📣 Advertise",Megaphone],["wallet","Wallet",WalletCards],["transactions","Transactions",History],["marketing","Marketing Center",Megaphone],["academy","🎓 Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
+  ["dashboard","Home",BarChart3],["marketplace","🛒 Shop & Marketplace",Store],["wallet","Wallet & Payments",WalletCards],["transactions","Orders & Transactions",History],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
  ];
- const primaryNavIds=new Set(["dashboard","marketplace","referrals","products","wallet"]);
+ const primaryNavIds=new Set(["dashboard","marketplace","wallet","transactions"]);
  const startPayment=async(phone,p)=>{setPhoneModal(null);setMsg("");setError("");try{const normalized=cleanPhone(phone);if(!validPhone(normalized))return setError("Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…. ");const d=await api("/payments/initialize",{method:"POST",body:JSON.stringify({packageId:p.id,phone:normalized})});const charge=Number(d.chargeAmount||p.price);setPayment({reference:d.reference,package:p,phone:normalized,status:d.status||"pending",chargeAmount:charge,display_text:d.display_text||"",message:d.message&&d.message!=="Charge attempted"?d.message:""});if(d.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(d.status==="failed")return;let tries=0;const poll=async()=>{if(tries>=18)return;tries++;try{const v=await api(`/payments/status/${d.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{};return}if(v.status==="failed")return}catch{}if(tries<12)setTimeout(poll,10000)};setTimeout(poll,10000)}catch(e){setError(e.message)}};
  const hasPackage=Boolean(me?.package);
  const purchase=p=>{setMsg("");setError("");if(p?.id)setPhoneModal({package:p,chargeAmount:Math.max(0,Number(p.price)-Number(me.package?.price||0)),phone:cleanPhone(me.user.phone||"")})};
@@ -899,7 +899,7 @@ function App(){
  };
  const logout=()=>{localStorage.removeItem("token");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
  const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
- return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Earn · Advertise · Learn</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
+ return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Orders · Wallet · Seller tools</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
  <div className="nx-page-stage" key={page}>
  {page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load}/>} 
  {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><div className="earnnotice panel"><PackageIcon size={20}/><div><h3>Plan required to earn</h3><p className="muted">Activate a membership plan to unlock your referral link. Commissions follow plan rules only; NEXORA does not guarantee income. See <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>.</p></div></div><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
@@ -912,7 +912,7 @@ function App(){
  {page==="wallet"&&<Wallet me={me} load={()=>load(false)}/>} 
  {page==="transactions"&&<Transactions rows={transactions} onOpenPending={x=>{const packageId=x.metadata?.packageId;const pkg=packages.find(p=>p.id===packageId);if(pkg)setPayment({reference:x.reference,package:pkg,phone:cleanPhone(x.metadata?.phone||me.user.phone||""),status:String(x.status||"PENDING").toLowerCase(),chargeAmount:Number(x.metadata?.chargeAmount||x.amount),display_text:x.metadata?.paystack?.display_text||"",message:""})}}/>} 
  {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}
- </div></main>{pageTransition&&<NexoraPageTransition label={nav.find(x=>x[0]===page)?.[1]||"Opening workspace…"}/>}<CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/><nav className="mobile-bottom-nav">{[["dashboard","Home",BarChart3],["referrals","Earn",TrendingUp],["marketplace","Shop",Store],["wallet","Wallet",CreditCard],["security","Profile",UserCog]].map(([id,label,I])=><button key={id} className={page===id?"active":""} onClick={()=>setPage(id)}><I size={18}/><span>{label}</span></button>)}</nav><NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} onCancel={()=>{setPhoneModal(null);load(false)}} onContinue={phone=>startPayment(phone,phoneModal.package)} onWallet={walletPurchase}/>} {payment&&<PaymentModal payment={payment} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{}}}catch(e){setError(e.message)}}}/>}</div>
+ </div></main>{pageTransition&&<NexoraPageTransition label={nav.find(x=>x[0]===page)?.[1]||"Opening workspace…"}/>}<CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/><nav className="mobile-bottom-nav">{[["dashboard","Home",BarChart3],["marketplace","Shop",Store],["wallet","Wallet",CreditCard],["transactions","Orders",History],["security","Profile",UserCog]].map(([id,label,I])=><button key={id} className={page===id?"active":""} onClick={()=>setPage(id)}><I size={18}/><span>{label}</span></button>)}</nav><NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} onCancel={()=>{setPhoneModal(null);load(false)}} onContinue={phone=>startPayment(phone,phoneModal.package)} onWallet={walletPurchase}/>} {payment&&<PaymentModal payment={payment} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{}}}catch(e){setError(e.message)}}}/>}</div>
 }
 function Notifications({me,analytics,tickets}){const notes=[];if(!me.package)notes.push([PackageIcon,"Choose a plan","Explore the membership plans when you are ready."]);if(me.package)notes.push([CheckCircle2,"Plan active",`${me.package.name} is currently active on your account.`]);if((analytics?.month?.directReferrals||0)<5)notes.push([Target,"Monthly challenge",`${5-(analytics?.month?.directReferrals||0)} more direct referral(s) to reach the current activity goal.`]);if(tickets?.some(x=>x.status!=="CLOSED"))notes.push([Bell,"Support update","You have an open support request. Check Help & Support for updates."]);if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push([Clock3,"Payment pending","A payment is still awaiting confirmation. Check Transactions for status."]);return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Smart notifications</h3><span>{notes.length} active</span></div><div className="notificationlist">{notes.slice(0,4).map(([I,t,d],i)=><div className="notification" key={i}><I size={17}/><div><b>{t}</b><p>{d}</p></div></div>)}{!notes.length&&<p className="muted">You're all caught up.</p>}</div></div>}
 
@@ -1015,120 +1015,82 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
  const done=milestones.filter(x=>x.value).length; const pct=Math.round(done/milestones.length*100);
  return <div className="panel gamification"><div className="paneltitle"><div><span className="pill">MEMBER MILESTONES</span><h3><Trophy size={17}/> Your progress</h3></div><strong>{done}/{milestones.length}</strong></div><div className="levelrow"><div className="levelbadge"><Crown size={18}/></div><div><b>{done>=4?"NEXORA Champion":done>=2?"NEXORA Builder":"NEXORA Starter"}</b><small>Complete useful actions to unlock milestones.</small></div><span>{pct}%</span></div><div className="progress"><i style={{width:`${pct}%`}}/></div><div className="milestonerow">{milestones.map((m,i)=><button key={i} className={`milestone ${m.value?"done":""}`} onClick={m.action}><span>{m.value?<CheckCircle2 size={15}/>:<Target size={15}/>}</span><b>{m.label}</b><ArrowUpRight size={12}/></button>)}</div></div>
 }
-function Dashboard({me,copy,copyCode,copiedKind,share,goPackages,goPage,profileStrength,analytics,tickets,goSecurity,load}){
+function Dashboard({me,goPage,profileStrength,tickets,goSecurity,load}){
  const [depositOpen,setDepositOpen]=useState(false);
  const [showBalance,setShowBalance]=useState(true);
  const recent=(me.transactions||[]).slice(0,4);
- const direct=Number(me.stats?.direct||0);
- const level2=Number(me.stats?.level2||0);
  const balance=Number(me.wallet?.balance||0);
- const earned=Number(me.wallet?.totalEarned||0);
- const monthly=Number(analytics?.month?.directReferrals||0);
- const monthlyGoal=5;
- const progress=Math.min(100,Math.round(monthly/monthlyGoal*100));
  const openTickets=(tickets||[]).filter(x=>x.status!=="CLOSED").length;
  const pendingPayments=(me.transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING").length;
  const quickActions=[
-  {label:"Deposit",hint:"Add money to wallet",icon:WalletCards,action:()=>setDepositOpen(true),tone:"mint"},
-  {label:"Earn",hint:"Plans, referrals & rewards",icon:TrendingUp,action:()=>goPage("referrals"),tone:"gold"},
-  {label:"Marketplace",hint:"Buy from members",icon:Store,action:()=>{try{localStorage.setItem("nexora-milestone-market","1")}catch{};goPage("marketplace")},tone:"blue"},
-  {label:"Sell product",hint:"Create a listing",icon:Plus,action:()=>goPage("marketplace"),tone:"purple"},
-  {label:"Invite",hint:"Share your referral",icon:Share2,action:share,tone:"gold"},
-  {label:"Transactions",hint:"View payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
-  {label:"Academy",hint:"Learn platform skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
-  {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"rose"},
-  {label:"Profile",hint:`${profileStrength}% complete`,icon:UserCog,action:goSecurity,tone:"teal"}
+  {label:"Shop now",hint:"Browse products",icon:Store,action:()=>goPage("marketplace"),tone:"blue"},
+  {label:"My orders",hint:"Track purchases",icon:Truck,action:()=>goPage("marketplace"),tone:"teal"},
+  {label:"Sell a product",hint:"Create a listing",icon:Plus,action:()=>goPage("marketplace"),tone:"purple"},
+  {label:"Wishlist",hint:"Saved products",icon:Heart,action:()=>goPage("marketplace"),tone:"rose"},
+  {label:"Wallet",hint:"Balance & payments",icon:WalletCards,action:()=>goPage("wallet"),tone:"mint"},
+  {label:"Transactions",hint:"Payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
+  {label:"Academy",hint:"Learn marketplace skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
+  {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"gold"}
  ];
- const nextAction=!me.package
-  ? {title:"Activate your membership",text:"Review the available plans to unlock referral tools.",button:"View plans",action:goPackages,icon:PackageIcon}
-  : pendingPayments
+ const nextAction=pendingPayments
   ? {title:"Check your pending payment",text:"A payment is still waiting for confirmation.",button:"View transactions",action:()=>goPage("transactions"),icon:Clock3}
   : profileStrength<100
-  ? {title:"Finish your profile",text:"A complete profile makes your account easier to manage.",button:"Complete profile",action:goSecurity,icon:UserCog}
-  : {title:"Grow your network",text:`You have ${direct} direct referral${direct===1?"":"s"} and ${level2} Level 2 connection${level2===1?"":"s"}.`,button:"Open Earn",action:()=>goPage("referrals"),icon:UsersRound};
+  ? {title:"Complete your shopper profile",text:"Keep your contact and delivery details up to date for smoother orders.",button:"Update profile",action:goSecurity,icon:UserCog}
+  : {title:"Explore the marketplace",text:"Discover products from NEXORA sellers and find something useful for you.",button:"Start shopping",action:()=>goPage("marketplace"),icon:Store};
  const NextIcon=nextAction.icon;
  return <>
-  <section className="hero dashboardhero">
+  <section className="hero dashboardhero ecommerce-dashboard-hero">
    <div className="dashboardhero-copy">
-    <span className="pill">NEXORA DASHBOARD</span>
-    <h1>Welcome back, {me.user.name.split(" ")[0]} <span aria-hidden="true">👋</span></h1>
-    <p>Your command center for wallet activity, marketplace, referrals, learning and account support.</p>
+    <span className="pill">NEXORA MARKETPLACE</span>
+    <h1>Shop smarter, <span>all in one place.</span></h1>
+    <p>Discover products, compare listings, save favorites, place orders and manage your purchases from one modern marketplace.</p>
     <div className="heroactions">
-     <button className="primary" onClick={()=>goPage("marketplace")}><Store size={16}/> Marketplace</button>
-     <button className="secondary" onClick={()=>goPage("referrals")}><WalletCards size={16}/> Earn</button>
-     <button className="secondary" onClick={()=>goPage("academy")}><GraduationCap size={16}/> Learn</button>
+     <button className="primary" onClick={()=>goPage("marketplace")}><ShoppingCart size={16}/> Start shopping</button>
+     <button className="secondary" onClick={()=>goPage("marketplace")}><Plus size={16}/> Sell a product</button>
     </div>
+    <div className="ecom-trust-row"><span><ShieldCheck size={15}/> Verified marketplace tools</span><span><Truck size={15}/> Order tracking</span><span><WalletCards size={15}/> Secure payment options</span></div>
    </div>
    <div className="dashboardhero-side">
-    <div className="dashboardhero-plan">
-     <div className="dashboardmini-label">CURRENT PLAN</div>
-     <strong className="dashboardhero-plan-name">{me.package?.name||"No plan yet"}</strong>
-     <span className="dashboardhero-plan-meta">{me.package?`${money(me.package.price)} membership`:"Explore plans when you're ready"}</span>
-     {!me.package&&<button className="hero-plan-btn" onClick={goPackages}>View plans <ArrowUpRight size={14}/></button>}
-    </div>
-    <div className="dashboardhero-balance">
-     <div className="dashboardhero-balance-head"><span>AVAILABLE BALANCE</span><button className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={13}/>:<Eye size={13}/>}</button></div>
+    <div className="dashboardhero-balance ecommerce-balance-card">
+     <div className="dashboardhero-balance-head"><span>WALLET BALANCE</span><button className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={13}/>:<Eye size={13}/>}</button></div>
      <strong>{showBalance?money(balance):"KSh •••••"}</strong>
-     <button className="hero-balance-btn" onClick={()=>setDepositOpen(true)}><WalletCards size={13}/> Deposit</button>
+     <div className="heroactions compact"><button className="hero-balance-btn" onClick={()=>setDepositOpen(true)}><WalletCards size={13}/> Add funds</button><button className="secondary" onClick={()=>goPage("wallet")}>Wallet</button></div>
     </div>
+    <div className="dashboardhero-plan shop-status-card"><div className="dashboardmini-label">SHOPPER ACCOUNT</div><strong>{me.package?.name||"NEXORA Member"}</strong><span>{me.package?"Membership active":"Ready to shop and sell"}</span></div>
    </div>
   </section>
 
-  <div className="dashboardquick">
-   <div className="dashboardquick-head">
-    <div><span className="pill">QUICK ACTIONS</span><h2>What do you want to do?</h2></div>
-    <span className="muted small">Shortcuts to the tools you use most</span>
-   </div>
-   <div className="dashboardquick-grid">
-    {quickActions.map(({label,hint,icon:Icon,action,tone})=><button key={label} className={`quickaction ${tone}`} onClick={action}>
-      <span className="quickaction-icon"><Icon size={18}/></span><span className="quickaction-copy"><b>{label}</b><small>{hint}</small></span><ArrowUpRight size={15}/>
-    </button>)}
-   </div>
+  <div className="shopcategorybar panel">
+   <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
+   <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
   </div>
 
-  <div className="dashboardstats">
-   <div className="dashboardstat"><span>Total recorded earnings</span><strong>{money(earned)}</strong><small>Account history</small></div>
-   <div className="dashboardstat"><span>Direct referrals</span><strong>{direct}</strong><small>Level 1 network</small></div>
-   <div className="dashboardstat"><span>Level 2 network</span><strong>{level2}</strong><small>Extended network</small></div>
+  <div className="dashboardquick">
+   <div className="dashboardquick-head"><div><span className="pill">SHOPPING TOOLS</span><h2>Everything you need</h2></div><span className="muted small">Quick access to shopping, selling and account tools</span></div>
+   <div className="dashboardquick-grid">{quickActions.map(({label,hint,icon:Icon,action,tone})=><button key={label} className={`quickaction ${tone}`} onClick={action}><span className="quickaction-icon"><Icon size={18}/></span><span className="quickaction-copy"><b>{label}</b><small>{hint}</small></span><ArrowUpRight size={15}/></button>)}</div>
+  </div>
+
+  <div className="dashboardstats ecommerce-stats">
+   <div className="dashboardstat"><span>Available wallet</span><strong>{money(balance)}</strong><small>Ready for eligible purchases</small></div>
+   <div className="dashboardstat"><span>Profile completion</span><strong>{profileStrength}%</strong><small>Keep your account details current</small></div>
+   <div className="dashboardstat"><span>Account activity</span><strong>{recent.length}</strong><small>Recent transactions shown below</small></div>
   </div>
 
   <div className="dashboard-main-grid">
    <div className="dashboard-left">
-    <div className="panel nextaction">
-     <div className="nextaction-icon"><NextIcon size={21}/></div>
-     <div className="nextaction-copy"><span className="pill">RECOMMENDED NEXT STEP</span><h3>{nextAction.title}</h3><p className="muted">{nextAction.text}</p></div>
-     <button className="primary narrow" onClick={nextAction.action}>{nextAction.button}<ArrowUpRight size={14}/></button>
-    </div>
-
-    <div className="panel progresspanel">
-     <div className="paneltitle"><div><span className="pill">MONTHLY ACTIVITY</span><h3>Your progress</h3></div><strong>{monthly}/{monthlyGoal}</strong></div>
-     <div className="progress"><i style={{width:`${progress}%`}}/></div>
-     <div className="progressmeta"><span>{progress}% of the current activity goal</span><span>{monthly>=monthlyGoal?"Goal reached":"Keep building steadily"}</span></div>
-    </div>
-
-    <GamificationPanel me={me} analytics={analytics} goPage={goPage} profileStrength={profileStrength}/>
-
-   <div className="panel">
-     <div className="paneltitle"><div><span className="pill">RECENT ACTIVITY</span><h3>Latest account activity</h3></div><button className="secondary narrow" onClick={()=>goPage("transactions")}>View all</button></div>
-     {recent.length?recent.map(x=><div className="activityrow" key={x.id}>
-       <span className="activityicon"><History size={15}/></span><div><b>{String(x.type||"Activity").replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()}</small></div><strong>{money(x.amount)}</strong>
-      </div>):<div className="smartempty"><p className="muted">No account activity yet.</p><button className="secondary narrow" onClick={goPackages}>Explore plans</button></div>}
-    </div>
+    <div className="panel nextaction ecommerce-nextaction"><div className="nextaction-icon"><NextIcon size={21}/></div><div className="nextaction-copy"><span className="pill">RECOMMENDED</span><h3>{nextAction.title}</h3><p className="muted">{nextAction.text}</p></div><button className="primary narrow" onClick={nextAction.action}>{nextAction.button}<ArrowUpRight size={14}/></button></div>
+    <RecommendedMarketplace goPage={goPage}/>
+    <div className="panel"><div className="paneltitle"><div><span className="pill">ACCOUNT ACTIVITY</span><h3>Recent transactions</h3></div><button className="secondary narrow" onClick={()=>goPage("transactions")}>View all</button></div>{recent.length?recent.map(x=><div className="activityrow" key={x.id}><span className="activityicon"><ReceiptText size={15}/></span><div><b>{String(x.type||"Transaction").replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()}</small></div><strong>{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No transactions yet.</p><button className="primary narrow" onClick={()=>goPage("marketplace")}><Store size={15}/> Browse marketplace</button></div>}</div>
    </div>
-
    <div className="dashboard-right">
+    <div className="panel shopbenefits-panel"><div className="paneltitle"><div><span className="pill">WHY SHOP HERE</span><h3>A better marketplace experience</h3></div><Store size={18}/></div><div className="shopbenefit"><ShieldCheck size={17}/><div><b>Clear seller information</b><p className="muted small">See seller details, location and verification status on listings.</p></div></div><div className="shopbenefit"><Heart size={17}/><div><b>Save products you like</b><p className="muted small">Keep favorites in your wishlist for later.</p></div></div><div className="shopbenefit"><Truck size={17}/><div><b>Track your orders</b><p className="muted small">Keep purchase and delivery information in one place.</p></div></div><div className="shopbenefit"><WalletCards size={17}/><div><b>Flexible checkout</b><p className="muted small">Use the payment methods available at checkout.</p></div></div><button className="primary full" onClick={()=>goPage("marketplace")}><ShoppingCart size={16}/> Browse products</button></div>
     <ProfileCard me={me} strength={profileStrength} goSecurity={goSecurity}/>
-    <div className="panel referralpanel">
-     <div className="paneltitle"><div><span className="pill">REFERRAL TOOLKIT</span><h3>Share your link</h3></div><Share2 size={18}/></div>
-     {me.package?<><div className="copybox"><span>{location.origin}/?ref={me.user.referralCode}</span><button onClick={copy}>{copiedKind==="link"?<><Check size={16}/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact"><button className="secondary" onClick={share}><Share2 size={15}/> Share</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review plans first (no guaranteed income): ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{copiedKind==="code"?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div></>:<div className="lockedinline"><LockKeyhole size={18}/><div><b>Referral tools are locked</b><p className="muted small">Activate a plan to unlock your referral link and sharing tools.</p></div><button className="secondary narrow" onClick={goPackages}>View plans</button></div>}
-    </div>
    </div>
   </div>
 
-  <RecommendedMarketplace goPage={goPage}/>
-  {!me.package&&<OnboardingChecklist me={me} goPackages={goPackages} goPage={goPage}/>}
-  <Notifications me={me} analytics={analytics} tickets={tickets}/>
-  {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>}
+  <div className="panel seller-cta-panel"><div><span className="pill">SELL ON NEXORA</span><h3>Have something to sell?</h3><p className="muted">Create a product listing with photos, pricing, stock and delivery information, then manage customer orders from your seller dashboard.</p></div><button className="primary" onClick={()=>goPage("marketplace")}><Plus size={16}/> List a product</button></div>
+  <Notifications me={me} analytics={null} tickets={tickets}/>
+  {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>} 
  </>
 }
 function Analytics({data,earnings,referrals}){if(!data)return <section><div className="panel"><p>Loading analytics…</p></div></section>;return <section><div className="sectionhead"><div><span className="pill">PERFORMANCE CENTER</span><h1>Referral analytics</h1><p className="muted">Understand your network activity and the history of recorded commissions.</p></div><RefreshCw size={18}/></div><div className="cards three"><Card title="Direct members" value={data.directCount}/><Card title="Level 2 members" value={data.level2Count}/><Card title="Members with plans" value={data.paidReferrals}/></div><div className="analyticsgrid"><div className="panel"><h3>Network conversion</h3><div className="bigmetric">{data.conversion}%</div><p className="muted">Percentage of direct referrals with an active plan.</p><div className="progress"><i style={{width:`${data.conversion}%`}}/></div></div><div className="panel"><h3>Commission mix</h3><div className="analyticbars"><div><span>Direct</span><b>{money(data.directCommission)}</b><i style={{width:`${data.totalCommission?data.directCommission/data.totalCommission*100:0}%`}}/></div><div><span>Level 2</span><b>{money(data.level2Commission)}</b><i style={{width:`${data.totalCommission?data.level2Commission/data.totalCommission*100:0}%`}}/></div></div></div></div><div className="panel"><h3>Network snapshot</h3><div className="networkcards"><div><span>New this month</span><strong>{data.month.directReferrals}</strong></div><div><span>Commissions this month</span><strong>{money(data.month.commissions)}</strong></div><div><span>All-time commissions</span><strong>{money(data.totalCommission)}</strong></div></div></div></section>}
