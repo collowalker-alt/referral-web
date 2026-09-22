@@ -19,3 +19,6 @@ MPESA_PAYBILL_NAME=NEXORA
 
 BUILD NOTE
 A fresh npm install could not be completed in the inspection sandbox because registry access/dependency installation timed out. Therefore a fresh Vite production build was not executed in this sandbox. The previously reported JSX location is present in the corrected source and the client source was statically inspected.
+
+
+2026-09-22 PAYSTACK SWITCH: Active member package and wallet M-Pesa payments use Paystack M-Pesa STK Push. Co-op static-IP gateway is no longer required by the active payment flow.

@@ -39,3 +39,6 @@ PAYMENT PROCESS
 M-Pesa -> Lipa na M-Pesa -> Paybill -> 400200 -> configured Co-op account number -> exact amount.
 Member submits the M-Pesa confirmation code.
 Admin verifies the code and amount before activating the package / crediting the wallet.
+
+
+2026-09-22 PAYSTACK SWITCH: Active member package and wallet M-Pesa payments use Paystack M-Pesa STK Push. Co-op static-IP gateway is no longer required by the active payment flow.

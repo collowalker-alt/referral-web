@@ -148,15 +148,19 @@ After deployment run:
 For production, configure object storage for product media before scaling large catalogs, and add an order-specific M-Pesa payment/verification flow before enabling direct mobile-money checkout for marketplace orders.
 
 
-## Co-operative Bank M-Pesa Paybill configuration
+## Paystack M-Pesa STK Push configuration
 
-NEXORA now uses Co-operative Bank M-Pesa Paybill instead of an M-Pesa Till for manual package payments and wallet deposits.
+NEXORA now uses Paystack for M-Pesa STK Push package payments and wallet deposits. Paystack's Kenya integration supports M-Pesa charges using the `mobile_money` channel and sends the customer an authorization prompt on their phone. Successful payments are confirmed through the Paystack webhook and can also be verified from the server.
 
-Co-operative Bank's official guidance states that **Paybill 400200** is used to send money into a Co-op Bank account. The customer enters the destination Co-op account number, then the amount and M-Pesa PIN.
+Set this secret environment variable on the NEXORA Render API service:
 
-Set these API environment variables on Render:
-- `MPESA_PAYBILL_NUMBER=400200`
-- `MPESA_PAYBILL_ACCOUNT=<your NEXORA Co-op Bank account number>`
-- `MPESA_PAYBILL_NAME=NEXORA`
+- `PAYSTACK_SECRET_KEY=sk_test_...` while testing
+- `PAYSTACK_SECRET_KEY=sk_live_...` after Paystack activates the business for live payments
 
-The account number is intentionally left blank in `.env.example`; put the real account number in Render's secret environment variables rather than committing it to Git.
+In Paystack Dashboard → Developers → API Keys & Webhooks, configure the webhook URL as:
+
+`https://nexora-api-shxf.onrender.com/api/paystack/webhook`
+
+Use the Test Mode webhook URL while testing and the Live Mode webhook URL after activation. Keep the secret key only in Render environment variables; never commit it or put it in the frontend.
+
+Paystack's current documentation recommends webhooks for asynchronous M-Pesa payment completion, with transaction verification available as a fallback.
