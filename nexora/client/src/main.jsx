@@ -153,7 +153,11 @@ function NexBot({goPage,goPackages,me}){
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
  },[open]);
- useEffect(()=>()=>{try{recognitionRef.current?.stop()}catch{}},[]);
+ useEffect(()=>()=>{
+  try{recognitionRef.current?.stop()}catch{}
+  try{dragCleanup.current?.()}catch{}
+  dragCleanup.current=null;
+},[]);
 
  const localAnswer=(q)=>{
   const s=String(q||"").toLowerCase();
@@ -236,22 +240,55 @@ function NexBot({goPage,goPackages,me}){
   return()=>{cancelAnimationFrame(frame);window.removeEventListener("resize",onResize);window.removeEventListener("orientationchange",onResize)};
  },[open,msgs.length,loading,products.length,orders.length]);
 
+ const dragCleanup=React.useRef(null);
+ const finishDrag=(openAfterTap=true)=>{
+  const d=drag.current;
+  if(!d)return;
+  drag.current=null;
+  try{dragCleanup.current?.();}catch{}
+  dragCleanup.current=null;
+  const f=d.latest||clampPos(d.ox,d.oy);
+  if(d.moved){
+   setPos(f);
+   try{localStorage.setItem(storagePos,JSON.stringify(f));}catch{}
+   return;
+  }
+  if(openAfterTap){setTip(false);setOpen(true);}
+ };
  const onPointerDown=e=>{
   if(open)return;if(e.button!=null&&e.button!==0)return;
+  e.preventDefault();
   const el=e.currentTarget,r=el.getBoundingClientRect();
   drag.current={startX:e.clientX,startY:e.clientY,ox:pos?pos.x:r.left,oy:pos?pos.y:r.top,moved:false,pointerId:e.pointerId};
   try{el.setPointerCapture(e.pointerId)}catch{}
+  const move=ev=>{
+   if(!drag.current||ev.pointerId!==drag.current.pointerId)return;
+   ev.preventDefault();
+   const d=drag.current,dx=ev.clientX-d.startX,dy=ev.clientY-d.startY;
+   if(Math.abs(dx)>5||Math.abs(dy)>5)d.moved=true;
+   if(!d.moved)return;
+   const next=clampPos(d.ox+dx,d.oy+dy);d.latest=next;setPos(next);
+  };
+  const up=ev=>{
+   if(!drag.current||ev.pointerId!==drag.current.pointerId)return;
+   try{el.releasePointerCapture?.(ev.pointerId)}catch{}
+   window.removeEventListener('pointermove',move);
+   window.removeEventListener('pointerup',up);
+   window.removeEventListener('pointercancel',up);
+   dragCleanup.current=null;
+   const d=drag.current;drag.current=null;
+   const f=d.latest||clampPos(d.ox,d.oy);
+   if(d.moved){setPos(f);try{localStorage.setItem(storagePos,JSON.stringify(f))}catch{};return;}
+   setTip(false);setOpen(true);
+  };
+  dragCleanup.current=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);};
+  window.addEventListener('pointermove',move,{passive:false});
+  window.addEventListener('pointerup',up,{passive:false});
+  window.addEventListener('pointercancel',up,{passive:false});
  };
- const onPointerMove=e=>{
-  if(!drag.current)return;e.preventDefault();
-  const d=drag.current,dx=e.clientX-d.startX,dy=e.clientY-d.startY;
-  if(Math.abs(dx)>6||Math.abs(dy)>6)d.moved=true;if(!d.moved)return;
-  const next=clampPos(d.ox+dx,d.oy+dy);d.latest=next;setPos(next);
- };
+ const onPointerMove=()=>{};
  const onPointerUp=e=>{
-  if(!drag.current)return;const d=drag.current;drag.current=null;try{e.currentTarget.releasePointerCapture?.(e.pointerId)}catch{}
-  if(d.moved){const f=d.latest||clampPos(d.ox,d.oy);setPos(f);try{localStorage.setItem(storagePos,JSON.stringify(f))}catch{};return;}
-  setTip(false);setOpen(true);
+  if(drag.current&&e.pointerId===drag.current.pointerId)finishDrag(true);
  };
  const Face=({size=28})=><span className="nexbot-face" style={{width:size,height:size}} aria-hidden="true"><span className="nexbot-eye left"/><span className="nexbot-eye right"/><span className="nexbot-mouth"/></span>;
  const fabStyle=pos?{position:"fixed",left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:undefined;
