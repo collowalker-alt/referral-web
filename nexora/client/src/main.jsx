@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from "react";
 import {createRoot} from "react-dom/client";
 import {createPortal} from "react-dom";
-import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot} from "lucide-react";
+import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot,Mic,Volume2,VolumeX,SendHorizontal,ShoppingBag,MapPinned,ArrowRight,LoaderCircle,MessageSquareText,WalletMinimal,PackageSearch} from "lucide-react";
 import "./styles.css";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
 const money=n=>`KSh ${Number(n||0).toLocaleString()}`;
@@ -123,7 +123,14 @@ function NexBot({goPage,goPackages,me}){
  const storagePos="nexora-nexbot-pos";
  const [open,setOpen]=useState(false);
  const [input,setInput]=useState("");
- const [msgs,setMsgs]=useState([{role:"bot",text:"Ask me anything about NEXORA — plans, Earn, marketplace, Advertise, wallet, or shortcuts."}]);
+ const [loading,setLoading]=useState(false);
+ const [listening,setListening]=useState(false);
+ const [speakReplies,setSpeakReplies]=useState(false);
+ const [products,setProducts]=useState([]);
+ const [orders,setOrders]=useState([]);
+ const [wallet,setWallet]=useState(null);
+ const [suggestions,setSuggestions]=useState([]);
+ const [msgs,setMsgs]=useState([{role:"bot",text:`Hi ${me?.user?.name?.split(" ")[0]||"there"}! I'm NexBot. Ask me anything about NEXORA — you can type naturally, use voice, or tap a shortcut.`}]);
  const [tip,setTip]=useState(false);
  const [pos,setPos]=useState(()=>{
   try{const p=JSON.parse(localStorage.getItem(storagePos)||"null");if(p&&typeof p.x==="number"&&typeof p.y==="number")return p;}catch{}
@@ -131,144 +138,153 @@ function NexBot({goPage,goPackages,me}){
  });
  const drag=React.useRef(null);
  const fabRef=React.useRef(null);
+ const sheetRef=React.useRef(null);
+ const recognitionRef=React.useRef(null);
+ const [panelPos,setPanelPos]=useState(null);
 
  useEffect(()=>{
   if(sessionStorage.getItem("nexora-nexbot-greeted")==="1") return;
-  setTip(true);
-  sessionStorage.setItem("nexora-nexbot-greeted","1");
-  const t=setTimeout(()=>setTip(false),5200);
-  return()=>clearTimeout(t);
+  setTip(true); sessionStorage.setItem("nexora-nexbot-greeted","1");
+  const t=setTimeout(()=>setTip(false),5200); return()=>clearTimeout(t);
  },[]);
-
  useEffect(()=>{
   if(!open) return;
   const onKey=e=>{if(e.key==="Escape") setOpen(false)};
   window.addEventListener("keydown",onKey);
   return()=>window.removeEventListener("keydown",onKey);
  },[open]);
+ useEffect(()=>()=>{try{recognitionRef.current?.stop()}catch{}},[]);
 
- const answer=(q)=>{
-  const s=String(q||"").toLowerCase().trim();
-  if(!s) return "Type a short question — for example: how do plans work?";
-  if(/hi|hello|hey|habari|niaje/.test(s)) return "Hi! I'm NexBot. I can explain plans, Earn, marketplace, Advertise, wallet, referrals, and shortcuts. What do you need?";
-  if(/guarantee|guaranteed|salary|sure income|promised/.test(s)) return "NEXORA does not guarantee income. Commissions are only recorded when platform rules are met (qualifying plan purchases for your plan level). Always review Membership rules before paying.";
-  if(/(plan|membership|upgrade|starter|growth|pro|elite|premium)/.test(s)) return "Membership plans live under Earn → Membership plans. Activate a plan to unlock your referral link. Upgrades charge only the price difference. Higher plans unlock more referral levels; only Premium unlocks Advertise.";
-  if(/earn|referral|commission|invite|link/.test(s)) return "Earn has two tabs: Network & referrals, and Membership plans. You need an active plan before your referral link unlocks. Share honestly — commissions only on qualifying plan purchases under the rules.";
-  if(/advertise|advertising|campaign|friday/.test(s)) return "Advertise is Premium-only. Activate Premium under Earn → Membership plans. Then open Advertise, pick a campaign, post on an approved platform, submit the public link + exact creative, and views/engagements. Approved payouts are reviewed for Friday processing — not guaranteed.";
-  if(/marketplace|shop|sell|cart|wishlist|product/.test(s)) return "Marketplace: browse, wishlist, cart, buy, or Sell a product with photos, price, stock and location. Verified sellers show a badge.";
-  if(/wallet|deposit|withdraw|balance|mpesa|paybill/.test(s)) return "Wallet shows available balance. Deposit via M-Pesa STK Push when paying for a plan. Never share your M-Pesa PIN. Check Transactions for pending or completed payments.";
-  if(/pending|awaiting|payment status/.test(s)) return "Pending payments appear under Notifications and Transactions — not as page banners. Open Notifications or Transactions to check status.";
-  if(/academy|learn|lesson/.test(s)) return "Academy has short lessons on plans, referrals, advertising, ethics, and platform use. Open Academy from the menu or Home quick actions.";
-  if(/support|help|ticket|whatsapp/.test(s)) return "Use Help & Support for tickets, or the green Support button for WhatsApp. Include payment reference if asking about a payment — never send your PIN.";
-  if(/install|pwa|app|home screen/.test(s)) return "Tap Install in the header. On Android use Chrome install; on iPhone open Safari → Share → Add to Home Screen.";
-  if(/shortcut|navigate|menu|where|go to/.test(s)) return "Shortcuts: Home, Earn (plans + referrals), Marketplace, Advertise (Premium), Wallet, Transactions, Marketing Center, Academy, Notifications, Profile. On phone use the bottom nav for Home, Earn, Shop, Wallet, Profile.";
-  if(/dashboard|home|welcome/.test(s)) return "Home is your command center: welcome, current plan, balance, quick actions, progress, and recent activity.";
-  if(/notification/.test(s)) return "Open Notifications in the menu for plan status, payment awaiting confirmation, support tickets, and activity goals.";
-  if(/thank/.test(s)) return "You're welcome! Tap me anytime.";
-  return "Try asking about: plans, Earn, referrals, marketplace, Advertise, wallet, payments, Academy, or shortcuts. Or open Help & Support for a human.";
+ const localAnswer=(q)=>{
+  const s=String(q||"").toLowerCase();
+  if(/\b(hi|hello|hey|habari|niaje)\b/.test(s)) return "Hi! I'm NexBot. You can ask me about shopping, orders, wallet, payments, membership, referrals, advertising, selling, support, Academy, or how to use NEXORA.";
+  if(/\b(balance|wallet|money|funds)\b/.test(s)) return `Your wallet balance is ${money(me?.wallet?.balance)}. I can help you with deposits, withdrawals and transaction history.`;
+  if(/\b(plan|plans|membership|starter|growth|pro|elite|premium|upgrade)\b/.test(s)) return `Your current membership is ${me?.package?.name||"not active"}. Open Earn → Membership plans to review the available plans and their rules.`;
+  if(/\b(referral|referrals|commission|earn|earning|invite|network)\b/.test(s)) return `Your NEXORA referral tools are under Earn. Referral commissions depend on the qualifying plan rules; NEXORA does not guarantee income.`;
+  if(/\b(order|orders|delivery|track|tracking)\b/.test(s)) return orders.length?`I found ${orders.length} recent order${orders.length===1?"":"s"}. I can show the latest status below.`:"I don't see any recent orders yet. Start shopping to place your first order.";
+  if(/\b(shop|product|products|buy|sell|seller|cart|wishlist|electronics|fashion)\b/.test(s)) return "I can help you find products, compare listings, use your wishlist/cart, or sell a product on NEXORA.";
+  if(/\b(advertise|advertising|campaign|views|engagement)\b/.test(s)) return "Advertising is for eligible Premium members. Campaign submissions are reviewed and approved payouts follow the campaign rules.";
+  if(/\b(payment|pay|mpesa|m-pesa|stk|deposit)\b/.test(s)) return "NEXORA currently uses Paystack for M-Pesa STK payments in the active deployment. Never share your M-Pesa PIN or security codes.";
+  if(/\b(support|help|ticket|human)\b/.test(s)) return "Open Help & Support to create or review a ticket. For payment questions, include the transaction reference but never send your PIN.";
+  return "I can help with NEXORA, including shopping, products, orders, wallet, payments, membership, referrals, advertising, selling, Academy and support. Tell me what you're trying to do and I'll guide you step by step.";
  };
 
- const send=(textIn)=>{
+ const send=async(textIn)=>{
   const q=String(textIn??input).trim();
-  if(!q) return;
-  const a=answer(q);
-  setMsgs(m=>[...m,{role:"user",text:q},{role:"bot",text:a}]);
-  setInput("");
+  if(!q||loading) return;
+  setTip(false); setInput(""); setLoading(true);
+  const nextHistory=[...msgs,{role:"user",text:q}].slice(-10);
+  setMsgs(m=>[...m,{role:"user",text:q}]);
+  try{
+   const data=await api("/nexbot/chat",{method:"POST",body:JSON.stringify({message:q,history:nextHistory})});
+   const answer=String(data.answer||localAnswer(q));
+   setMsgs(m=>[...m,{role:"bot",text:answer,action:data.action||null}]);
+   setProducts(Array.isArray(data.products)?data.products:[]);
+   setOrders(Array.isArray(data.orders)?data.orders:[]);
+   setWallet(data.wallet||null);
+   setSuggestions(Array.isArray(data.suggestions)?data.suggestions:[]);
+   if(speakReplies&&"speechSynthesis" in window){window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(answer);u.rate=.98;u.pitch=1;window.speechSynthesis.speak(u);}
+  }catch(e){
+   const answer=localAnswer(q);
+   setMsgs(m=>[...m,{role:"bot",text:answer}]);
+  }finally{setLoading(false);}
  };
 
  const quick=[
-  ["Plans","Where are membership plans?"],
-  ["Earn","How do referrals work?"],
-  ["Advertise","How does Premium advertising work?"],
-  ["Wallet","How do deposits work?"],
+  ["🛍 Shop","Find products on NEXORA"],
+  ["💳 Wallet","Show me my wallet"],
+  ["📦 Orders","Where is my latest order?"],
+  ["🎁 Rewards","Explain my referrals and rewards"],
+  ["🏪 Sell","How do I sell a product?"],
+  ["❓ Help","What can NexBot help me with?"]
  ];
+ const actionInfo={plans:["Open Membership Plans",()=>goPackages?.()],marketplace:["Open Marketplace",()=>goPage?.("marketplace")],transactions:["Open Orders & Transactions",()=>goPage?.("transactions")],wallet:["Open Wallet",()=>goPage?.("wallet")],referrals:["Open Earn & Referrals",()=>goPage?.("referrals")],products:["Open Advertise",()=>goPage?.("products")],notifications:["Open Notifications",()=>goPage?.("notifications")],academy:["Open Academy",()=>goPage?.("academy")],support:["Open Help & Support",()=>goPage?.("support")],security:["Open Profile & Security",()=>goPage?.("security")]};
 
- const clampPos=(x,y)=>({
-  x:Math.max(8,Math.min((typeof window!=="undefined"?window.innerWidth:400)-64,x)),
-  y:Math.max(8,Math.min((typeof window!=="undefined"?window.innerHeight:700)-64,y)),
- });
+ const startVoice=()=>{
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){setMsgs(m=>[...m,{role:"bot",text:"Voice input is not supported by this browser. Try Chrome on Android or type your question instead."}]);return;}
+  if(listening){try{recognitionRef.current?.stop()}catch{};return;}
+  const r=new SR(); recognitionRef.current=r; r.lang="en-KE"; r.interimResults=true; r.continuous=false;
+  r.onstart=()=>setListening(true);
+  r.onresult=e=>{let final="";for(let i=e.resultIndex;i<e.results.length;i++) final+=e.results[i][0].transcript;if(final)setInput(final);};
+  r.onerror=()=>setListening(false); r.onend=()=>setListening(false); r.start();
+ };
+ const speakLast=()=>{
+  if(!("speechSynthesis" in window)) return;
+  const last=[...msgs].reverse().find(m=>m.role==="bot"); if(!last)return;
+  if(window.speechSynthesis.speaking){window.speechSynthesis.cancel();return;}
+  const u=new SpeechSynthesisUtterance(last.text);u.rate=.98;window.speechSynthesis.speak(u);
+ };
 
- const onPointerDown=(e)=>{
-  if(open) return;
-  if(e.button!=null && e.button!==0) return;
-  const el=e.currentTarget;
-  drag.current={
-   startX:e.clientX,
-   startY:e.clientY,
-   ox:pos?pos.x:el.getBoundingClientRect().left,
-   oy:pos?pos.y:el.getBoundingClientRect().top,
-   moved:false,
-   pointerId:e.pointerId
-  };
+ const FAB_SIZE=58;
+ const clampPos=(x,y)=>({x:Math.max(8,Math.min((window.innerWidth||400)-FAB_SIZE-8,x)),y:Math.max(8,Math.min((window.innerHeight||700)-FAB_SIZE-8,y))});
+ const positionPanel=()=>{
+  if(!open||!fabRef.current||!sheetRef.current) return;
+  const fab=fabRef.current.getBoundingClientRect(), panel=sheetRef.current.getBoundingClientRect(), gap=10,pad=8;
+  let left=fab.left-panel.width-gap;
+  if(left<pad) left=fab.right+gap;
+  left=Math.max(pad,Math.min(left,window.innerWidth-panel.width-pad));
+  let top=fab.top+(fab.height/2)-(panel.height/2);
+  top=Math.max(pad,Math.min(top,window.innerHeight-panel.height-pad));
+  setPanelPos({left,top});
+ };
+ useEffect(()=>{
+  if(!open){setPanelPos(null);return;}
+  const frame=requestAnimationFrame(positionPanel);
+  const onResize=()=>requestAnimationFrame(positionPanel);
+  window.addEventListener("resize",onResize);window.addEventListener("orientationchange",onResize);
+  return()=>{cancelAnimationFrame(frame);window.removeEventListener("resize",onResize);window.removeEventListener("orientationchange",onResize)};
+ },[open,msgs.length,loading,products.length,orders.length]);
+
+ const onPointerDown=e=>{
+  if(open)return;if(e.button!=null&&e.button!==0)return;
+  const el=e.currentTarget,r=el.getBoundingClientRect();
+  drag.current={startX:e.clientX,startY:e.clientY,ox:pos?pos.x:r.left,oy:pos?pos.y:r.top,moved:false,pointerId:e.pointerId};
   try{el.setPointerCapture(e.pointerId)}catch{}
  };
- const onPointerMove=(e)=>{
-  if(!drag.current) return;
-  const dx=e.clientX-drag.current.startX;
-  const dy=e.clientY-drag.current.startY;
-  if(Math.abs(dx)>10 || Math.abs(dy)>10) drag.current.moved=true;
-  if(!drag.current.moved) return;
-  const next=clampPos(drag.current.ox+dx, drag.current.oy+dy);
-  setPos(next);
+ const onPointerMove=e=>{
+  if(!drag.current)return;e.preventDefault();
+  const d=drag.current,dx=e.clientX-d.startX,dy=e.clientY-d.startY;
+  if(Math.abs(dx)>6||Math.abs(dy)>6)d.moved=true;if(!d.moved)return;
+  const next=clampPos(d.ox+dx,d.oy+dy);d.latest=next;setPos(next);
  };
- const onPointerUp=(e)=>{
-  if(!drag.current) return;
-  const moved=drag.current.moved;
-  drag.current=null;
-  try{e.currentTarget.releasePointerCapture?.(e.pointerId)}catch{}
-  if(moved){
-   if(pos) try{localStorage.setItem(storagePos,JSON.stringify(pos))}catch{}
-   return;
-  }
-  setTip(false);
-  setOpen(true);
+ const onPointerUp=e=>{
+  if(!drag.current)return;const d=drag.current;drag.current=null;try{e.currentTarget.releasePointerCapture?.(e.pointerId)}catch{}
+  if(d.moved){const f=d.latest||clampPos(d.ox,d.oy);setPos(f);try{localStorage.setItem(storagePos,JSON.stringify(f))}catch{};return;}
+  setTip(false);setOpen(true);
  };
-
- const Face=({size=28})=>(
-  <span className="nexbot-face" style={{width:size,height:size}} aria-hidden="true">
-   <span className="nexbot-eye left"/><span className="nexbot-eye right"/><span className="nexbot-mouth"/>
-  </span>
- );
-
+ const Face=({size=28})=><span className="nexbot-face" style={{width:size,height:size}} aria-hidden="true"><span className="nexbot-eye left"/><span className="nexbot-eye right"/><span className="nexbot-mouth"/></span>;
  const fabStyle=pos?{position:"fixed",left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:undefined;
-
+ const lastBot=[...msgs].reverse().find(m=>m.role==="bot");
  const panel=(
-  <div className="nexbot-panel" role="dialog" aria-label="NexBot help">
+  <div className="nexbot-panel" role="dialog" aria-label="NexBot intelligent assistant">
    <div className="nexbot-head">
-    <div className="nexbot-avatar" aria-hidden="true"><Face size={30}/></div>
-    <div><b>NexBot</b><small>NEXORA guide</small></div>
-    <button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button>
+    <div className="nexbot-avatar"><Face size={30}/></div><div><b>NexBot</b><small>NEXORA intelligent assistant</small></div>
+    <div className="nexbot-head-actions"><button type="button" className="iconbtn" onClick={speakLast} aria-label="Read latest reply"><Volume2 size={16}/></button><button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button></div>
    </div>
-   <div className="nexbot-msgs">{msgs.map((m,i)=><div key={i} className={`nexbot-msg ${m.role}`}>{m.text}</div>)}</div>
+   <div className="nexbot-welcome"><Sparkles size={15}/><span>Ask naturally. I understand NEXORA features, your account context, shopping, orders and common follow-up questions.</span></div>
+   <div className="nexbot-msgs">
+    {msgs.map((m,i)=><div key={i} className={`nexbot-msg ${m.role}`}><span>{m.text}</span>{m.action&&actionInfo[m.action]&&<button className="nexbot-action" type="button" onClick={()=>{setOpen(false);actionInfo[m.action][1]()}}>{actionInfo[m.action][0]} <ArrowRight size={13}/></button>}</div>)}
+    {loading&&<div className="nexbot-msg bot typing"><LoaderCircle size={15}/><span>NexBot is thinking…</span></div>}
+    {products.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><ShoppingBag size={14}/> Product matches</div>{products.slice(0,4).map(p=><button key={p.id} type="button" className="nexbot-product" onClick={()=>{setOpen(false);goPage?.("marketplace")}}>{p.image?<img src={p.image} alt=""/>:<span className="nexbot-product-placeholder"><PackageSearch size={17}/></span>}<span><b>{p.title}</b><small>{money(p.price)} · {p.stock>0?`${p.stock} in stock`:"Sold out"}</small><em>{p.verified?"✓ Verified seller · ":""}{p.location||p.category||"NEXORA Marketplace"}</em></span><ArrowRight size={14}/></button>)}</div>}
+    {orders.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><Truck size={14}/> Recent orders</div>{orders.slice(0,3).map(o=><button key={o.id} type="button" className="nexbot-order" onClick={()=>{setOpen(false);goPage?.("marketplace")}}><span><b>{o.reference||o.id}</b><small>{o.items?.map(x=>`${x.title} ×${x.quantity}`).join(", ")||"Marketplace order"}</small></span><strong>{String(o.status||"PENDING").replaceAll("_"," ")}</strong></button>)}</div>}
+    {wallet&&<div className="nexbot-wallet"><WalletMinimal size={16}/><div><small>Available wallet</small><b>{money(wallet.balance)}</b></div><button type="button" onClick={()=>{setOpen(false);goPage?.("wallet")}}>Open</button></div>}
+   </div>
    <div className="nexbot-quick">{quick.map(([l,q])=><button type="button" key={l} onClick={()=>send(q)}>{l}</button>)}</div>
+   {suggestions.length>0&&<div className="nexbot-suggestions">{suggestions.slice(0,3).map(q=><button key={q} type="button" onClick={()=>send(q)}>{q}</button>)}</div>}
    <form className="nexbot-form" onSubmit={e=>{e.preventDefault();send()}}>
-    <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask about plans, Earn, ads…" autoComplete="off"/>
-    <button type="submit" className="primary narrow">Send</button>
+    <button type="button" className={`nexbot-mic ${listening?"active":""}`} onClick={startVoice} aria-label={listening?"Stop voice input":"Use voice input"}><Mic size={17}/></button>
+    <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask anything about NEXORA…" autoComplete="off"/>
+    <button type="submit" className="primary narrow" disabled={loading||!input.trim()} aria-label="Send"><SendHorizontal size={16}/></button>
    </form>
-   <div className="nexbot-links">
-    <button type="button" onClick={()=>{setOpen(false);goPackages&&goPackages()}}>Plans</button>
-    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("marketplace")}}>Shop</button>
-    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("products")}}>Advertise</button>
-    <button type="button" onClick={()=>{setOpen(false);goPage&&goPage("notifications")}}>Alerts</button>
-   </div>
+   <div className="nexbot-footer"><button type="button" onClick={()=>setSpeakReplies(v=>!v)}>{speakReplies?<Volume2 size={13}/>:<VolumeX size={13}/>} {speakReplies?"Read replies on":"Read replies off"}</button><span>Never share your PIN or password.</span></div>
   </div>
  );
-
  return <>
-  {open&&createPortal(
-    <div className="nexbot-overlay" onClick={()=>setOpen(false)}>
-      <div className="nexbot-sheet" onClick={e=>e.stopPropagation()}>{panel}</div>
-    </div>,
-    document.body
-  )}
+  {open&&createPortal(<div className="nexbot-overlay"><div ref={sheetRef} className="nexbot-sheet" onClick={e=>e.stopPropagation()} style={panelPos?{left:panelPos.left,top:panelPos.top,visibility:"visible"}:{left:0,top:0,visibility:"hidden"}}>{panel}</div></div>,document.body)}
   <div className={`nexbot-root ${open?"is-open":""}`} style={fabStyle}>
-   {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Here to help with NEXORA. Tap me anytime.</span></div>}
-   <button ref={fabRef} type="button" className="nexbot-fab"
-     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
-     onClick={e=>{e.preventDefault(); /* open handled in pointerup to avoid double */}}
-     title="NexBot — drag to move, tap to chat" aria-label="Open NexBot">
-    <span className="nexbot-fab-glow"/><Face size={34}/><span className="nexbot-fab-dot"/>
-   </button>
+   {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Ask me anything about NEXORA.</span></div>}
+   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onClick={e=>e.preventDefault()} title="NexBot — drag to move, tap to chat" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><Face size={34}/><span className="nexbot-fab-dot"/></button>
   </div>
  </>;
 }

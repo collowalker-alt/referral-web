@@ -164,3 +164,16 @@ In Paystack Dashboard → Developers → API Keys & Webhooks, configure the webh
 Use the Test Mode webhook URL while testing and the Live Mode webhook URL after activation. Keep the secret key only in Render environment variables; never commit it or put it in the frontend.
 
 Paystack's current documentation recommends webhooks for asynchronous M-Pesa payment completion, with transaction verification available as a fallback.
+
+## NexBot intelligent assistant
+
+NexBot is now an authenticated NEXORA assistant with:
+- natural-language NEXORA Q&A and conversational follow-ups
+- account-aware wallet, membership, referral, transaction and marketplace context
+- product and recent-order result cards
+- navigation/action buttons
+- quick actions
+- browser voice input and optional spoken replies
+- mobile-safe draggable launcher and anchored in-viewport chat window
+
+For the full AI conversation layer, set `NEXBOT_AI_API_KEY` on the NEXORA backend. The key must remain server-side and must never be placed in the frontend. `NEXBOT_AI_MODEL` defaults to `gpt-5.6-luna`. If no AI key is configured, NexBot falls back to its built-in NEXORA help engine.
