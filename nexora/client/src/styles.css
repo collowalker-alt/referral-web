@@ -2455,7 +2455,22 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
 .shopbenefit{display:flex;gap:11px;padding:12px 0;border-bottom:1px solid var(--border)}.shopbenefit:last-of-type{border-bottom:0}.shopbenefit svg{flex:0 0 auto;margin-top:2px}.shopbenefit b{display:block}.shopbenefit p{margin:4px 0 0}.shopbenefits-panel .full{width:100%;margin-top:14px;justify-content:center}
 .seller-cta-panel{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-top:18px;background:linear-gradient(120deg,rgba(74,119,255,.1),rgba(168,94,255,.07));border-color:rgba(93,128,255,.22)}.seller-cta-panel h3{margin:5px 0}.seller-cta-panel p{max-width:720px;margin:0}
 @media(max-width:900px){.shopcategorybar{align-items:flex-start;flex-direction:column}.shopcategorychips{justify-content:flex-start}.seller-cta-panel{align-items:flex-start;flex-direction:column}.ecommerce-dashboard-hero .dashboardhero-copy h1{font-size:38px}}
-@media(max-width:620px){.ecom-trust-row{display:grid;grid-template-columns:1fr}.ecom-trust-row span{justify-content:center}.shopcategorychips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.shopcategorychips button{justify-content:center}.ecommerce-dashboard-hero .heroactions{flex-direction:column}.ecommerce-dashboard-hero .heroactions button{width:100%;justify-content:center}.seller-cta-panel .primary{width:100%;justify-content:center}}
+@media(max-width:620px){
+  /* Compact trust tools: keep all three benefits visible without stacking three full-width bars. */
+  .ecom-trust-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;width:100%;margin-top:13px}
+  .ecom-trust-row span{min-width:0;min-height:58px;justify-content:center;flex-direction:column;gap:4px;padding:7px 4px;border-radius:14px;text-align:center;font-size:10px;line-height:1.15;overflow-wrap:anywhere}
+  .ecom-trust-row span svg{flex:0 0 auto}
+  .shopcategorychips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .shopcategorychips button{justify-content:center}
+  .ecommerce-dashboard-hero .heroactions{flex-direction:column}
+  .ecommerce-dashboard-hero .heroactions button{width:100%;justify-content:center}
+  .seller-cta-panel .primary{width:100%;justify-content:center}
+}
+
+@media(max-width:390px){
+  .ecom-trust-row{gap:5px}
+  .ecom-trust-row span{min-height:54px;font-size:9px;padding:6px 3px;border-radius:12px}
+}
 
 /* NEXORA shopper account card refinement — keep membership information, improve mobile fit */
 @media (max-width:760px){
