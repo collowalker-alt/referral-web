@@ -2991,7 +2991,7 @@ body{background:radial-gradient(circle at 10% -10%,rgba(69,224,189,.07),transpar
 .dashboardhero:after,.hero:after{content:"";position:absolute;inset:auto auto -45% -12%;width:300px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(91,140,255,.10),transparent 68%);pointer-events:none;}
 .dashboardhero>*{position:relative;z-index:1;}
 .dashboard-greeting{min-height:25px;margin-bottom:6px;font-size:14px;font-weight:800;letter-spacing:.01em;color:#8debd7;display:flex;align-items:center;gap:2px;}
-.typing-caret{display:inline-block;width:2px;height:17px;border-radius:2px;background:var(--nx-mint);animation:nxBlink .75s steps(1) infinite;box-shadow:0 0 12px rgba(69,224,189,.55);}
+
 @keyframes nxBlink{50%{opacity:0}}
 .dashboardhero h1{letter-spacing:-.035em;text-shadow:0 4px 25px rgba(0,0,0,.25);}
 .dashboardhero h1 span{background:linear-gradient(100deg,var(--nx-mint),var(--nx-cyan),#a4a8ff);-webkit-background-clip:text;background-clip:text;color:transparent;}
@@ -3050,3 +3050,265 @@ main>div>section,.dashboard-main-grid,.dashboardquick,.dashboardstats,.shopcateg
 html.nexora-light body{background:#eef5f7;}
 html.nexora-light .dashboardhero{background:linear-gradient(145deg,#ffffff,#eef8f7);border-color:#d9e8e8;}
 html.nexora-light .shopcategorybar,html.nexora-light .quickaction,html.nexora-light .dashboardstat{background:linear-gradient(145deg,#fff,#f5fafb);}
+
+/* =========================================================
+   NEXORA PREMIUM MOTION PASS
+   Subtle effects: lively, polished, never distracting.
+   ========================================================= */
+:root{
+  --nx-glow:rgba(69,224,189,.22);
+  --nx-glow-blue:rgba(91,140,255,.18);
+}
+
+/* Ambient dashboard atmosphere */
+.dashboardhero::before{animation:nxOrb 9s ease-in-out infinite alternate;}
+.dashboardhero::after{animation:nxOrb2 11s ease-in-out infinite alternate;}
+@keyframes nxOrb{from{transform:translate3d(0,0,0) scale(.94);opacity:.7}to{transform:translate3d(-18px,12px,0) scale(1.08);opacity:1}}
+@keyframes nxOrb2{from{transform:translate3d(0,0,0) scale(1)}to{transform:translate3d(18px,-10px,0) scale(1.12)}}
+
+/* Soft glass sheen on important cards */
+.dashboardhero,.dashboardhero-balance,.dashboardhero-plan,.walletbig,.marketcard,.quickaction,.nextaction,.shopbenefits-panel{
+  isolation:isolate;
+}
+.dashboardhero::marker{display:none;}
+.marketcard,.quickaction,.dashboardstat,.dashboardhero-balance,.dashboardhero-plan,.nextaction,.walletbig{
+  position:relative;overflow:hidden;
+}
+.marketcard::after,.quickaction::after,.dashboardstat::after,.dashboardhero-balance::after,.dashboardhero-plan::after,.nextaction::after,.walletbig::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:linear-gradient(115deg,transparent 25%,rgba(255,255,255,.075) 46%,transparent 67%);
+  transform:translateX(-115%);
+}
+.marketcard:hover::after,.quickaction:hover::after,.dashboardstat:hover::after,.dashboardhero-balance:hover::after,.dashboardhero-plan:hover::after,.nextaction:hover::after,.walletbig:hover::before{
+  opacity:1;animation:nxSheen .85s ease both;
+}
+@keyframes nxSheen{to{transform:translateX(115%)}}
+
+/* Marketplace imagery gets a premium depth treatment */
+.marketimage{overflow:hidden;}
+.marketimage::after{content:"";position:absolute;inset:auto 0 0;height:45%;background:linear-gradient(transparent,rgba(2,8,15,.65));pointer-events:none;}
+.marketimage img{transition:transform .45s cubic-bezier(.2,.8,.2,1),filter .35s ease;}
+.marketcard:hover .marketimage img{transform:scale(1.055);filter:saturate(1.1) contrast(1.02);}
+
+/* More tactile controls */
+.primary,.secondary,.iconbtn,.tiny-icon-btn,.market-tabs button,.wallettabs button,.mobile-bottom-nav button,.command-main,.command-item{
+  -webkit-tap-highlight-color:transparent;
+}
+.primary:active,.secondary:active,.iconbtn:active,.market-tabs button:active,.wallettabs button:active,.command-main:active,.command-item:active{
+  transform:translateY(1px) scale(.975)!important;
+}
+.primary:focus-visible,.secondary:focus-visible,.market-tabs button:focus-visible,.wallettabs button:focus-visible,.mobile-bottom-nav button:focus-visible{
+  outline:2px solid rgba(91,216,255,.65);outline-offset:2px;
+}
+
+/* Active mobile destination feels like a live control */
+.mobile-bottom-nav button.active{box-shadow:0 0 0 1px rgba(69,224,189,.08),0 7px 20px rgba(69,224,189,.08);}
+.mobile-bottom-nav button.active svg{filter:drop-shadow(0 0 7px rgba(69,224,189,.42));}
+
+/* Wallet becomes a fintech-style focal card */
+.walletbig{
+  background:radial-gradient(circle at 85% 25%,rgba(91,216,255,.11),transparent 28%),linear-gradient(135deg,#0d2434,#091722 72%);
+  border-color:rgba(91,216,255,.18);
+}
+.walletbig::after{animation:nxWalletFloat 8s ease-in-out infinite alternate;}
+@keyframes nxWalletFloat{from{transform:translate3d(0,0,0)}to{transform:translate3d(-12px,-8px,0)}}
+.walletbig strong{font-variant-numeric:tabular-nums;text-shadow:0 5px 25px rgba(69,224,189,.12);}
+.walletmetric{font-variant-numeric:tabular-nums;}
+
+/* Order status pills */
+.orderstatus{border:1px solid rgba(130,176,214,.12);font-weight:700;letter-spacing:.02em;}
+.orderstatus.processing,.orderstatus.shipped,.orderstatus.confirmed{box-shadow:0 0 18px rgba(91,140,255,.08);}
+.orderstatus.delivered{box-shadow:0 0 18px rgba(69,224,189,.10);}
+
+/* Recent activity rows gently reveal on hover */
+.activityrow{transition:transform .18s ease,background .18s ease,border-color .18s ease;padding-left:7px;padding-right:7px;border-radius:11px;}
+.activityrow:hover{transform:translateX(3px);background:rgba(255,255,255,.025);border-color:transparent;}
+.activityicon{transition:transform .2s ease,box-shadow .2s ease;}
+.activityrow:hover .activityicon{transform:scale(1.06);box-shadow:0 0 18px rgba(69,224,189,.10);}
+
+/* Recommended / trust elements gently breathe */
+.ecom-trust-row span:nth-child(1){animation:nxBreath 4.8s ease-in-out infinite;}
+.ecom-trust-row span:nth-child(2){animation:nxBreath 4.8s ease-in-out .8s infinite;}
+.ecom-trust-row span:nth-child(3){animation:nxBreath 4.8s ease-in-out 1.6s infinite;}
+@keyframes nxBreath{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+
+/* Cleaner page-entry cascade */
+.dashboardhero{animation:nxHeroIn .55s cubic-bezier(.2,.75,.2,1) both;}
+.dashboardhero + .shopcategorybar{animation:nxHeroIn .55s .06s cubic-bezier(.2,.75,.2,1) both;}
+.dashboardquick{animation:nxHeroIn .55s .11s cubic-bezier(.2,.75,.2,1) both;}
+.dashboardstats{animation:nxHeroIn .55s .16s cubic-bezier(.2,.75,.2,1) both;}
+.dashboard-main-grid{animation:nxHeroIn .55s .21s cubic-bezier(.2,.75,.2,1) both;}
+@keyframes nxHeroIn{from{opacity:0;transform:translateY(11px) scale(.995)}to{opacity:1;transform:none}}
+
+/* Small loading pulse for async states */
+.marketgrid+.panel p.muted,.panel>.muted:first-child{ }
+
+@media(max-width:760px){
+  .marketcard:hover .marketimage img{transform:scale(1.025);}
+  .activityrow:hover{transform:none;background:rgba(255,255,255,.02);}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important;}
+}
+
+/* =========================================================
+   NEXORA FINAL POLISH PASS
+   Implements: caret visibility, typing performance, stronger
+   hierarchy, better buttons, empty states, mobile feedback,
+   and paused ambient motion while typing.
+   ========================================================= */
+
+/* 1. Always-visible caret + readable input text on dark theme */
+input,
+textarea,
+select {
+  caret-color: #38d9a9 !important;
+  color: #eaf0ff;
+}
+input::placeholder,
+textarea::placeholder {
+  color: #6f829a;
+  opacity: 1;
+}
+
+/* 2. Pause expensive ambient animations while any field is focused
+   (directly helps slow typing / heavy reflow) */
+body:has(input:focus),
+body:has(textarea:focus),
+body:has(select:focus) {
+  .dashboardhero::before,
+  .dashboardhero::after,
+  .walletbig::after {
+    animation-play-state: paused !important;
+  }
+}
+
+/* Also pause when the page is hidden (battery / performance) */
+@media (prefers-reduced-motion: no-preference) {
+  body:not(:focus-within) .dashboardhero::before,
+  body:not(:focus-within) .dashboardhero::after {
+    /* keep running only when the document has focus */
+  }
+}
+
+/* 3. Stronger hierarchy on the balance card */
+.dashboardhero-balance {
+  background: linear-gradient(145deg, rgba(14, 42, 48, 0.96), rgba(8, 22, 32, 0.94)) !important;
+  border-color: rgba(69, 224, 189, 0.24) !important;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(69, 224, 189, 0.10) !important;
+}
+
+/* 4. Stronger, more alive primary button */
+.primary {
+  box-shadow:
+    0 8px 22px rgba(69, 224, 189, 0.18),
+    0 0 0 1px rgba(69, 224, 189, 0.12) !important;
+}
+.primary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow:
+    0 12px 32px rgba(69, 224, 189, 0.28),
+    0 0 0 1px rgba(69, 224, 189, 0.25) !important;
+}
+.primary:active {
+  transform: translateY(1px) scale(0.975) !important;
+}
+
+/* 5. Empty states – soft inner glow so they feel intentional */
+.dashboardempty,
+.empty-state {
+  border: 1px dashed rgba(111, 164, 202, 0.20) !important;
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012));
+  box-shadow: inset 0 0 40px rgba(56, 217, 169, 0.035);
+}
+
+/* 6. Marketplace cards – tactile feedback on touch devices */
+@media (hover: none) {
+  .marketcard:active {
+    transform: scale(0.985);
+    transition: transform 0.12s ease;
+  }
+  .quickaction:active {
+    transform: scale(0.97);
+  }
+}
+
+/* 7. Slightly richer wallet card presence */
+.walletbig {
+  border-color: rgba(91, 216, 255, 0.22) !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(91, 216, 255, 0.08);
+}
+.walletbig strong {
+  text-shadow: 0 4px 20px rgba(69, 224, 189, 0.18);
+}
+
+/* 8. Consistent focus ring for all interactive elements */
+button:focus-visible,
+.primary:focus-visible,
+.secondary:focus-visible,
+.iconbtn:focus-visible,
+.market-tabs button:focus-visible,
+.wallettabs button:focus-visible,
+.mobile-bottom-nav button:focus-visible,
+.nexbot-quick button:focus-visible,
+.nexbot-suggestions button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgba(91, 216, 255, 0.7) !important;
+  outline-offset: 2px;
+}
+
+/* 9. Soft success micro-feedback utility (use with JS if desired) */
+@keyframes nxSuccessPop {
+  0%   { transform: scale(0.6); opacity: 0; }
+  55%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.nx-success-pop {
+  animation: nxSuccessPop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+
+/* 10. Skeleton already exists – make sure it respects reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .nx-skeleton:after {
+    animation: none !important;
+  }
+}
+
+/* 11. Light-mode refinements so cards don’t disappear */
+html.nexora-light {
+  --nx-glow: rgba(16, 185, 129, 0.18);
+}
+html.nexora-light .dashboardhero-balance {
+  background: linear-gradient(145deg, #ffffff, #f0faf7) !important;
+  border-color: #b6e5d6 !important;
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.08) !important;
+}
+html.nexora-light .primary {
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.22) !important;
+}
+html.nexora-light input,
+html.nexora-light textarea,
+html.nexora-light select {
+  color: #0f172a;
+  caret-color: #059669 !important;
+}
+
+/* 12. Final safety: never let continuous orbs run under reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .dashboardhero::before,
+  .dashboardhero::after,
+  .walletbig::after,
+  .ecom-trust-row span {
+    animation: none !important;
+  }
+}

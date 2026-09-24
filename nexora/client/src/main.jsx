@@ -1107,7 +1107,7 @@ function Dashboard({me,goPage,profileStrength,tickets,goSecurity,load}){
  useEffect(()=>{
   const full=`Good evening, ${firstName}`;
   let i=0; setTypedGreeting("");
-  const timer=setInterval(()=>{ i+=1; setTypedGreeting(full.slice(0,i)); if(i>=full.length)clearInterval(timer); },48);
+  const timer=setInterval(()=>{ i+=1; setTypedGreeting(full.slice(0,i)); if(i>=full.length)clearInterval(timer); },105);
   return ()=>clearInterval(timer);
  },[firstName]);
  const [showBalance,setShowBalance]=useState(true);
@@ -1134,7 +1134,7 @@ function Dashboard({me,goPage,profileStrength,tickets,goSecurity,load}){
  return <>
   <section className="hero dashboardhero ecommerce-dashboard-hero">
    <div className="dashboardhero-copy">
-    <div className="dashboard-greeting" aria-live="polite"><span>{typedGreeting}</span><i className="typing-caret"/></div>
+    <div className="dashboard-greeting" aria-live="polite"><span>{typedGreeting}</span></div>
     <span className="pill">NEXORA MARKETPLACE</span>
     <h1>Shop smarter, <span>all in one place.</span></h1>
     <p>Discover products, compare listings, save favorites, place orders and manage your purchases from one modern marketplace.</p>
