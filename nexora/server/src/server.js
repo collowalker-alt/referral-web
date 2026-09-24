@@ -273,6 +273,13 @@ const logPaystackCharge=(label,{reference,httpStatus,response,phone,email}={})=>
     email:maskEmail(email)
   }));
 };
+async function createUserNotification(userId,{title,message,type="ACCOUNT",details=null}={}){
+  try{
+    if(!userId||!title||!message)return;
+    await prisma.$executeRawUnsafe(`INSERT INTO "Notification" ("id","userId","title","message","type","details","read","createdAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,CURRENT_TIMESTAMP)`,crypto.randomUUID(),String(userId),String(title).slice(0,160),String(message).slice(0,1000),String(type).slice(0,40),JSON.stringify(details||{}));
+  }catch(e){console.error("[NOTIFICATION CREATE]",e.message);}
+}
+
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
 // FIX 3: Health checks so / and /api don't return "Cannot GET"
@@ -551,6 +558,21 @@ app.post("/api/nexbot/chat",auth,nexbotLimiter,async(req,res)=>{
     const orderCards=orders.slice(0,4).map(o=>({id:o.id,reference:o.reference,total:o.total,status:o.status,paymentStatus:o.paymentStatus,createdAt:o.createdAt,items:o.items?.slice(0,3)||[]}));
     return res.json({answer,action,products:productCards,orders:orderCards,wallet:{balance:u.wallet?.balance||0,pendingBalance:u.wallet?.pendingBalance||0},suggestions:["What can I do on NEXORA?","Show my wallet","Where is my latest order?","Find products under KSh 5,000"]});
   }catch(e){console.error("[NEXBOT]",e);res.status(500).json({message:"NexBot could not answer right now. Please try again."});}
+});
+
+app.get("/api/notifications",auth,async(req,res)=>{
+  try{
+    const rows=await prisma.$queryRawUnsafe(`SELECT "id","title","message","type","details","read","createdAt" FROM "Notification" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 50`,req.user.id);
+    res.json(rows);
+  }catch(e){console.error("[NOTIFICATIONS]",e);res.status(500).json({message:"Unable to load notifications"});}
+});
+app.post("/api/notifications/:id/read",auth,async(req,res)=>{
+  try{await prisma.$executeRawUnsafe(`UPDATE "Notification" SET "read"=true WHERE "id"=$1 AND "userId"=$2`,req.params.id,req.user.id);res.json({ok:true});}
+  catch(e){res.status(500).json({message:"Unable to update notification"});}
+});
+app.post("/api/notifications/read-all",auth,async(req,res)=>{
+  try{await prisma.$executeRawUnsafe(`UPDATE "Notification" SET "read"=true WHERE "userId"=$1`,req.user.id);res.json({ok:true});}
+  catch(e){res.status(500).json({message:"Unable to update notifications"});}
 });
 
 app.get("/api/packages",async(req,res)=>{
@@ -869,7 +891,7 @@ async function activatePaidPackage(reference){
   await prisma.$transaction(async db=>{
     const claimed=await db.transaction.updateMany({where:{id:tx.id,status:"PENDING"},data:{status:"SUCCESS"}});
     if(claimed.count!==1)return;
-    await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id}});
+    await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id,planStatus:"ACTIVE"}});
     const buyer=await db.user.findUnique({where:{id:tx.userId}});
     if(!buyer?.referredById)return;
     const parent=await db.user.findUnique({where:{id:buyer.referredById}});
@@ -941,7 +963,7 @@ app.get("/api/admin/users",adminAuth,async(req,res)=>{
   try{
     const q=String(req.query.q||"").trim();
     const rows=await prisma.user.findMany({where:q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}}]}:undefined,include:{package:true,wallet:true,referredBy:{select:{name:true,email:true}}},orderBy:{createdAt:"desc"},take:200});
-    res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
+    res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
 app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
@@ -975,6 +997,7 @@ app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
       return wallet;
     });
     await logAdminAction(req,"BALANCE_CORRECTION","USER",user.id,user.email,{previousBalance:currentBalance,newBalance:result.balance,delta,mode,reason,reference,updateTotalEarned});
+    await createUserNotification(user.id,{title:"Your wallet was updated",message:`An administrator adjusted your wallet balance. ${delta>=0?`KSh ${Math.abs(delta).toLocaleString()} was added.`:`KSh ${Math.abs(delta).toLocaleString()} was deducted.`} Reason: ${reason}`,type:"WALLET",details:{reference,previousBalance:currentBalance,newBalance:result.balance,delta,reason}});
     res.json({message:`Balance updated for ${user.email}`,user:{id:user.id,name:user.name,email:user.email},previousBalance:currentBalance,newBalance:result.balance,delta,reference});
   }catch(e){
     console.error("Admin balance update error:",e);
@@ -982,8 +1005,30 @@ app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
   }
 });
 app.patch("/api/admin/users/:id/status",adminAuth,async(req,res)=>{
-  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
+  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});await createUserNotification(u.id,{title:status==="ACTIVE"?"Your account was reactivated":"Your account was suspended",message:status==="ACTIVE"?"An administrator reactivated your NEXORA account. You can continue using the platform.":"An administrator suspended your NEXORA account. Please contact support if you need clarification.",type:"ACCOUNT",details:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to update user"});}
+});
+app.patch("/api/admin/users/:id/plan",adminAuth,async(req,res)=>{
+  try{
+    const action=String(req.body?.action||"").toUpperCase();
+    if(!["SUSPEND","REACTIVATE","DEACTIVATE","REMOVE"].includes(action)) return res.status(400).json({message:"Invalid plan action"});
+    const current=await prisma.user.findUnique({where:{id:req.params.id},include:{package:true}});
+    if(!current) return res.status(404).json({message:"User not found"});
+    if(action!=="REACTIVATE" && !current.packageId) return res.status(400).json({message:"This user does not have an assigned plan"});
+    if(action==="REACTIVATE" && !current.packageId) return res.status(400).json({message:"This user has no plan to reactivate"});
+    if(action==="SUSPEND" && current.planStatus==="SUSPENDED") return res.status(400).json({message:"This plan is already suspended"});
+    if(action==="REACTIVATE" && current.planStatus!=="SUSPENDED") return res.status(400).json({message:"This plan is not suspended"});
+    const previousPackage=current.package;
+    const nextStatus=action==="SUSPEND"?"SUSPENDED":action==="REACTIVATE"?"ACTIVE":"DEACTIVATED";
+    const data=action==="REMOVE"?{packageId:null,planStatus:"DEACTIVATED"}:{packageId:current.packageId,planStatus:nextStatus};
+    if(action==="DEACTIVATE") data.packageId=null;
+    const updated=await prisma.user.update({where:{id:current.id},data,include:{package:true}});
+    const labels={SUSPEND:"USER_PLAN_SUSPENDED",REACTIVATE:"USER_PLAN_REACTIVATED",DEACTIVATE:"USER_PLAN_DEACTIVATED",REMOVE:"USER_PLAN_REMOVED"};
+    await logAdminAction(req,labels[action],"USER",current.id,current.email,{previousPackageId:previousPackage?.id||null,previousPackageName:previousPackage?.name||null,action});
+    const copy={SUSPEND:["Your membership plan was suspended",`An administrator temporarily suspended your ${previousPackage.name} plan. Your plan remains attached to your account and can be reactivated.`,`SUSPEND`],REACTIVATE:["Your membership plan was reactivated",`An administrator reactivated your ${previousPackage.name} plan. Your membership benefits are active again.`,`REACTIVATE`],DEACTIVATE:["Your membership plan was deactivated",`An administrator deactivated your ${previousPackage.name} plan. Your historical payment records remain available in Transactions.`,`DEACTIVATE`],REMOVE:["Your membership plan was removed",`An administrator removed your ${previousPackage.name} plan. Your historical payment records remain available in Transactions.`,`REMOVE`]}[action];
+    await createUserNotification(current.id,{title:copy[0],message:copy[1],type:"MEMBERSHIP",details:{action:copy[2],previousPackageId:previousPackage?.id||null,previousPackageName:previousPackage?.name||null}});
+    res.json({message:`${previousPackage?.name||"Plan"} ${action.toLowerCase()}d for ${current.email}`,user:{id:updated.id,package:updated.package,planStatus:updated.planStatus},previousPackage:previousPackage?{id:previousPackage.id,name:previousPackage.name}:null});
+  }catch(e){console.error("Admin user plan action error:",e);res.status(500).json({message:"Unable to update the member plan"});}
 });
 app.get("/api/admin/transactions",adminAuth,async(req,res)=>{
   try{const rows=await prisma.transaction.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
@@ -1011,6 +1056,7 @@ app.patch("/api/admin/withdrawals/:id/status",adminAuth,async(req,res)=>{
       ]);
     } else { await prisma.withdrawal.update({where:{id:current.id},data:{status}}); }
     await logAdminAction(req,"WITHDRAWAL_STATUS","WITHDRAWAL",current.id,null,{from:current.status,to:status,amount:current.amount,userId:current.userId,reference:current.reference});
+    await createUserNotification(current.userId,{title:`Withdrawal ${status.toLowerCase()}`,message:status==="PAID"?`Your withdrawal of KSh ${current.amount.toLocaleString()} was marked as paid by an administrator.`:status==="FAILED"?`Your withdrawal of KSh ${current.amount.toLocaleString()} was marked as failed and the amount was returned to your wallet.`:`Your withdrawal status was updated to ${status.toLowerCase()} by an administrator.`,type:"WITHDRAWAL",details:{reference:current.reference,status,amount:current.amount}});
     res.json({message:"Withdrawal status updated"});
   }catch(e){console.error("Admin withdrawal status error:",e);res.status(500).json({message:"Unable to update withdrawal"});}
 });
@@ -1047,6 +1093,7 @@ app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
     const result=await queryAndApplyPaystackStatus(reference);
     if(result.status==="success"){
       await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,provider:"PAYSTACK",status:result.status});
+      await createUserNotification(user.id,{title:"Payment fixed and account updated",message:"An administrator verified your Paystack payment and repaired the related NEXORA account record.",type:"PAYMENT",details:{reference,provider:"PAYSTACK"}});
       return res.json({message:"Paystack payment verified and member account repaired successfully",status:"success",reference});
     }
     await logAdminAction(req,"PAYMENT_CHECKED","TRANSACTION",tx.id,user.email,{reference,provider:"PAYSTACK",status:result.status});
@@ -1056,7 +1103,7 @@ app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
 
 
 app.get("/api/admin/support/tickets",adminAuth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
-app.patch("/api/admin/support/tickets/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
+app.patch("/api/admin/support/tickets/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});if(response)await createUserNotification(t.userId,{title:"Support ticket updated",message:`An administrator replied to your support ticket: ${t.subject}`,type:"SUPPORT",details:{ticketId:t.id,status}});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
 
 app.get("/api/admin/activity",adminAuth,async(req,res)=>{
   try{const rows=await prisma.adminActivityLog.findMany({orderBy:{createdAt:"desc"},take:500});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load admin activity"});}
@@ -1191,6 +1238,7 @@ app.post("/api/admin/wallet/deposits/verify",adminAuth,async(req,res)=>{
     if(action==="reject"){
       await prisma.transaction.update({where:{id:tx.id},data:{status:"FAILED",metadata:{...(tx.metadata||{}),rejectedAt:new Date().toISOString(),rejectNote:note,verifiedBy:req.admin.email}}});
       await logAdminAction(req,"WALLET_DEPOSIT_REJECTED","TRANSACTION",tx.id,tx.user?.email,{reference,note});
+      await createUserNotification(tx.userId,{title:"Wallet deposit was rejected",message:`An administrator rejected your wallet deposit${note?` with this note: ${note}`:"."}`,type:"PAYMENT",details:{reference,note}});
       return res.json({status:"failed",message:"Deposit rejected."});
     }
     const expected=Number(tx.amount);
@@ -1201,6 +1249,7 @@ app.post("/api/admin/wallet/deposits/verify",adminAuth,async(req,res)=>{
       await db.transaction.update({where:{id:tx.id},data:{status:"SUCCESS",metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}});
     });
     await logAdminAction(req,"WALLET_DEPOSIT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
+    await createUserNotification(tx.userId,{title:"Wallet deposit approved",message:`Your wallet deposit of KSh ${expected.toLocaleString()} was verified and credited by an administrator.`,type:"PAYMENT",details:{reference,amount:expected}});
     res.json({status:"success",message:`Deposit of KSh ${expected.toLocaleString()} credited to ${tx.user?.email||"member"}.`});
   }catch(e){console.error("[ADMIN DEPOSIT VERIFY]",e);res.status(500).json({message:"Unable to verify wallet deposit"});}
 });
@@ -1270,6 +1319,12 @@ async function ensureSupportTicketTable(){
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx" ON "SupportTicket"("status")`);
 }
 
+async function ensureNotificationTable(){
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Notification" ("id" TEXT PRIMARY KEY,"userId" TEXT NOT NULL,"title" TEXT NOT NULL,"message" TEXT NOT NULL,"type" TEXT NOT NULL DEFAULT 'ACCOUNT',"details" JSONB,"read" BOOLEAN NOT NULL DEFAULT false,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Notification_userId_createdAt_idx" ON "Notification"("userId","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Notification_userId_read_idx" ON "Notification"("userId","read")`);
+}
+
 async function ensureResetTokenColumns(){
   try{
     await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetToken" TEXT`);
@@ -1284,6 +1339,7 @@ async function startServer(){
     await ensureAnnouncementTable();
     await ensureAdminActivityTable();
     await ensureSupportTicketTable();
+    await ensureNotificationTable();
     await ensureResetTokenColumns();
     await ensureAdmin();
   }catch(e){
@@ -1294,4 +1350,4 @@ async function startServer(){
 
 startServer();
 
-app.patch("/api/admin/marketplace/sellers/:id",adminAuth,async(req,res)=>{try{const u=await prisma.user.update({where:{id:req.params.id},data:{sellerVerified:Boolean(req.body?.sellerVerified)}});res.json({id:u.id,sellerVerified:u.sellerVerified});}catch(e){res.status(500).json({message:"Unable to update seller verification"});}});
+app.patch("/api/admin/marketplace/sellers/:id",adminAuth,async(req,res)=>{try{const sellerVerified=Boolean(req.body?.sellerVerified);const u=await prisma.user.update({where:{id:req.params.id},data:{sellerVerified}});await logAdminAction(req,sellerVerified?"SELLER_VERIFIED":"SELLER_VERIFICATION_REMOVED","USER",u.id,null,{sellerVerified});await createUserNotification(u.id,{title:sellerVerified?"Seller verification approved":"Seller verification changed",message:sellerVerified?"An administrator verified your seller profile. Your verified seller status is now active.":"An administrator removed your verified seller status. Check your seller profile for details.",type:"MARKETPLACE",details:{sellerVerified}});res.json({id:u.id,sellerVerified:u.sellerVerified});}catch(e){res.status(500).json({message:"Unable to update seller verification"});}});

@@ -3478,3 +3478,28 @@ body:has(textarea:focus) {
 .receiptbody{padding:18px}.receiptcheck{display:flex;align-items:center;gap:12px;padding:16px;border-radius:16px;background:rgba(56,217,169,.08);border:1px solid rgba(56,217,169,.24);color:#38d9a9}.receiptcheck div{display:grid;gap:3px}.receiptcheck span{color:#a9bacb;font-size:13px}.receiptgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}.receiptgrid>div{padding:12px;border:1px solid #24394f;border-radius:12px;background:#0b1724;display:grid;gap:5px}.receiptgrid span{font-size:11px;color:#7f93a8;text-transform:uppercase;letter-spacing:.05em}.receiptgrid strong{font-size:13px;overflow-wrap:anywhere}.receiptpaid{color:#38d9a9}.txcheck{display:inline-flex;align-items:center;gap:5px;margin-top:6px}.paymentclose{min-width:150px}.paymenticon.success{animation:nxReceiptPop .45s ease-out}.payment-success{color:#38d9a9}.payment-failed{color:#ff8e8e}.payment-pending{color:#ffd27a}@keyframes nxReceiptPop{0%{transform:scale(.7);opacity:.3}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
 @media(max-width:560px){.receiptgrid{grid-template-columns:1fr}.receiptbody{padding:14px}.receiptmodal .modalfoot{display:grid;grid-template-columns:1fr 1fr}.receiptmodal .modalfoot button{width:100%}}
 @media print{body *{visibility:hidden!important}.receiptmodal,.receiptmodal *{visibility:visible!important}.receiptmodal{position:absolute!important;left:0!important;top:0!important;width:100%!important;box-shadow:none!important}.modalbackdrop{background:#fff!important;position:absolute!important}.receiptmodal .modalfoot,.receiptmodal .iconbtn{display:none!important}}
+
+.dangeroutline{border:1px solid #7a3440!important;background:#241017!important;color:#ffadb7!important;border-radius:10px;padding:10px 14px;font-weight:850;cursor:pointer}.dangeroutline:hover{background:#35151e!important;border-color:#a94452!important}.adminplanconfirm{display:grid;gap:14px;padding:0 4px 4px}.adminplansummary{padding:14px;border:1px solid #2b425b;background:#0a1726;border-radius:13px}.adminplansummary span,.adminplansummary small{display:block;color:#7890aa;font-size:11px}.adminplansummary strong{display:block;font-size:20px;margin:4px 0}.adminplanoptions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.adminplanoptions button{min-height:38px}.adminplanoptions .secondary{color:#a9b8c9}
+
+
+/* Account-update notifications */
+.loginupdatesbackdrop{z-index:1200;background:rgba(3,7,18,.72);backdrop-filter:blur(10px)}
+.loginupdates{max-width:620px;width:min(92vw,620px);animation:loginUpdateIn .42s cubic-bezier(.2,.8,.2,1)}
+.loginupdateslist{display:grid;gap:10px;max-height:48vh;overflow:auto;padding:4px 2px 8px}
+.loginupdate{display:flex;gap:12px;padding:14px;border:1px solid rgba(255,255,255,.1);border-radius:16px;background:rgba(255,255,255,.035)}
+.loginupdateicon{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:rgba(100,180,255,.12);flex:0 0 auto}
+.loginupdate b{display:block}.loginupdate p{margin:4px 0;color:var(--muted,#9aa6b8);line-height:1.5}.loginupdate small{color:var(--muted,#9aa6b8);font-size:11px}
+.notification.unread{border-color:rgba(100,180,255,.3);background:rgba(100,180,255,.055)}
+@keyframes loginUpdateIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+@media (max-width:640px){.loginupdates{width:calc(100vw - 24px);border-radius:20px}.loginupdates .modalfoot{gap:8px}.loginupdates .modalfoot button{flex:1}.loginupdateslist{max-height:52vh}}
+
+/* Lively admin action feedback */
+.adminapp[data-busy="true"] button:not(.iconbtn) { cursor: wait; }
+.adminapp[data-busy="true"] .adminmain button:not(.iconbtn) { opacity: .58; }
+.adminapp[data-busy="true"] .adminmain button:not(.iconbtn) { pointer-events: none; }
+.processingnotice { display:flex; align-items:center; gap:8px; }
+.processingnotice svg { flex:0 0 auto; }
+.rowaction, .primary, .secondary { transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease, background .16s ease; }
+.rowaction:not(:disabled):active, .primary:not(:disabled):active, .secondary:not(:disabled):active { transform: scale(.96); }
+.rowaction:disabled, .primary:disabled, .secondary:disabled { cursor: wait; }
+.adminplanoptions .rowaction { min-height:38px; }

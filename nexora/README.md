@@ -177,3 +177,11 @@ NexBot is now an authenticated NEXORA assistant with:
 - mobile-safe draggable launcher and anchored in-viewport chat window
 
 For the full AI conversation layer, set `NEXBOT_AI_API_KEY` on the NEXORA backend. The key must remain server-side and must never be placed in the frontend. `NEXBOT_AI_MODEL` defaults to `gpt-5.6-luna`. If no AI key is configured, NexBot falls back to its built-in NEXORA help engine.
+
+## Admin plan controls and action feedback
+- Admin member plan controls now support **Suspend**, **Reactivate**, **Deactivate**, and **Remove** as distinct states/actions.
+- Suspend keeps the member's plan attached but marks `planStatus` as `SUSPENDED`; Reactivate returns it to `ACTIVE`.
+- Deactivate ends the assignment and removes the active package from the member; Remove is the explicit removal action. Historical transactions remain intact.
+- Every plan action is written to the admin audit log and creates a member notification.
+- Admin mutation actions now show a processing state and completion message and temporarily disable admin controls to prevent accidental double submissions.
+- Because `User.planStatus` is a new Prisma field, apply the schema with `npx prisma db push --schema prisma/schema.prisma` before starting the API in an existing database, then restart the API.

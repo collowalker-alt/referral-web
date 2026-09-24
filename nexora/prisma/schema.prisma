@@ -13,6 +13,12 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum PlanStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
 enum TransactionStatus {
   PENDING
   SUCCESS
@@ -51,6 +57,7 @@ model User {
   referrals         User[]   @relation("ReferralTree")
   packageId         String?
   package           Package? @relation(fields: [packageId], references: [id])
+  planStatus        PlanStatus @default(ACTIVE)
   status            UserStatus @default(ACTIVE)
   sellerVerified    Boolean @default(false)
   sellerBio         String? @db.Text
@@ -72,6 +79,7 @@ model User {
   reviewsReceived   ProductReview[] @relation("ReviewSeller")
   wishlists         Wishlist[]
   disputes          Dispute[]
+  notifications     Notification[]
 
   @@index([referredById])
   @@index([packageId])
@@ -393,4 +401,19 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
   @@index([orderId])
   @@index([productId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("ACCOUNT")
+  details   Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, read])
 }
