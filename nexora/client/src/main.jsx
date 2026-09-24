@@ -1283,23 +1283,26 @@ function Security({me,reload,strength}){const [name,setName]=useState(me.user.na
 function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0}){
  const [phone,setPhone]=useState(data.phone||"");
  const [err,setErr]=useState("");
- const [method,setMethod]=useState(walletBalance>=Number(data.chargeAmount||0)?"wallet":"stk");
+ const [method,setMethod]=useState("stk");
  const [busy,setBusy]=useState(false);
- const [walletConfirm,setWalletConfirm]=useState(false);
  const amount=Number(data.chargeAmount||data.package?.price||0);
  const canWallet=walletBalance>=amount && amount>0;
  const phoneValid=validPhone(phone);
+ const useWallet=async()=>{
+  if(!canWallet)return setErr("Insufficient wallet balance for this plan.");
+  setErr("");
+  setMethod("wallet");
+  setBusy(true);
+  try{await onWallet(data.package)}catch(ex){setErr(ex.message||"Wallet purchase failed");setBusy(false)}
+ };
  const submit=async e=>{
-  e.preventDefault();setErr("");
-  if(method==="wallet"){
-   if(!canWallet)return setErr("Insufficient wallet balance for this plan.");
-   if(!walletConfirm)return setErr("Please confirm you want to pay from your wallet.");
-   setBusy(true);try{await onWallet(data.package)}catch(ex){setErr(ex.message||"Wallet purchase failed")}finally{setBusy(false)}
-   return;
-  }
+  e.preventDefault();
+  setErr("");
+  if(method==="wallet")return useWallet();
   const normalized=cleanPhone(phone);
-  if(!validPhone(normalized))return setErr("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541….");
-  setBusy(true);try{await onContinue(normalized)}catch(ex){setErr(ex.message||"Could not start M-Pesa STK payment")}finally{setBusy(false)}
+  if(!validPhone(normalized))return setErr("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541…." );
+  setBusy(true);
+  try{await onContinue(normalized)}catch(ex){setErr(ex.message||"Could not start M-Pesa STK payment");setBusy(false)}
  };
  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
   <div className="modalhead"><div><span className="pill">PURCHASE PACKAGE</span><h2>Choose how to pay</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close payment window"><X size={20}/></button></div>
@@ -1307,20 +1310,19 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0}){
    <div className="phonepackage"><div><span>Plan</span><strong>{data.package?.name}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(walletBalance)}</strong></div></div>
    <div className="paymethods">
     <button type="button" className={`paymethod ${method==="stk"?"active":""}`} disabled={busy} onClick={()=>{setMethod("stk");setErr("")}}><MessageCircle size={18}/><div><b>M-Pesa STK Push</b><span>Get an M-Pesa PIN prompt on your phone</span></div></button>
-    <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={()=>{if(canWallet){setMethod("wallet");setErr("")}}} disabled={!canWallet}><WalletCards size={18}/><div><b>Wallet balance</b><span>{canWallet?`Use ${money(amount)} from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button>
+    <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={useWallet} disabled={!canWallet||busy}><WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} instantly from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button>
    </div>
    {method==="stk"&&<div className="panel" style={{marginTop:12}}>
     <label className="fieldlabel">M-Pesa phone number
      <input required inputMode="tel" maxLength="13" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="07…, 01…, 2547… or 2541…"/>
     </label>
-    <p className={`muted small ${phone&&phoneValid?"":""}`}>Accepted: 07xxxxxxxx, 01xxxxxxxx, 2547xxxxxxxx or 2541xxxxxxxx. You will receive the M-Pesa PIN prompt on this number.</p>
+    <p className="muted small">Accepted: 07xxxxxxxx, 01xxxxxxxx, 2547xxxxxxxx or 2541xxxxxxxx. You will receive the M-Pesa PIN prompt on this number.</p>
    </div>}
-   {method==="wallet"&&<div className="walletconfirmbox"><p className="muted small">Your wallet will be charged <strong>{money(amount)}</strong>. The plan activates immediately. <strong>This cannot be undone.</strong></p><label className="termscheck"><input type="checkbox" checked={walletConfirm} onChange={e=>setWalletConfirm(e.target.checked)}/><span>I confirm paying {money(amount)} from my wallet for {data.package?.name}.</span></label></div>}
+   {method==="wallet"&&busy&&<div className="walletconfirmbox"><p className="muted small"><strong>Processing wallet payment…</strong> Your balance is being checked and the plan will activate automatically.</p></div>}
    {err&&<div className="error">{err}</div>}
-  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button><button type="submit" className="primary" disabled={busy}>{busy?"Please wait…":method==="wallet"?`Pay ${money(amount)} from wallet`:`Send M-Pesa STK Push`}</button></div></form>
+  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button>{method==="stk"&&<button type="submit" className="primary" disabled={busy}>{busy?"Please wait…":"Send M-Pesa STK Push"}</button>}</div></form>
  </div></div>;
 }
-
 function PaymentModal({payment,onClose,onCheck}){
  const status=payment.status||"pending";
  const isSuccess=status==="success";

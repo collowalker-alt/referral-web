@@ -3153,55 +3153,58 @@ html.nexora-light .shopcategorybar,html.nexora-light .quickaction,html.nexora-li
 }
 
 /* =========================================================
-   NEXORA FINAL POLISH PASS
-   Implements: caret visibility, typing performance, stronger
-   hierarchy, better buttons, empty states, mobile feedback,
-   and paused ambient motion while typing.
+   NEXORA LIVELY MOTION PACK — Top 4
+   1. Stronger button press + success pop
+   2. Staggered dashboard entry
+   3. Marketplace card hover depth
+   4. Sliding active nav indicator
+   + previous wallet border fix & performance guards
    ========================================================= */
 
-/* 1. Always-visible caret + readable input text on dark theme */
-input,
-textarea,
-select {
-  caret-color: #38d9a9 !important;
-  color: #eaf0ff;
+/* ---------- Shared utilities ---------- */
+@keyframes nxRise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
 }
-input::placeholder,
-textarea::placeholder {
-  color: #6f829a;
-  opacity: 1;
+@keyframes nxSuccess {
+  0%   { transform: scale(0.7); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
 }
-
-/* 2. Pause expensive ambient animations while any field is focused
-   (directly helps slow typing / heavy reflow) */
-body:has(input:focus),
-body:has(textarea:focus),
-body:has(select:focus) {
-  .dashboardhero::before,
-  .dashboardhero::after,
-  .walletbig::after {
-    animation-play-state: paused !important;
-  }
+@keyframes nxNavSlide {
+  from { transform: scaleX(0.4); opacity: 0.5; }
+  to   { transform: scaleX(1); opacity: 1; }
+}
+@keyframes nxUnderlineIn {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
 }
 
-/* Also pause when the page is hidden (battery / performance) */
-@media (prefers-reduced-motion: no-preference) {
-  body:not(:focus-within) .dashboardhero::before,
-  body:not(:focus-within) .dashboardhero::after {
-    /* keep running only when the document has focus */
-  }
+/* ---------- 1. Stronger button press + success pop ---------- */
+.primary,
+.secondary,
+.iconbtn,
+.tiny-icon-btn,
+.hero-balance-btn,
+.hero-plan-btn,
+.marketactions button,
+.wallettabs button,
+.mobile-bottom-nav button,
+.nexbot-quick button {
+  transition: transform 0.15s ease, box-shadow 0.18s ease, filter 0.15s ease, background 0.18s ease, border-color 0.18s ease !important;
 }
 
-/* 3. Stronger hierarchy on the balance card */
-.dashboardhero-balance {
-  background: linear-gradient(145deg, rgba(14, 42, 48, 0.96), rgba(8, 22, 32, 0.94)) !important;
-  border-color: rgba(69, 224, 189, 0.24) !important;
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(69, 224, 189, 0.10) !important;
+.primary:active,
+.secondary:active,
+.iconbtn:active,
+.hero-balance-btn:active,
+.hero-plan-btn:active,
+.marketactions button:active,
+.wallettabs button:active {
+  transform: translateY(1px) scale(0.965) !important;
+  filter: brightness(0.94);
 }
 
-/* 4. Stronger, more alive primary button */
 .primary {
   box-shadow:
     0 8px 22px rgba(69, 224, 189, 0.18),
@@ -3211,104 +3214,255 @@ body:has(select:focus) {
   transform: translateY(-1px);
   filter: brightness(1.05);
   box-shadow:
-    0 12px 32px rgba(69, 224, 189, 0.28),
-    0 0 0 1px rgba(69, 224, 189, 0.25) !important;
-}
-.primary:active {
-  transform: translateY(1px) scale(0.975) !important;
+    0 12px 30px rgba(69, 224, 189, 0.28),
+    0 0 0 1px rgba(69, 224, 189, 0.22) !important;
 }
 
-/* 5. Empty states – soft inner glow so they feel intentional */
-.dashboardempty,
-.empty-state {
-  border: 1px dashed rgba(111, 164, 202, 0.20) !important;
-  border-radius: 16px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.012));
-  box-shadow: inset 0 0 40px rgba(56, 217, 169, 0.035);
+/* Success micro-feedback — add class "nx-success" via JS after copy / deposit / order */
+.nx-success {
+  animation: nxSuccess 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.nx-success-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(56, 217, 169, 0.18);
+  color: #38d9a9;
+  animation: nxSuccess 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
 }
 
-/* 6. Marketplace cards – tactile feedback on touch devices */
-@media (hover: none) {
-  .marketcard:active {
-    transform: scale(0.985);
-    transition: transform 0.12s ease;
-  }
-  .quickaction:active {
-    transform: scale(0.97);
-  }
+/* ---------- 2. Better staggered dashboard entry ---------- */
+.dashboardhero {
+  animation: nxRise 0.52s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.dashboardhero-side {
+  animation: nxRise 0.52s 0.07s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.dashboardquick,
+.shopcategorybar {
+  animation: nxRise 0.52s 0.13s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.dashboardstats {
+  animation: nxRise 0.52s 0.19s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+.dashboard-main-grid,
+.dashboardquick + section,
+.shopcategorybar + section {
+  animation: nxRise 0.52s 0.25s cubic-bezier(0.2, 0.75, 0.2, 1) both;
 }
 
-/* 7. Slightly richer wallet card presence */
-.walletbig {
-  border-color: rgba(91, 216, 255, 0.22) !important;
+/* ---------- 3. Marketplace card hover depth ---------- */
+.marketcard,
+.dashboardproduct {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.28s ease,
+              border-color 0.28s ease !important;
+}
+.marketcard:hover,
+.dashboardproduct:hover {
+  transform: translateY(-4px);
+  border-color: rgba(69, 224, 189, 0.28) !important;
   box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.32),
-    0 0 0 1px rgba(91, 216, 255, 0.08);
+    0 16px 36px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(69, 224, 189, 0.10);
 }
-.walletbig strong {
-  text-shadow: 0 4px 20px rgba(69, 224, 189, 0.18);
+.marketimage,
+.dashboardproductimage {
+  overflow: hidden;
 }
-
-/* 8. Consistent focus ring for all interactive elements */
-button:focus-visible,
-.primary:focus-visible,
-.secondary:focus-visible,
-.iconbtn:focus-visible,
-.market-tabs button:focus-visible,
-.wallettabs button:focus-visible,
-.mobile-bottom-nav button:focus-visible,
-.nexbot-quick button:focus-visible,
-.nexbot-suggestions button:focus-visible,
-a:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: 2px solid rgba(91, 216, 255, 0.7) !important;
-  outline-offset: 2px;
+.marketimage img,
+.dashboardproductimage img {
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.35s ease !important;
+}
+.marketcard:hover .marketimage img,
+.dashboardproduct:hover .dashboardproductimage img {
+  transform: scale(1.06);
+  filter: saturate(1.08) contrast(1.03);
 }
 
-/* 9. Soft success micro-feedback utility (use with JS if desired) */
-@keyframes nxSuccessPop {
-  0%   { transform: scale(0.6); opacity: 0; }
-  55%  { transform: scale(1.12); opacity: 1; }
-  100% { transform: scale(1); opacity: 1; }
-}
-.nx-success-pop {
-  animation: nxSuccessPop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+/* Soft bottom gradient on product images for depth */
+.marketimage::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 42%;
+  background: linear-gradient(transparent, rgba(2, 8, 15, 0.62));
+  pointer-events: none;
+  opacity: 0.9;
 }
 
-/* 10. Skeleton already exists – make sure it respects reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .nx-skeleton:after {
-    animation: none !important;
+/* Price underline that slides in on hover */
+.marketcard .marketprice,
+.marketcard strong[class*="price"],
+.dashboardproductinfo b {
+  position: relative;
+  display: inline-block;
+}
+.marketcard:hover .marketprice::after,
+.marketcard:hover strong[class*="price"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #38d9a9, transparent);
+  transform-origin: left;
+  animation: nxUnderlineIn 0.35s ease both;
+}
+
+@media (hover: none) {
+  .marketcard:active,
+  .dashboardproduct:active {
+    transform: scale(0.98);
   }
 }
 
-/* 11. Light-mode refinements so cards don’t disappear */
-html.nexora-light {
-  --nx-glow: rgba(16, 185, 129, 0.18);
+/* ---------- 4. Sliding active nav indicator ---------- */
+/* Sidebar */
+aside button {
+  position: relative;
+  overflow: hidden;
 }
-html.nexora-light .dashboardhero-balance {
-  background: linear-gradient(145deg, #ffffff, #f0faf7) !important;
-  border-color: #b6e5d6 !important;
-  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.08) !important;
+aside button.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, #5eead4, #38d9a9);
+  box-shadow: 0 0 12px rgba(56, 217, 169, 0.45);
+  animation: nxNavSlide 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-html.nexora-light .primary {
-  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.22) !important;
-}
-html.nexora-light input,
-html.nexora-light textarea,
-html.nexora-light select {
-  color: #0f172a;
-  caret-color: #059669 !important;
+aside button.active {
+  background: rgba(56, 217, 169, 0.08) !important;
+  color: #e8fff8 !important;
 }
 
-/* 12. Final safety: never let continuous orbs run under reduced motion */
-@media (prefers-reduced-motion: reduce) {
+/* Mobile bottom nav – soft glow + top indicator */
+.mobile-bottom-nav button {
+  position: relative;
+}
+.mobile-bottom-nav button.active::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 22%;
+  right: 22%;
+  height: 2px;
+  border-radius: 0 0 3px 3px;
+  background: #38d9a9;
+  box-shadow: 0 0 10px rgba(56, 217, 169, 0.5);
+  animation: nxNavSlide 0.25s ease both;
+}
+.mobile-bottom-nav button.active {
+  color: #75e4c7 !important;
+}
+.mobile-bottom-nav button.active svg {
+  filter: drop-shadow(0 0 6px rgba(56, 217, 169, 0.45));
+}
+
+/* ---------- Wallet card border overflow fix (from previous) ---------- */
+.dashboardhero-side {
+  position: relative;
+  overflow: hidden !important;
+  isolation: isolate;
+  border-radius: 18px !important;
+}
+.dashboardhero-balance,
+.dashboardhero-plan {
+  position: relative;
+  overflow: hidden !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.dashboardhero-balance {
+  margin-top: 4px;
+  padding-top: 14px !important;
+  border-top: none !important;
+  background-image: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.10) 12%,
+    rgba(255, 255, 255, 0.10) 88%,
+    transparent 100%
+  );
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top center;
+}
+.dashboardhero-balance > strong {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-shadow: 0 4px 22px rgba(69, 224, 189, 0.22);
+  font-variant-numeric: tabular-nums;
+}
+.dashboardhero-plan span,
+.dashboardhero-plan-meta {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px !important;
+  font-size: 11px !important;
+  color: #38d9a9 !important;
+  background: rgba(56, 217, 169, 0.10);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+  width: fit-content;
+}
+
+/* ---------- Performance & accessibility guards ---------- */
+input, textarea, select {
+  caret-color: #38d9a9 !important;
+}
+body:has(input:focus),
+body:has(textarea:focus) {
   .dashboardhero::before,
   .dashboardhero::after,
-  .walletbig::after,
-  .ecom-trust-row span {
+  .walletbig::after {
+    animation-play-state: paused !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboardhero,
+  .dashboardhero-side,
+  .dashboardquick,
+  .shopcategorybar,
+  .dashboardstats,
+  .dashboard-main-grid,
+  .marketcard,
+  .dashboardproduct,
+  .nx-success,
+  aside button.active::before,
+  .mobile-bottom-nav button.active::before {
     animation: none !important;
+    transition: none !important;
+  }
+  .marketcard:hover,
+  .dashboardproduct:hover {
+    transform: none !important;
+  }
+  .marketcard:hover .marketimage img,
+  .dashboardproduct:hover .dashboardproductimage img {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboardhero-balance {
+    border-top: none !important;
+    padding-top: 12px !important;
+  }
+  .marketcard:hover {
+    transform: translateY(-2px);
   }
 }
