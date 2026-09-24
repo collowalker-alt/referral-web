@@ -1,0 +1,24 @@
+NEXORA PERFORMANCE + ACCOUNT NOTIFICATIONS UPDATE
+
+1. ADMIN ACCOUNT UPDATE NOTIFICATIONS
+- Admin balance corrections notify the affected member.
+- Account suspension/reactivation notify the affected member.
+- Plan deactivation/removal notify the affected member.
+- Paystack payment repairs notify the affected member.
+- Wallet deposit approval/rejection notify the affected member.
+- Withdrawal status changes notify the affected member.
+- Seller verification changes notify the affected member.
+- Support replies notify the affected member.
+- Notifications are stored server-side and appear in the member Notifications area.
+- Unread administrator updates are shown briefly when the member opens/logs into the workspace, then marked read.
+
+2. STARTUP PERFORMANCE
+- The app now fetches /me first and renders the workspace immediately after authentication.
+- Non-critical dashboard data loads in the background instead of blocking the first workspace render.
+- Registration no longer waits through the old artificial 700ms delay before opening the workspace.
+- The startup Refresh NEXORA control appears after 6 seconds if loading is still stuck.
+
+3. NOTIFICATION UI
+- Account updates use a concise modal with Close and View notifications actions.
+- The modal auto-closes after 8 seconds so it does not interrupt the member for long.
+- The notification center keeps administrator updates available alongside existing account reminders.
