@@ -2964,3 +2964,89 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
 @keyframes splashRefreshSpin{to{transform:rotate(360deg)}}
 @media(max-width:520px){.splashrefresh{margin-top:14px;min-height:66px}.splashrefreshbtn{min-height:40px;padding:0 14px;border-radius:11px;font-size:12px}.splashlabel{font-size:10px;max-width:88vw}}
 @media(prefers-reduced-motion:reduce){.splashrefresh{transition:none}.splashrefreshbtn .spin{animation:none}}
+
+/* =========================================================
+   NEXORA 2026 VISUAL SYSTEM / POLISH PASS
+   Premium, lively, compact and consistent across the workspace.
+   ========================================================= */
+:root{
+  --nx-mint:#45e0bd;
+  --nx-cyan:#5bd8ff;
+  --nx-blue:#5b8cff;
+  --nx-violet:#9a7cff;
+  --nx-navy:#071421;
+  --nx-panel:#0c1826;
+  --nx-panel2:#101f31;
+  --nx-border:rgba(132,176,214,.15);
+  --nx-text:#eef8ff;
+  --nx-muted:#8298ad;
+  --nx-shadow:0 18px 55px rgba(0,0,0,.24);
+}
+body{background:radial-gradient(circle at 10% -10%,rgba(69,224,189,.07),transparent 28%),radial-gradient(circle at 95% 0%,rgba(91,140,255,.07),transparent 30%),#07111c;}
+.app main{background:linear-gradient(180deg,rgba(7,17,28,.72),rgba(7,17,28,.98));}
+.panel,.dashboardstat,.pkg,.walletbig,.featurecard,.communitypost,.step,.marketcard,.productcard,.academycard{border-color:var(--nx-border);box-shadow:0 10px 34px rgba(0,0,0,.10);}
+.panel:hover,.dashboardstat:hover,.pkg:hover,.marketcard:hover,.productcard:hover,.academycard:hover{box-shadow:var(--nx-shadow);}
+.hero,.dashboardhero{position:relative;overflow:hidden;border:1px solid rgba(103,190,226,.15);box-shadow:0 22px 65px rgba(0,0,0,.20);}
+.dashboardhero:before,.hero:before{content:"";position:absolute;inset:-30% -10% auto auto;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(69,224,189,.13),transparent 68%);pointer-events:none;}
+.dashboardhero:after,.hero:after{content:"";position:absolute;inset:auto auto -45% -12%;width:300px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(91,140,255,.10),transparent 68%);pointer-events:none;}
+.dashboardhero>*{position:relative;z-index:1;}
+.dashboard-greeting{min-height:25px;margin-bottom:6px;font-size:14px;font-weight:800;letter-spacing:.01em;color:#8debd7;display:flex;align-items:center;gap:2px;}
+.typing-caret{display:inline-block;width:2px;height:17px;border-radius:2px;background:var(--nx-mint);animation:nxBlink .75s steps(1) infinite;box-shadow:0 0 12px rgba(69,224,189,.55);}
+@keyframes nxBlink{50%{opacity:0}}
+.dashboardhero h1{letter-spacing:-.035em;text-shadow:0 4px 25px rgba(0,0,0,.25);}
+.dashboardhero h1 span{background:linear-gradient(100deg,var(--nx-mint),var(--nx-cyan),#a4a8ff);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.ecom-trust-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+.ecom-trust-row span{padding:7px 9px;border:1px solid rgba(130,180,215,.12);background:rgba(255,255,255,.035);border-radius:999px;color:#9cb0c2;font-size:10px;backdrop-filter:blur(8px);}
+.ecom-trust-row svg{vertical-align:-3px;color:var(--nx-mint);}
+.dashboardhero-balance,.dashboardhero-plan{background:linear-gradient(145deg,rgba(10,27,42,.94),rgba(10,20,32,.92));border-color:rgba(88,216,255,.15);box-shadow:0 18px 40px rgba(0,0,0,.2);}
+.dashboardhero-balance strong{font-variant-numeric:tabular-nums;letter-spacing:-.035em;}
+.shopcategorybar{background:linear-gradient(145deg,rgba(14,28,43,.82),rgba(9,19,31,.76));backdrop-filter:blur(14px);}
+.shopcategorychips button{border-color:rgba(105,178,218,.13);background:rgba(255,255,255,.035);}
+.shopcategorychips button:hover{border-color:rgba(69,224,189,.42);background:rgba(69,224,189,.07);transform:translateY(-1px);}
+.dashboardquick-head{padding:0 2px;}
+.dashboardquick-grid{gap:12px;}
+.quickaction{min-height:72px;border:1px solid rgba(114,169,210,.12);background:linear-gradient(145deg,rgba(16,31,47,.92),rgba(10,21,33,.92));box-shadow:0 8px 25px rgba(0,0,0,.10);}
+.quickaction:hover{transform:translateY(-3px);border-color:rgba(69,224,189,.30);box-shadow:0 15px 35px rgba(0,0,0,.20);}
+.quickaction-icon{box-shadow:0 8px 18px rgba(0,0,0,.18);}
+.dashboardstat{background:linear-gradient(145deg,rgba(14,28,43,.9),rgba(9,19,30,.88));}
+.dashboardstat strong{font-variant-numeric:tabular-nums;}
+.dashboard-main-grid{align-items:start;}
+.nextaction{border-color:rgba(69,224,189,.18);background:linear-gradient(145deg,rgba(12,31,38,.92),rgba(10,20,31,.92));}
+.paneltitle h3{letter-spacing:-.02em;}
+/* Compact professional tables/lists */
+.admintable,.transactiontable,.orderlist{border-radius:16px;overflow:hidden;}
+/* Consistent premium buttons */
+.primary{box-shadow:0 9px 24px rgba(69,224,189,.12);}
+.primary:hover{transform:translateY(-1px);filter:brightness(1.04);box-shadow:0 12px 30px rgba(69,224,189,.18);}
+.secondary:hover{transform:translateY(-1px);}
+/* Better empty states */
+.dashboardempty,.empty-state{border:1px dashed rgba(111,164,202,.18);border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.025),rgba(255,255,255,.012));}
+/* Skeleton-ready shimmer utility for future async blocks */
+.nx-skeleton{position:relative;overflow:hidden;background:rgba(255,255,255,.055);border-radius:9px;color:transparent!important;}
+.nx-skeleton:after{content:"";position:absolute;inset:0;transform:translateX(-100%);background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);animation:nxShimmer 1.25s infinite;}
+@keyframes nxShimmer{100%{transform:translateX(100%)}}
+/* Global page transition polish */
+main>div>section,.dashboard-main-grid,.dashboardquick,.dashboardstats,.shopcategorybar{animation:nxRise .42s ease both;}
+@keyframes nxRise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+/* Mobile: preserve hierarchy and avoid wasted vertical space */
+@media(max-width:760px){
+ .dashboard-greeting{font-size:13px;}
+ .dashboardhero{border-radius:18px;}
+ .dashboardhero h1{font-size:clamp(24px,7vw,34px);}
+ .ecom-trust-row{gap:5px;}
+ .ecom-trust-row span{font-size:9px;padding:6px 8px;}
+ .dashboardquick-grid{gap:8px;}
+ .quickaction{min-height:66px;padding:10px;}
+ .dashboardstats{gap:8px;}
+}
+@media(max-width:430px){
+ .dashboard-greeting{font-size:12px;}
+ .dashboardhero{padding:15px;}
+ .dashboardhero-side{gap:8px;}
+ .ecom-trust-row span{flex:1 1 calc(50% - 5px);text-align:center;}
+ .quickaction{min-height:62px;}
+ .dashboardstat{min-width:0;}
+}
+html.nexora-light body{background:#eef5f7;}
+html.nexora-light .dashboardhero{background:linear-gradient(145deg,#ffffff,#eef8f7);border-color:#d9e8e8;}
+html.nexora-light .shopcategorybar,html.nexora-light .quickaction,html.nexora-light .dashboardstat{background:linear-gradient(145deg,#fff,#f5fafb);}
