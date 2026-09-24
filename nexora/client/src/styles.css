@@ -3506,3 +3506,13 @@ body:has(textarea:focus) {
 
 .app-error-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#18223b 0,#070b14 55%,#05070d 100%)}
 .app-error-card{width:min(520px,100%);padding:30px;border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(15,21,35,.92);box-shadow:0 24px 80px rgba(0,0,0,.35);text-align:center}.app-error-card h1{margin:12px 0 8px}.app-error-card .rowactions{justify-content:center;margin-top:22px}
+
+/* Safer admin plan controls */
+.adminplanmodal{width:min(640px,94vw)}
+.adminplanchoices{justify-content:stretch}
+.adminplanchoices .rowaction{flex:1 1 180px;justify-content:center}
+.adminplanwarning{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;padding:16px;border:1px solid rgba(255,190,80,.28);background:rgba(255,190,80,.06);border-radius:16px}
+.adminplanwarningicon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(255,190,80,.12);color:#ffd27a}
+.adminplanwarning h3{margin:2px 0 5px}.adminplanwarning p{margin:0;color:var(--muted,#9aa6b8);line-height:1.5}.adminplanwarning .adminplanoptions{grid-column:1/-1;justify-content:flex-end;margin-top:4px}
+.warningaction{border-color:rgba(255,190,80,.35)!important;background:rgba(255,190,80,.09)!important;color:#ffd27a!important}
+@media(max-width:620px){.adminplanchoices{display:grid}.adminplanchoices .rowaction{width:100%}.adminplanwarning{grid-template-columns:1fr}.adminplanwarningicon{margin-bottom:2px}.adminplanwarning .adminplanoptions{display:grid;grid-template-columns:1fr 1fr}.adminplanwarning .adminplanoptions button{width:100%}}
