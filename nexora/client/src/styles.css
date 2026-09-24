@@ -2952,3 +2952,15 @@ html.nexora-light body{background:#f2f6f8;color:#15202b}html.nexora-light .app m
   .nexbot-head{min-height:52px !important;}
   .nexbot-quick button{padding:5px 7px !important;font-size:9px !important;}
 }
+
+/* Splash refresh control: appears only if the initial NEXORA load takes a few seconds. */
+.splashrefresh{min-height:72px;margin-top:18px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .35s ease,transform .35s ease;color:#7187a0;font-size:11px;letter-spacing:.03em;text-align:center;z-index:5}
+.splashrefresh.visible{opacity:1;transform:translateY(0);pointer-events:auto}
+.splashrefreshbtn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 16px;border:1px solid rgba(83,224,198,.34);border-radius:12px;background:linear-gradient(135deg,rgba(20,47,69,.96),rgba(7,20,34,.98));color:#eaf7ff;font-weight:850;letter-spacing:.01em;box-shadow:0 8px 26px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06);cursor:pointer;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease}
+.splashrefreshbtn:hover{transform:translateY(-1px);border-color:rgba(83,224,198,.62);box-shadow:0 12px 30px rgba(0,0,0,.35),0 0 20px rgba(69,223,185,.09)}
+.splashrefreshbtn:active{transform:translateY(0) scale(.98)}
+.splashrefreshbtn:disabled{opacity:.78;cursor:wait}
+.splashrefreshbtn .spin{animation:splashRefreshSpin .8s linear infinite}
+@keyframes splashRefreshSpin{to{transform:rotate(360deg)}}
+@media(max-width:520px){.splashrefresh{margin-top:14px;min-height:66px}.splashrefreshbtn{min-height:40px;padding:0 14px;border-radius:11px;font-size:12px}.splashlabel{font-size:10px;max-width:88vw}}
+@media(prefers-reduced-motion:reduce){.splashrefresh{transition:none}.splashrefreshbtn .spin{animation:none}}

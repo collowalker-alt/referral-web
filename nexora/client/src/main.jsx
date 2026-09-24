@@ -13,7 +13,23 @@ const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"
 const validPhone=v=>PHONE_RE.test(cleanPhone(v));
 async function api(path,opts={}){const token=localStorage.getItem("token");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Request failed");return d}
 
-function NexoraSplash({label="Loading your workspace…"}){return <div className="nexorasplash" role="status" aria-label="Loading NEXORA"><div className="splashorb splashorb1"/><div className="splashorb splashorb2"/><div className="splashring splashring1"/><div className="splashring splashring2"/><div className="splashlogo"><span className="splashlogoLayer layerBack"><img src="/nexora-logo.png" alt=""/></span><span className="splashlogoLayer layerMid"><img src="/nexora-logo.png" alt=""/></span><span className="splashlogoLayer layerMain"><img src="/nexora-logo.png" alt="NEXORA"/></span><i className="splashshine"/></div><div className="splashscan"/><div className="splashdots"><i/><i/><i/><i/><i/><i/></div><div className="splashbrand">NEXORA<span>.</span></div><div className="splashlabel">{label}</div></div>}
+function NexoraSplash({label="Loading your workspace…"}){
+ const [showRefresh,setShowRefresh]=useState(false);
+ const [refreshing,setRefreshing]=useState(false);
+ useEffect(()=>{const timer=setTimeout(()=>setShowRefresh(true),3500);return()=>clearTimeout(timer)},[]);
+ const refresh=()=>{if(refreshing)return;setRefreshing(true);setTimeout(()=>window.location.reload(),120);};
+ return <div className="nexorasplash" role="status" aria-label="Loading NEXORA">
+  <div className="splashorb splashorb1"/><div className="splashorb splashorb2"/><div className="splashring splashring1"/><div className="splashring splashring2"/>
+  <div className="splashlogo"><span className="splashlogoLayer layerBack"><img src="/nexora-logo.png" alt=""/></span><span className="splashlogoLayer layerMid"><img src="/nexora-logo.png" alt=""/></span><span className="splashlogoLayer layerMain"><img src="/nexora-logo.png" alt="NEXORA"/></span><i className="splashshine"/></div>
+  <div className="splashscan"/><div className="splashdots"><i/><i/><i/><i/><i/><i/></div><div className="splashbrand">NEXORA<span>.</span></div><div className="splashlabel">{label}</div>
+  <div className={`splashrefresh ${showRefresh?"visible":""}`} aria-live="polite">
+   <span>{showRefresh?"Taking longer than expected?":""}</span>
+   {showRefresh&&<button type="button" className="splashrefreshbtn" onClick={refresh} disabled={refreshing} aria-label="Refresh NEXORA">
+    <RefreshCw size={15} className={refreshing?"spin":""}/>{refreshing?"Refreshing…":"Refresh NEXORA"}
+   </button>}
+  </div>
+ </div>
+}
 
 function PWAInstall({compact=false}){
  const [deferred,setDeferred]=useState(null);
