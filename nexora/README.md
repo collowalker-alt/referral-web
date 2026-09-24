@@ -185,3 +185,7 @@ For the full AI conversation layer, set `NEXBOT_AI_API_KEY` on the NEXORA backen
 - Every plan action is written to the admin audit log and creates a member notification.
 - Admin mutation actions now show a processing state and completion message and temporarily disable admin controls to prevent accidental double submissions.
 - Because `User.planStatus` is a new Prisma field, apply the schema with `npx prisma db push --schema prisma/schema.prisma` before starting the API in an existing database, then restart the API.
+
+
+## Admin plan controls
+Admin plan management now distinguishes ACTIVE, SUSPENDED and DEACTIVATED states. Suspend temporarily pauses a plan without removing its assignment; Deactivate ends the plan while preserving the assignment for later reactivation; Remove permanently clears the assignment while retaining historical transactions. After pulling/deploying schema changes, run `npx prisma generate --schema prisma/schema.prisma` and `npx prisma db push --schema prisma/schema.prisma` as appropriate for the environment.

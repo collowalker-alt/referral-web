@@ -3503,3 +3503,6 @@ body:has(textarea:focus) {
 .rowaction:not(:disabled):active, .primary:not(:disabled):active, .secondary:not(:disabled):active { transform: scale(.96); }
 .rowaction:disabled, .primary:disabled, .secondary:disabled { cursor: wait; }
 .adminplanoptions .rowaction { min-height:38px; }
+
+.app-error-screen{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#18223b 0,#070b14 55%,#05070d 100%)}
+.app-error-card{width:min(520px,100%);padding:30px;border:1px solid rgba(255,255,255,.1);border-radius:24px;background:rgba(15,21,35,.92);box-shadow:0 24px 80px rgba(0,0,0,.35);text-align:center}.app-error-card h1{margin:12px 0 8px}.app-error-card .rowactions{justify-content:center;margin-top:22px}
