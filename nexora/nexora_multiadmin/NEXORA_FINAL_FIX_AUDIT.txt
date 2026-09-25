@@ -1,0 +1,24 @@
+NEXORA FINAL UI / PAYMENT AUDIT
+Date: 2026-09-21
+
+FIXES APPLIED
+1. Marketplace header collapse fixed. The section title/content column now retains a flexible width while the Cart action remains fixed-width. This prevents the title from collapsing to a few pixels and rendering one character per line.
+2. Authentication modal viewport behavior fixed. The login/register/reset modal is constrained to the visible dynamic viewport, cannot be clipped above the browser viewport, and the form becomes the internal scroll area on short screens.
+3. Authentication modal header/close control remains visible while the form is scrolled.
+4. Safe-area padding was added for mobile devices with display cutouts/notches.
+5. Existing long-modal scrolling rules remain active for package payment, Paybill, wallet deposit, instructions, Academy lesson, advertising submission and admin dialogs.
+6. Co-operative Bank M-Pesa Paybill flow is active. Default Paybill is 400200 and the Co-op account number is supplied through MPESA_PAYBILL_ACCOUNT.
+7. Active application code contains no Till payment number or Buy Goods/Till payment instructions. The legacy Prisma MPESA_TILL enum remains only for compatibility with old database records.
+8. Server syntax check passed for server/src/server.js and server/src/seed.js.
+9. Render blueprint uses Vite build: npm install --prefix client && npm run build --prefix client and publishes client/dist.
+
+PAYBILL ENVIRONMENT
+MPESA_PAYBILL_NUMBER=400200
+MPESA_PAYBILL_ACCOUNT=YOUR_COOP_ACCOUNT_NUMBER
+MPESA_PAYBILL_NAME=NEXORA
+
+BUILD NOTE
+A fresh npm install could not be completed in the inspection sandbox because registry access/dependency installation timed out. Therefore a fresh Vite production build was not executed in this sandbox. The previously reported JSX location is present in the corrected source and the client source was statically inspected.
+
+
+2026-09-22 PAYSTACK SWITCH: Active member package and wallet M-Pesa payments use Paystack M-Pesa STK Push. Co-op static-IP gateway is no longer required by the active payment flow.
