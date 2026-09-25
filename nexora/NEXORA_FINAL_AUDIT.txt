@@ -23,3 +23,9 @@ The sandbox could not complete npm dependency installation within the available 
 
 
 CURRENT PAYMENT MODE: Co-op Bank Lipa na M-Pesa Paybill (400200) with manual M-Pesa confirmation-code verification. Paystack STK is not used by the active member payment UI.
+
+
+Additional corrections in this revision:
+10. Admin Management action buttons now receive the real AdminApp busy state; they no longer read a nonexistent `action.busy` property.
+11. Wallet Paybill verification is restricted to SUPER_ADMIN / ADMIN / FINANCE_ADMIN and uses an atomic pending-to-success claim before crediting the wallet, preventing double-credit if two admins act at the same time.
+12. Payment Repair now supports the active Co-op Paybill package-payment flow and retains a separate legacy Paystack path for historical records. Its UI copy no longer claims Paystack is the current payment provider.
