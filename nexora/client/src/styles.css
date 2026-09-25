@@ -4077,3 +4077,416 @@ textarea::placeholder{
     border-bottom:1px solid rgba(56,217,169,.18) !important;
   }
 }
+
+/* Home dashboard — compact hero arrangement */
+.home-hero-compact.ecommerce-dashboard-hero,
+.home-hero-compact.dashboardhero{
+  padding:14px 14px 12px !important;
+  gap:12px !important;
+  margin-bottom:12px !important;
+  border-radius:16px !important;
+}
+.home-hero-compact .dashboard-greeting{
+  font-size:12px !important;
+  margin-bottom:4px !important;
+  min-height:1.2em !important;
+}
+.home-hero-compact .pill{
+  font-size:9px !important;
+  padding:3px 8px !important;
+  margin-bottom:6px !important;
+}
+.home-hero-compact h1{
+  font-size:clamp(1.15rem, 4.2vw, 1.55rem) !important;
+  line-height:1.2 !important;
+  margin:0 0 6px !important;
+}
+.home-hero-compact .home-hero-sub{
+  font-size:12.5px !important;
+  line-height:1.4 !important;
+  margin:0 0 10px !important;
+  color:#8fa3b8 !important;
+  max-width:36ch;
+}
+.home-hero-actions{
+  display:flex !important;
+  flex-wrap:nowrap !important;
+  gap:8px !important;
+  margin:0 0 10px !important;
+  width:100% !important;
+}
+.home-hero-actions .primary,
+.home-hero-actions .secondary{
+  flex:1 1 0 !important;
+  min-width:0 !important;
+  padding:9px 10px !important;
+  font-size:12.5px !important;
+  justify-content:center !important;
+  white-space:nowrap !important;
+}
+.home-earn-btn{
+  border-color:rgba(56,217,169,.4) !important;
+  color:#7fe8c9 !important;
+  background:rgba(56,217,169,.1) !important;
+}
+.home-trust-compact.ecom-trust-row{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:6px 10px !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+.home-trust-compact span{
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:4px !important;
+  font-size:10px !important;
+  font-weight:600 !important;
+  color:#7a8fa5 !important;
+  background:transparent !important;
+  border:none !important;
+  padding:0 !important;
+  white-space:nowrap !important;
+}
+.home-trust-compact svg{width:12px;height:12px;opacity:.9}
+.home-hero-side{
+  display:grid !important;
+  gap:8px !important;
+}
+.home-hero-compact .ecommerce-balance-card,
+.home-hero-compact .dashboardhero-balance{
+  padding:10px 12px !important;
+  border-radius:14px !important;
+}
+.home-hero-compact .dashboardhero-balance-head{
+  font-size:10px !important;
+  margin-bottom:2px !important;
+}
+.home-balance-value,
+.home-hero-compact .dashboardhero-balance strong{
+  font-size:1.25rem !important;
+  margin:2px 0 8px !important;
+}
+.home-balance-actions{
+  gap:6px !important;
+  margin:0 !important;
+}
+.home-balance-actions button{
+  padding:7px 10px !important;
+  font-size:11.5px !important;
+}
+.home-plan-chip.shop-status-card,
+.home-plan-chip.dashboardhero-plan{
+  padding:10px 12px !important;
+  border-radius:14px !important;
+}
+.home-plan-chip .dashboardmini-label{font-size:9px !important}
+.home-plan-chip strong{font-size:14px !important}
+.home-plan-chip span{font-size:11px !important;color:#8094a9}
+.home-plan-cta{margin-top:8px !important;width:100% !important;padding:7px 10px !important;font-size:12px !important}
+
+/* Earn tabs: plans left, network right already in markup */
+.earntabs{
+  display:flex !important;
+  gap:8px !important;
+  margin:10px 0 14px !important;
+}
+.earntabs button{
+  flex:1 1 0 !important;
+  padding:10px 12px !important;
+  font-size:12.5px !important;
+}
+
+@media(max-width:760px){
+  .home-hero-compact.ecommerce-dashboard-hero{
+    display:flex !important;
+    flex-direction:column !important;
+    padding:12px !important;
+  }
+  .home-hero-actions{gap:6px !important}
+  .home-hero-actions .primary,
+  .home-hero-actions .secondary{
+    padding:9px 8px !important;
+    font-size:12px !important;
+  }
+  .home-trust-compact span{font-size:9.5px !important}
+}
+@media(min-width:900px){
+  .home-hero-compact.ecommerce-dashboard-hero{
+    display:grid !important;
+    grid-template-columns:1.4fr 0.9fr !important;
+    align-items:stretch !important;
+    padding:16px 18px !important;
+  }
+}
+
+
+/* =========================================================
+   NEXORA HOME / EARN UX PACK
+   Skeletons, transitions, success feedback, sticky CTAs,
+   empty states, glass hero, plan highlights, Paybill steps,
+   input polish, motion, hierarchy
+   ========================================================= */
+
+/* --- Skeletons --- */
+.nx-skeleton{
+  position:relative;overflow:hidden;border-radius:12px;
+  background:rgba(255,255,255,.055);color:transparent!important;
+  min-height:14px;
+}
+.nx-skeleton::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);
+  animation:nxSkim 1.2s ease-in-out infinite;
+}
+@keyframes nxSkim{100%{transform:translateX(100%)}}
+.nx-skel-row{display:grid;gap:10px;margin:12px 0}
+.nx-skel-card{height:88px;border-radius:16px}
+.nx-skel-line{height:12px;border-radius:8px}
+.nx-skel-line.w60{width:60%}.nx-skel-line.w40{width:40%}.nx-skel-line.w80{width:80%}
+.nx-skel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+.nx-skel-product{height:180px;border-radius:16px}
+
+/* --- Soft page transitions --- */
+.page-enter{
+  animation:nxPageIn .18s ease both;
+}
+@keyframes nxPageIn{
+  from{opacity:0;transform:translateY(6px)}
+  to{opacity:1;transform:none}
+}
+main>section, main .plans-compact, main .earn-shell{
+  animation:nxPageIn .18s ease both;
+}
+
+/* --- Success micro-feedback --- */
+@keyframes nxSuccessPop{
+  0%{transform:scale(.72);opacity:0}
+  55%{transform:scale(1.1);opacity:1}
+  100%{transform:scale(1);opacity:1}
+}
+@keyframes nxGreenPulse{
+  0%{box-shadow:0 0 0 0 rgba(56,217,169,.45)}
+  100%{box-shadow:0 0 0 12px rgba(56,217,169,0)}
+}
+.nx-success{animation:nxSuccessPop .36s cubic-bezier(.2,.9,.3,1) both}
+.nx-success-pulse{animation:nxGreenPulse .55s ease-out both}
+
+/* Copy button feedback — blue tick + "Copied" */
+.copybtn, .copyaccountbtn, .copybox button, .channelkit, button.nx-copy{
+  position:relative;transition:background .15s,border-color .15s,color .15s,transform .12s;
+}
+.copybtn.is-copied, .copyaccountbtn.is-copied, .copybox button.is-copied, .channelkit.is-copied, button.nx-copy.is-copied{
+  color:#5eb8ff!important;
+  border-color:rgba(94,184,255,.45)!important;
+  background:rgba(94,184,255,.12)!important;
+}
+.copybtn.is-copied svg, .copyaccountbtn.is-copied svg, button.nx-copy.is-copied svg{
+  color:#5eb8ff!important;
+}
+@keyframes nxTickIn{
+  0%{transform:scale(.5);opacity:0}
+  100%{transform:scale(1);opacity:1}
+}
+.is-copied .nx-tick, .nx-copied-label{
+  animation:nxTickIn .25s ease both;
+}
+
+/* --- Sticky mobile CTAs --- */
+.nx-sticky-cta{
+  display:none;
+  position:fixed;left:12px;right:12px;bottom:calc(72px + env(safe-area-inset-bottom,0px));
+  z-index:90;padding:10px 12px;border-radius:14px;
+  background:linear-gradient(145deg,rgba(8,22,34,.96),rgba(6,16,26,.98));
+  border:1px solid rgba(56,217,169,.28);
+  box-shadow:0 12px 32px rgba(0,0,0,.4);
+  gap:8px;align-items:center;
+}
+.nx-sticky-cta .primary{flex:1;justify-content:center}
+@media(max-width:760px){
+  .nx-sticky-cta.show{display:flex}
+}
+
+/* --- Empty states: one clear action --- */
+.smartempty, .panel.empty, .dashboardempty, .empty-state{
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  padding:22px 18px;border-radius:16px;
+  border:1px dashed rgba(111,164,202,.2);
+  background:linear-gradient(145deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+  box-shadow:inset 0 0 36px rgba(56,217,169,.03);
+}
+.smartempty p, .panel.empty p, .empty-state p{
+  margin:0;font-size:13px;color:#8fa3b8;max-width:36ch;
+}
+.smartempty .primary, .smartempty .secondary,
+.panel.empty .primary, .panel.empty .secondary{
+  margin-top:4px;
+}
+
+/* --- Glass only on hero / balance --- */
+.dashboardhero, .dashboardhero-side, .dashboardhero-balance, .walletbig{
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.panel, .stat, .pkg, .quickaction, .dashboardstat, .marketcard{
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+
+/* --- Active tab underline / pill glow --- */
+.earntabs, .wallettabs, .market-tabs, .plans-tabs, .authtabs{
+  position:relative;
+}
+.earntabs button.active, .wallettabs button.active, .market-tabs button.active, .plans-tabs button.active, .authtabs button.active{
+  color:#e8fff8!important;
+  box-shadow:0 0 0 1px rgba(56,217,169,.18), inset 0 -2px 0 #38d9a9;
+  background:rgba(56,217,169,.08)!important;
+}
+.earntabs button.active{
+  box-shadow:0 0 16px rgba(56,217,169,.12), inset 0 -2px 0 #38d9a9;
+}
+
+/* --- Plan cards: current highlight + locked --- */
+.pkg.current, .plancard.current, .packagecard.is-current{
+  border-color:rgba(56,217,169,.45)!important;
+  box-shadow:0 0 0 1px rgba(56,217,169,.2), 0 12px 28px rgba(0,0,0,.28)!important;
+  background:linear-gradient(160deg,rgba(16,48,44,.55),rgba(10,22,34,.9))!important;
+}
+.pkg.current::before, .plancard.current::before{
+  content:"";position:absolute;left:0;right:0;top:0;height:2px;
+  background:linear-gradient(90deg,transparent,#38d9a9,transparent);
+}
+.pkg .lock, .plancard .feature-locked, .earn-feature.locked{
+  opacity:.55;position:relative;
+}
+.pkg .lock::after, .feature-locked::after{
+  content:"🔒";font-size:11px;margin-left:6px;opacity:.8;
+}
+
+/* --- Paybill step dots --- */
+.paybill-progress{
+  display:flex;align-items:center;justify-content:center;gap:0;margin:6px 0 16px;
+}
+.paybill-progress .step{
+  display:flex;flex-direction:column;align-items:center;gap:6px;min-width:72px;
+  font-size:10px;color:#7d93a8;font-weight:700;letter-spacing:.04em;
+}
+.paybill-progress .step .dot{
+  width:22px;height:22px;border-radius:50%;
+  display:grid;place-items:center;font-size:11px;font-weight:800;
+  border:1.5px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.04);color:#9eb2c6;
+}
+.paybill-progress .step.active .dot{
+  border-color:#38d9a9;background:rgba(56,217,169,.18);color:#dffcf3;
+  box-shadow:0 0 0 4px rgba(56,217,169,.1);
+}
+.paybill-progress .step.done .dot{
+  border-color:#38d9a9;background:#1fb890;color:#04201a;
+}
+.paybill-progress .bar{
+  flex:1;height:2px;max-width:40px;margin:0 4px 18px;
+  background:rgba(255,255,255,.1);border-radius:2px;
+}
+.paybill-progress .bar.done{background:rgba(56,217,169,.45)}
+.paybill-pin-hint{
+  display:flex;align-items:center;gap:6px;font-size:11px;color:#8fa3b8;margin:6px 0 0;
+}
+.paybill-pin-hint svg{color:#38d9a9;flex-shrink:0}
+
+/* --- Inputs: teal focus, gentle error shake once --- */
+input:focus, textarea:focus, select:focus{
+  outline:none;
+  border-color:rgba(56,217,169,.65)!important;
+  box-shadow:0 0 0 3px rgba(56,217,169,.12)!important;
+}
+@keyframes nxShakeOnce{
+  0%,100%{transform:translateX(0)}
+  20%{transform:translateX(-4px)}
+  40%{transform:translateX(4px)}
+  60%{transform:translateX(-3px)}
+  80%{transform:translateX(2px)}
+}
+input.nx-error, .field.nx-error input{
+  border-color:rgba(248,113,113,.55)!important;
+  animation:nxShakeOnce .35s ease both;
+}
+.error, .notice.error{
+  border-left:3px solid rgba(248,113,113,.7);
+  background:rgba(248,113,113,.08);
+}
+
+/* --- Motion: NexBot idle pulse, lists stagger --- */
+.nexbot-fab:not(.is-dragging){
+  animation:nxFabPulse 2.8s ease-in-out infinite;
+}
+@keyframes nxFabPulse{
+  0%,100%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 0 rgba(56,217,169,.25)}
+  50%{box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 8px rgba(56,217,169,0)}
+}
+.stagger-in > *{
+  animation:nxPageIn .28s ease both;
+}
+.stagger-in > *:nth-child(1){animation-delay:0ms}
+.stagger-in > *:nth-child(2){animation-delay:30ms}
+.stagger-in > *:nth-child(3){animation-delay:60ms}
+.stagger-in > *:nth-child(4){animation-delay:90ms}
+.stagger-in > *:nth-child(5){animation-delay:120ms}
+
+/* --- Hierarchy: one primary feel --- */
+.sectionhead .primary, .plans-compact .primary, .paybill-submit{
+  box-shadow:0 8px 22px rgba(69,224,189,.2);
+}
+.how-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  color:#9eb2c6;cursor:pointer;transition:.15s ease;
+}
+.how-chip:hover{border-color:rgba(56,217,169,.35);color:#dffcf3}
+
+/* Bottom nav active weight */
+.mobile-bottom-nav button.active{
+  font-weight:700;
+}
+.mobile-bottom-nav button.active svg{
+  transform:scale(1.12);
+  filter:drop-shadow(0 0 6px rgba(56,217,169,.4));
+}
+
+/* Home balance + plan row on wide phones */
+@media(min-width:480px) and (max-width:900px){
+  .dashboardhero-side{
+    display:grid!important;
+    grid-template-columns:1fr 1fr;
+    gap:12px!important;
+    align-items:stretch;
+  }
+  .dashboardhero-balance{border-top:none!important;padding-top:0!important;background-image:none!important}
+}
+
+/* Receipt card after success */
+.nx-receipt{
+  border-radius:16px;padding:18px;
+  background:linear-gradient(160deg,rgba(14,42,38,.5),rgba(8,18,28,.95));
+  border:1px solid rgba(56,217,169,.28);
+  box-shadow:0 12px 32px rgba(0,0,0,.3);
+}
+.nx-receipt h3{margin:0 0 8px;font-size:16px}
+.nx-receipt .row{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:13px;border-bottom:1px solid rgba(255,255,255,.06)}
+.nx-receipt .row:last-child{border-bottom:0}
+
+/* Work-based earn messaging (replaces guarantee language in UI chips) */
+.earn-note{
+  font-size:12px;color:#8fa3b8;margin:6px 0 0;
+  display:flex;align-items:center;gap:6px;
+}
+.earn-note svg{color:#38d9a9;flex-shrink:0}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .nx-skeleton::after, .nexbot-fab, .page-enter, main>section,
+  .stagger-in > *, .nx-success, .nx-success-pulse, .is-copied .nx-tick{
+    animation:none!important;
+  }
+}
