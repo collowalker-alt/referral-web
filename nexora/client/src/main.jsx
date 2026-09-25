@@ -1868,65 +1868,136 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
  const hasPackage=Boolean(me?.package);
  const [tab,setTab]=useState(initialTab==="plans"?"plans":"network");
  const [earnInfo,setEarnInfo]=useState(false);
- return <div className="nx-ptr" ref={ptrRef}><div className="nx-ptr-indicator"><LoaderCircle size={14} className="spin"/> Refreshing…</div><section className="earnsection">
-  <div className="sectionhead"><div><span className="pill">EARN CENTER</span><h1>Earn with NEXORA</h1><p className="muted">Plans unlock your referral tools. No guaranteed income.</p></div>
-   {hasPackage&&tab==="network"&&<div className="heroactions compact"><button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review the plans first. Results follow the work you put in: ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="primary" onClick={share}><Share2 size={15}/> Share</button></div>}
-  </div>
-  <div className="earntabs">
-   <button type="button" className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>Membership plans</button>
-   <button type="button" className={tab==="network"?"active":""} onClick={()=>setTab("network")}>Network & referrals</button>
-  </div>
+ return (
+  <div className="nx-ptr" ref={ptrRef}>
+   <div className="nx-ptr-indicator"><LoaderCircle size={14} className="spin"/> Refreshing…</div>
+   <section className="earnsection">
+    <div className="sectionhead">
+     <div>
+      <span className="pill">EARN CENTER</span>
+      <h1>Earn with NEXORA</h1>
+      <p className="muted">Plans unlock your referral tools. Results come from the work you put in.</p>
+     </div>
+     {hasPackage&&tab==="network"&&(
+      <div className="heroactions compact">
+       <button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button>
+       <button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review the plans first. Results follow the work you put in: ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button>
+       <button className="primary" onClick={share}><Share2 size={15}/> Share</button>
+      </div>
+     )}
+    </div>
 
-  {tab==="plans"&&(
-    <div className="earnplans">
+    <div className="earntabs">
+     <button type="button" className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>Membership plans</button>
+     <button type="button" className={tab==="network"?"active":""} onClick={()=>setTab("network")}>Network & referrals</button>
+    </div>
+
+    {tab==="plans"&&(
+     <div className="earnplans">
       <div className="info-chip-row">
-        <button type="button" className="info-chip" onClick={()=>setEarnInfo(true)}>Why a plan is required</button>
+       <button type="button" className="info-chip" onClick={()=>setEarnInfo(true)}>Why a plan is required</button>
       </div>
       {earnInfo&&createPortal(
-        <div className="modalbackdrop payment-layer" onClick={()=>setEarnInfo(false)}>
-          <div className="modal info-mini-modal" onClick={e=>e.stopPropagation()}>
-            <div className="modalhead"><div><span className="pill">EARN RULES</span><h2>Purchase a plan to start earning</h2></div><button type="button" className="iconbtn" onClick={()=>setEarnInfo(false)}><X size={18}/></button></div>
-            <div className="paymentbody">
-              <p className="muted">Commissions are only recorded with an active plan and a qualifying referral purchase. Results depend on your qualifying activity and plan rules.</p>
-              <ul className="earnterms">
-                <li>Activate a plan to unlock your referral link for earning.</li>
-                <li>Commissions follow the plan levels your membership can earn from.</li>
-                <li>Upgrades charge only the price difference.</li>
-                <li>Review Membership rules, Terms and Privacy before paying.</li>
-              </ul>
-            </div>
-            <div className="modalfoot"><button type="button" className="primary" onClick={()=>setEarnInfo(false)}>Got it</button></div>
-          </div>
-        </div>, document.body)}
+       <div className="modalbackdrop payment-layer" onClick={()=>setEarnInfo(false)}>
+        <div className="modal info-mini-modal" onClick={e=>e.stopPropagation()}>
+         <div className="modalhead">
+          <div><span className="pill">EARN RULES</span><h2>Purchase a plan to start earning</h2></div>
+          <button type="button" className="iconbtn" onClick={()=>setEarnInfo(false)}><X size={18}/></button>
+         </div>
+         <div className="paymentbody">
+          <p className="muted">Commissions are only recorded with an active plan and a qualifying referral purchase. Results depend on your qualifying activity and plan rules.</p>
+          <ul className="earnterms">
+           <li>Activate a plan to unlock your referral link for earning.</li>
+           <li>Commissions follow the plan levels your membership can earn from.</li>
+           <li>Upgrades charge only the price difference.</li>
+           <li>Review Membership rules, Terms and Privacy before paying.</li>
+          </ul>
+         </div>
+         <div className="modalfoot"><button type="button" className="primary" onClick={()=>setEarnInfo(false)}>Got it</button></div>
+        </div>
+       </div>,
+       document.body
+      )}
       <Packages packages={packages} current={me.package} purchase={purchase} reload={reload||(()=>{})}/>
-    </div>
-  )}
+     </div>
+    )}
 
-  {tab==="network"&&<>
-    {!hasPackage&&(
-      <div className="lockedpanel earnlock">
+    {tab==="network"&&(
+     <div className="earn-network">
+      {!hasPackage&&(
+       <div className="lockedpanel earnlock">
         <LockKeyhole size={28}/>
         <div>
-          <h3>Plan required to start earning</h3>
-          <p className="muted">Your referral link and commission tracking unlock after you purchase a membership plan. Choose a plan to begin — commissions follow the published plan rules only.</p>
-          <ul className="earnterms compact">
-            <li>No active plan = referral link stays locked for earning tools.</li>
-            <li>Qualifying referrals are recorded only after a successful plan purchase by your invitee (where rules allow).</li>
-            <li>By continuing to plans you confirm you understand Results depend on your qualifying activity and plan rules.</li>
-          </ul>
-          <button type="button" className="primary" onClick={()=>setTab("plans")}><PackageIcon size={16}/> View membership plans</button>
+         <h3>Plan required to start earning</h3>
+         <p className="muted">Your referral link and commission tracking unlock after you purchase a membership plan. Choose a plan to begin — commissions follow the published plan rules only.</p>
+         <ul className="earnterms compact">
+          <li>No active plan = referral link stays locked for earning tools.</li>
+          <li>Qualifying referrals are recorded only after a successful plan purchase by your invitee (where rules allow).</li>
+          <li>By continuing to plans you confirm you understand results depend on your qualifying activity and plan rules.</li>
+         </ul>
+         <button type="button" className="primary" onClick={()=>setTab("plans")}><PackageIcon size={16}/> View membership plans</button>
         </div>
+       </div>
+      )}
+      <div className="cards three">
+       <Card title="Direct referrals" value={data.direct.length}/>
+       <Card title="Level 2 referrals" value={data.level2.length}/>
+       <Card title="Commission records" value={earnings.length}/>
       </div>
+      {hasPackage&&(
+       <div className="panel">
+        <h3>Referral link</h3>
+        <div className="copybox">
+         <span>{location.origin}/?ref={me.user.referralCode}</span>
+         <button className={copiedKind==="link"?"is-copied":""} onClick={copy}>{copiedKind==="link"?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button>
+        </div>
+        <div className="heroactions compact" style={{marginTop:10}}>
+         <button className={`secondary${copiedKind==="code"?" is-copied":""}`} onClick={copyCode}>{copiedKind==="code"?<><Check size={15} className="nx-tick"/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button>
+        </div>
+        {(copiedKind==="link"||copiedKind==="code")&&(
+         <p className="muted small copyhint">{copiedKind==="code"?"Referral code copied — share it when someone registers.":"Referral link copied — paste it in WhatsApp or SMS."}</p>
+        )}
+       </div>
+      )}
+      <div className="grid2">
+       <div className="panel">
+        <h3>Direct referrals</h3>
+        {data.direct.length?data.direct.map(x=>(
+         <div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>
+        )):(
+         <div className="smartempty">
+          <p className="muted">No direct referrals yet.</p>
+          {hasPackage?<button type="button" className="secondary narrow" onClick={share}>Share your link</button>:<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Get a plan first</button>}
+         </div>
+        )}
+       </div>
+       <div className="panel">
+        <h3>Level 2 referrals</h3>
+        {data.level2.length?data.level2.map(x=>(
+         <div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>
+        )):(
+         <p className="muted">No Level 2 referrals yet.</p>
+        )}
+       </div>
+      </div>
+      <div className="panel">
+       <h3>Recent commissions</h3>
+       {earnings.length?earnings.map(x=>(
+        <div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser?.name||"Member"}</small></div><strong className="green">+{money(x.amount)}</strong></div>
+       )):(
+        <div className="smartempty">
+         <p className="muted">No commissions yet.</p>
+         {!hasPackage&&<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Purchase a plan to earn</button>}
+        </div>
+       )}
+      </div>
+     </div>
     )}
-    <div className="cards three"><Card title="Direct referrals" value={data.direct.length}/><Card title="Level 2 referrals" value={data.level2.length}/><Card title="Commission records" value={earnings.length}/></div>
-    {hasPackage&&<div className="panel"><h3>Referral link</h3><div className="copybox"><span>{location.origin}/?ref={me.user.referralCode}</span><button className={copiedKind==="link"?"is-copied":""} onClick={copy}>{copiedKind==="link"?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:10}}><button className={`secondary${copiedKind==="code"?" is-copied":""}`} onClick={copyCode}>{copiedKind==="code"?<><Check size={15} className="nx-tick"/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code")&&<p className="muted small copyhint">{copiedKind==="code"?"Referral code copied — share it when someone registers.":"Referral link copied — paste it in WhatsApp or SMS."}</p>}</div>}
-    <div className="grid2">
-      <div className="panel"><h3>Direct referrals</h3>{data.direct.length?data.direct.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>):<div className="smartempty"><p className="muted">No direct referrals yet.</p>{hasPackage?<button type="button" className="secondary narrow" onClick={share}>Share your link</button>:<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Get a plan first</button>}</div>}</div>
-      <div className="panel"><h3>Level 2 referrals</h3>{data.level2.length?data.level2.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>):<p className="muted">No Level 2 referrals yet.</p>}</div>
-    </div>
-    <div className="panel"><h3>Recent commissions</h3>{earnings.length?earnings.map(x=><div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser?.name||"Member"}</small></div><strong className="green">+{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No commissions yet.</p>{!hasPackage&&<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Purchase a plan to earn</button>}</div>}</div>
-  </>
- </section></div>}
+   </section>
+  </div>
+ );
+}
+
 
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}
 function DepositModal({onClose,load}){
