@@ -1,0 +1,42 @@
+NEXORA — DEPLOY THIS VERSION
+
+This package is prepared for the existing Render services:
+  Frontend: nexora_referral
+  Backend:  nexora-api
+
+ACTIVE PAYMENT MODE
+  Co-op Bank → M-Pesa → Lipa na M-Pesa → PayBill
+  Paybill: 400200
+  Account: configured by MPESA_PAYBILL_ACCOUNT on nexora-api
+  Manual M-Pesa confirmation-code verification
+  No STK Push in the active member payment UI
+
+ADMIN CONSOLE
+  Super Admin / Admin / Finance Admin / Support Admin
+  Super Admin-only Admin Management
+  Paybill verification
+  Wallet deposit verification
+  Payment repair
+  Package management
+  Marketplace moderation
+  Support and announcements
+  Activity log
+
+RENDER DEPLOYMENT
+1. Put this folder into the SAME Git repository and branch currently connected to nexora_referral and nexora-api.
+2. Push/merge the changes to that branch.
+3. In Render, open nexora_referral → Deploys → Manual Deploy → Clear build cache & deploy.
+4. Do the same for nexora-api.
+5. In nexora-api → Environment, set:
+   MPESA_PAYBILL_NUMBER=400200
+   MPESA_PAYBILL_ACCOUNT=YOUR_ACTUAL_COOP_ACCOUNT_NUMBER
+   MPESA_PAYBILL_NAME=NEXORA
+   ADMIN_NAME=NEXORA Super Admin
+   ADMIN_EMAIL=YOUR_ADMIN_EMAIL
+   ADMIN_PASSWORD=YOUR_STRONG_PASSWORD
+   JWT_SECRET=YOUR_LONG_RANDOM_SECRET
+6. After deployment, open the member site in a private/incognito window and test a package purchase. It must show Co-op Bank Lipa na M-Pesa PayBill and a Copy account button.
+7. Open /admin and verify the Admin Management menu appears for the Super Admin.
+
+IMPORTANT
+A ZIP file alone does not update an existing Render service. Render deploys the commit on the service's connected repository/branch.

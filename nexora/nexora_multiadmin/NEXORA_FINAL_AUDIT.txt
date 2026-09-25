@@ -22,4 +22,4 @@ Validation note:
 The sandbox could not complete npm dependency installation within the available execution window, so a fresh local Vite production build could not be executed here. The exact reported JSX location was corrected and the source was statically audited. Render's build log remains the final deployment-level verification.
 
 
-2026-09-22 PAYSTACK SWITCH: Active member package and wallet M-Pesa payments use Paystack M-Pesa STK Push. Co-op static-IP gateway is no longer required by the active payment flow.
+CURRENT PAYMENT MODE: Co-op Bank Lipa na M-Pesa Paybill (400200) with manual M-Pesa confirmation-code verification. Paystack STK is not used by the active member payment UI.
