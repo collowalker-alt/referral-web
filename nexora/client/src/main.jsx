@@ -455,17 +455,1047 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
 
   const setField=(k,v)=>setF(prev=>({...prev,[k]:v}));
 
-  const submit=async e=>{e.preventDefault();setErr("");if(!pkg?.id)return setErr("This plan is unavailable. Please refresh the membership plans and try again.");if(method==="wallet")return useWallet();setBusy(true);try{await onContinue?.(null,pkg)}catch(ex){setErr(ex.message||"Could not start Paybill payment");setBusy(false)}};
- return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
-  <div className="modalhead"><div><span className="pill">CO-OP BANK · LIPA NA M-PESA</span><h2>Choose how to pay</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close payment window"><X size={20}/></button></div>
-  <form className="phonemodalform" onSubmit={submit}><div className="paymentbody phonebody">
-   <div className="phonepackage"><div><span>Plan</span><strong>{pkg?.name}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(walletBalance)}</strong></div></div>
-   <div className="paymethods"><button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={()=>{setMethod("paybill");setErr("")}}><CreditCard size={18}/><div><b>Co-op Bank Lipa na M-Pesa Paybill</b><span>Pay manually using Paybill 400200, then submit your M-Pesa confirmation code</span></div></button><button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={useWallet} disabled={!canWallet||busy}><WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} instantly from your wallet`:`Need ${money(amount)} · you have ${money(walletBalance)}`}</span></div></button></div>
-   {method==="paybill"&&<div className="paybillbox"><div className="paybilltitle"><div><b>{paybillName}</b><span>Manual M-Pesa payment</span></div><span className="paybillsecure">LIPA NA M-PESA</span></div><div className="paybilldetails"><div><span>Paybill</span><strong>{paybillNumber}</strong></div><div className="paybillrowcopy"><span>Account number</span><div className="paybillaccountvalue"><strong>{paybillAccount||"Configured on server"}</strong>{paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount} aria-label="Copy Co-op account number">{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy</>}</button>}</div></div><div><span>Amount</span><strong>{money(amount)}</strong></div></div><ol className="paybillsteps"><li>Open <b>M-Pesa → Lipa na M-Pesa → PayBill</b>.</li><li>Enter Paybill number <b>{paybillNumber}</b>.</li><li>Enter account number <b>{paybillAccount||"shown above"}</b>.</li><li>Enter exactly <b>{money(amount)}</b> and complete with your M-Pesa PIN.</li><li>Return here and submit the M-Pesa confirmation code.</li></ol><div className="notice"><Info size={15}/> Your payment is manually verified before the plan is activated.</div></div>}
-   {method==="wallet"&&walletConfirm&&!busy&&<div className="walletconfirmbox"><div className="walletconfirmicon"><WalletCards size={22}/></div><div><h3>Confirm wallet payment</h3><p className="muted small">Are you sure you want to use your NEXORA wallet balance to pay <strong>{money(amount)}</strong> for the <strong>{pkg?.name}</strong> plan?</p><p className="muted small">Your available balance is <strong>{money(walletBalance)}</strong>.</p></div><div className="walletconfirmactions"><button type="button" className="dangeroutline" onClick={()=>{setWalletConfirm(false);setMethod("paybill");setErr("")}} disabled={busy}>Cancel</button><button type="button" className="primary" onClick={confirmWallet} disabled={busy}>Yes, use my balance</button></div></div>}
-   {method==="wallet"&&busy&&<div className="walletconfirmbox"><p className="muted small"><strong>Processing wallet payment…</strong> Please wait for confirmation.</p></div>}
+  const submit=async e=>{
+    e.preventDefault();setErr("");setSuccessMsg("");
+    if(mode==="register"){
+      if(f.password!==confirmPassword) return setErr("Passwords do not match.");
+      if(!validPhone(f.phone)) return setErr("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541….");
+      if(!agreed) return setErr("Please accept the Terms, Privacy Policy and Membership Rules.");
+      if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
+    }
+    if(mode==="reset"){
+      if(f.password!==confirmPassword) return setErr("Passwords do not match.");
+      if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
+    }
+    setBusy(true);
+    try{
+      if(mode==="login"||mode==="register"){
+        const body={...f,phone:mode==="register"?cleanPhone(f.phone):f.phone,referralCode:(f.referralCode||ref||"").toUpperCase(),website:""};
+        const d=await api(`/auth/${mode==="login"?"login":"register"}`,{method:"POST",body:JSON.stringify(body)});
+        if(mode==="register"){
+          setSuccessMsg("Account created successfully. Opening your workspace…");
+          localStorage.setItem("token",d.token);
+          onLogin();onClose();
+        }else{
+          localStorage.setItem("token",d.token);
+          onLogin();onClose();
+        }
+      }else if(mode==="forgot"){
+        const d=await api("/auth/forgot-password",{method:"POST",body:JSON.stringify({email:f.email})});
+        setSuccessMsg(d.message||"If an account exists, reset instructions were prepared.");
+        if(d.resetToken){setDevResetToken(d.resetToken);setResetToken(d.resetToken);}
+      }else if(mode==="reset"){
+        const d=await api("/auth/reset-password",{method:"POST",body:JSON.stringify({token:resetToken,password:f.password})});
+        setSuccessMsg(d.message||"Password updated. You can log in now.");
+        setTimeout(()=>switchMode("login"),1200);
+      }
+    }catch(e){setErr(e.message);}
+    finally{setBusy(false);}
+  };
+
+  const titles={login:"Welcome back",register:"Start your NEXORA journey",forgot:"Reset your password",reset:"Choose a new password"};
+  const subtitles={login:"Sign in to your member workspace.",register:"Create your account to access the full member workspace.",forgot:"Enter the email on your NEXORA account. We will prepare a reset link.",reset:"Enter the reset token and your new password."};
+
+  return <div className="modalbackdrop" onClick={onClose} role="presentation">
+    <div className="modal authmodal" ref={modalRef} onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div className="modalhead">
+        <div className="memberbrand"><img src="/nexora-logo.png" alt=""/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div>
+        <button className="iconbtn" onClick={onClose} aria-label="Close"><X size={20}/></button>
+      </div>
+      {(mode==="login"||mode==="register")&&(
+        <div className="authtabs">
+          <button type="button" className={mode==="login"?"active":""} onClick={()=>switchMode("login")}>Log in</button>
+          <button type="button" className={mode==="register"?"active":""} onClick={()=>switchMode("register")}>Create account</button>
+        </div>
+      )}
+      <h2 id="auth-title">{titles[mode]||titles.login}</h2>
+      <p className="muted">{subtitles[mode]||subtitles.login}</p>
+      {err&&<div className="error" role="alert">{err}</div>}
+      {successMsg&&<div className="successbanner" role="status">{successMsg}</div>}
+      <form onSubmit={submit} noValidate>
+        <input type="text" name="website" value="" readOnly tabIndex={-1} autoComplete="off" className="honeypot" aria-hidden="true"/>
+        {mode==="register"&&<>
+          <label className="fieldlabel">Full name
+            <input required autoComplete="name" value={f.name} onChange={e=>setField("name",e.target.value)} placeholder="Your full name"/>
+          </label>
+          <label className="fieldlabel">Phone (M-Pesa)
+            <input required inputMode="tel" maxLength={13} autoComplete="tel" value={f.phone} onChange={e=>setField("phone",e.target.value)} placeholder="07…, 01…, 2547… or 2541…"/>
+            {f.phone&&phoneValid===true&&<span className="fieldhint ok">✓ Valid Kenyan number</span>}
+            {f.phone&&phoneValid===false&&<span className="fieldhint bad">Use 07…, 01…, 2547… or 2541…</span>}
+            {!f.phone&&<span className="fieldhint">We will use this number for M-Pesa payment requests.</span>}
+          </label>
+        </>}
+        {(mode==="login"||mode==="register"||mode==="forgot")&&(
+          <label className="fieldlabel">Email
+            <input required type="email" autoComplete="email" value={f.email} onChange={e=>setField("email",e.target.value)} placeholder="you@example.com"/>
+          </label>
+        )}
+        {mode==="reset"&&(
+          <label className="fieldlabel">Reset token
+            <input required value={resetToken} onChange={e=>setResetToken(e.target.value.trim())} placeholder="Paste the reset token"/>
+          </label>
+        )}
+        {(mode==="login"||mode==="register"||mode==="reset")&&(
+          <label className="fieldlabel">Password
+            <div className="passwordfield">
+              <input required minLength={8} type={showPassword?"text":"password"} autoComplete={mode==="login"?"current-password":"new-password"} value={f.password} onChange={e=>setField("password",e.target.value)} placeholder={mode==="login"?"Your password":"At least 8 characters, letter + number"}/>
+              <button type="button" className="passwordtoggle" aria-label={showPassword?"Hide password":"Show password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showPassword?"Hide":"Show"}</span></button>
+            </div>
+            {(mode==="register"||mode==="reset")&&f.password&&(
+              <div className={`strengthmeter ${strength.cls}`}><i style={{width:`${Math.min(100,strength.score*25)}%`}}/><span>{strength.label} · use a letter and a number</span></div>
+            )}
+          </label>
+        )}
+        {(mode==="register"||mode==="reset")&&(
+          <label className="fieldlabel">Confirm password
+            <div className="passwordfield">
+              <input required minLength={8} type={showConfirmPassword?"text":"password"} autoComplete="new-password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Re-enter password"/>
+              <button type="button" className="passwordtoggle" aria-label={showConfirmPassword?"Hide confirm password":"Show confirm password"} onMouseDown={e=>e.preventDefault()} onClick={()=>setShowConfirmPassword(v=>!v)}>{showConfirmPassword?<EyeOff size={18}/>:<Eye size={18}/>}<span>{showConfirmPassword?"Hide":"Show"}</span></button>
+            </div>
+            {passwordMatch&&<div className="passwordmatch success">✓ Passwords match</div>}
+            {passwordMismatch&&<div className="passwordmatch mismatch">✕ Passwords do not match</div>}
+          </label>
+        )}
+        {mode==="register"&&(
+          <label className="fieldlabel">Referral code <span className="optional">(optional)</span>
+            <input value={f.referralCode} onChange={e=>setField("referralCode",e.target.value.toUpperCase())} placeholder={ref?"Detected from link":"Optional code"} autoComplete="off"/>
+            {ref&&f.referralCode===ref.toUpperCase()&&<span className="fieldhint ok">Referral code applied from your invite link</span>}
+          </label>
+        )}
+        {mode==="register"&&(
+          <label className="termscheck">
+            <input type="checkbox" checked={agreed} onChange={e=>setAgreed(e.target.checked)} required/>
+            <span>I agree to the <a href="/terms" target="_blank" rel="noreferrer">Terms</a>, <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> and <a href="/membership" target="_blank" rel="noreferrer">Membership Rules</a>.</span>
+          </label>
+        )}
+        <button disabled={!canSubmit()} className="primary" type="submit">
+          {busy?"Please wait…":mode==="login"?"Login securely":mode==="register"?"Create my account":mode==="forgot"?"Send reset instructions":"Update password"}
+        </button>
+      </form>
+      {mode==="login"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("forgot")}>Forgot password?</button></p>}
+      {mode==="forgot"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("login")}>← Back to login</button>{devResetToken&&<button type="button" className="linkbtn" onClick={()=>switchMode("reset")}>Continue with reset token</button>}</p>}
+      {mode==="reset"&&<p className="authlinks"><button type="button" className="linkbtn" onClick={()=>switchMode("login")}>← Back to login</button></p>}
+      {mode==="forgot"&&devResetToken&&<div className="devtokenbox"><small>Development only — email is not configured. Your reset token:</small><code>{devResetToken}</code></div>}
+      {(mode==="login"||mode==="register")&&<p className="muted small">By continuing you confirm that NEXORA does not guarantee income. Review the membership rules before activating a membership plan.</p>}
+    </div>
+  </div>;
+}
+
+
+function PublicPackagesPage(){
+ const [packages,setPackages]=useState([]);
+ const [loading,setLoading]=useState(true);
+ const [err,setErr]=useState("");
+ useEffect(()=>{
+  (async()=>{
+   try{
+    const rows=await api("/packages");
+    setPackages(Array.isArray(rows)?rows:[]);
+   }catch(e){setErr(e.message||"Unable to load plans");}
+   finally{setLoading(false);}
+  })();
+ },[]);
+ const sorted=[...packages].sort((a,b)=>Number(a.tier||999)-Number(b.tier||999)||Number(a.price)-Number(b.price));
+ return <div className="publicsite publicpackagespage">
+  <header className="publicnav"><div className="publicbrand"><img src="/nexora-logo.png" alt=""/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div></div>
+   <nav><a href="/">Home</a><a href="/packages">Plans</a><a href="/#faq">FAQ</a></nav>
+   <div className="publicactions"><a className="secondary" href="/">Log in</a><a className="primary" href="/?join=1">Join NEXORA</a></div>
+  </header>
+  <main className="publicpackagesmain">
+   <div className="sectionhead"><div><span className="pill">MEMBERSHIP</span><h1>Compare NEXORA plans</h1><p className="muted">Transparent plan pricing and benefits. Commissions are recorded only when qualifying referral purchases complete — never guaranteed income.</p></div></div>
+   {loading&&<p className="muted">Loading plans…</p>}
    {err&&<div className="error">{err}</div>}
-  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button>{method==="paybill"&&<button type="submit" className="primary" disabled={busy}>{busy?"Starting payment…":"Continue to Paybill"}</button>}</div></form>
+   {!loading&&!err&&(
+    <div className="packages">
+     {sorted.map((p,i)=>(
+      <div className={`pkg ${p.popular?"featured":""}`} key={p.id}>
+       {p.popular&&<div className="popular">{p.badge||"POPULAR"}</div>}
+       <span className="pkgname">{p.name}</span>
+       {p.badge&&!p.popular&&<span className="packagebadge">{p.badge}</span>}
+       <div className="price">{money(p.price)}</div>
+       <p className="muted small">{p.description||"Membership plan with referral tools and platform access."}</p>
+       <ul className="pkgfeatures">
+        {(p.features&&p.features.length?p.features:["Member dashboard","Referral link after purchase","Academy access","Wallet & support"]).map(f=><li key={f}><Check size={14}/> {f}</li>)}
+       </ul>
+       <div className="pkgmeta"><span>Direct commission record</span><strong>{money(p.directCommission)}</strong></div>
+       <div className="pkgmeta"><span>Level 2 commission record</span><strong>{money(p.level2Commission)}</strong></div>
+       <a className="primary" href="/?join=1">Join to choose this plan</a>
+      </div>
+     ))}
+     {!sorted.length&&<p className="muted">No plans available right now.</p>}
+    </div>
+   )}
+   <div className="earningsnotice" style={{marginTop:24}}><div><strong>Important</strong><p>Plan levels define which purchases you may be eligible to earn from. NEXORA does not guarantee income. Review Terms and Membership Rules before paying.</p></div></div>
+  </main>
+  <footer className="publicfooter"><div><b>NEXORA.</b><p>Connect. Grow. Learn. Build.</p></div><div className="footerlinks"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/membership">Membership rules</a><a href="/packages">Plans</a></div></footer>
+ </div>;
+}
+
+function LegalPage({type}){
+  const pages={
+    terms:{
+      title:"Terms of Service",
+      sections:[
+        ["Acceptance","By creating a NEXORA account or using the platform you agree to these Terms, the Privacy Policy and the Membership & Referral Rules."],
+        ["Account responsibility","You are responsible for keeping your login details private, for the accuracy of your profile information, and for activity that occurs under your account."],
+        ["Membership & payments","Plan purchases and upgrades are currently processed through Co-op Bank M-Pesa Paybill with manual confirmation-code verification. Charges, upgrades (price difference only) and refunds follow the rules shown in the platform at the time of the transaction."],
+        ["No income guarantee","Nothing on NEXORA constitutes a guarantee of income, profit or financial return. Referral commissions are recorded only when qualifying purchases and plan eligibility rules are satisfied."],
+        ["Acceptable use","You must not misrepresent the platform, make guaranteed-income claims, share accounts, attempt to manipulate referrals, or use NEXORA for unlawful activity."],
+        ["Suspension","NEXORA may suspend or restrict accounts that violate these terms, present security risk, or require review for payment or withdrawal integrity."],
+        ["Contact","Questions about these terms can be raised through the in-app Help & Support centre or the published support channel."]
+      ]
+    },
+    privacy:{
+      title:"Privacy Policy",
+      sections:[
+        ["What we collect","Account data such as name, email, phone number, referral relationships, plan status, wallet and transaction records, support messages and basic device/session information needed to operate the service."],
+        ["How we use it","To provide membership, payments, referral tracking, analytics, Academy progress, support, security and account recovery functions."],
+        ["Payments","Payment processing is currently handled through Co-op Bank M-Pesa Paybill with manual confirmation-code verification. NEXORA does not store M-Pesa PIN data."],
+        ["Sharing","We share data only as needed with payment processors, infrastructure providers, and when required by law. We do not sell personal data."],
+        ["Security","Access is limited to operational needs. You should use a strong unique password and never share it with anyone, including people claiming to be support."],
+        ["Retention","We keep account and transaction records for as long as needed to operate the platform, meet legal obligations and resolve disputes."],
+        ["Your choices","You may update profile details in the Security Centre and contact support for account-related requests."]
+      ]
+    },
+    membership:{
+      title:"Membership & Referral Rules",
+      sections:[
+        ["Plan eligibility","Starter can earn from Starter purchases; Growth from Starter + Growth; Pro from Starter + Growth + Pro; Elite from Starter through Elite; Premium from all five plans. Commission amounts come from the plan purchased by the referral."],
+        ["Recorded commissions only","Commissions are recorded when a qualifying referral purchase completes and your plan level is eligible. The UI describes eligibility and recorded outcomes — never guaranteed income."],
+        ["Upgrades","Upgrading charges only the price difference between your current plan and the new plan."],
+        ["Withdrawals","Withdrawal requests depend on available balance, plan withdrawal limits and review. Processing times and outcomes can vary."],
+        ["Referrals","Your personal referral code/link attributes new members who register with it. Level 1 and Level 2 structures follow the platform configuration."],
+        ["Fair use","Artificial inflation of referrals, misleading promotion, or abuse of payment flows may result in commission adjustments or account restrictions."],
+        ["Changes","NEXORA may update plan prices, commission parameters and platform features. Material changes will be reflected in the live product and, where appropriate, announcements."]
+      ]
+    }
+  };
+  const page=pages[type]||pages.terms;
+  return <div className="legalpage"><div className="legalcard">
+    <div className="memberbrand"><img src="/nexora-logo.png" alt=""/><div><div className="brand">NEXORA<span>.</span></div><small>MEMBER PLATFORM</small></div></div>
+    <span className="pill">NEXORA POLICY</span>
+    <h1>{page.title}</h1>
+    {page.sections.map(([h,t])=><div key={h} className="legalsection"><h3>{h}</h3><p>{t}</p></div>)}
+    <h3>Questions?</h3>
+    <p>Contact NEXORA support through the member Help & Support centre.</p>
+    <a className="secondary" href="/">← Back to NEXORA</a>
+  </div></div>;
+}
+
+
+const adminApi=async(path,opts={})=>{const token=localStorage.getItem("adminToken");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Admin request failed");return d};
+const downloadAdminCsv=async(type)=>{const token=localStorage.getItem("adminToken");const r=await fetch(API+`/admin/export/${type}`,{headers:{Authorization:`Bearer ${token}`}});if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.message||"Export failed")}const blob=await r.blob();const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`nexora-${type}.csv`;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(a.href)};
+function AdminLogin({onLogin}){const [email,setEmail]=useState(""),[password,setPassword]=useState(""),[err,setErr]=useState(""),[busy,setBusy]=useState(false);const submit=async e=>{e.preventDefault();setErr("");setBusy(true);try{const d=await adminApi("/admin/auth/login",{method:"POST",body:JSON.stringify({email,password})});localStorage.setItem("adminToken",d.token);onLogin(d.admin)}catch(e){setErr(e.message)}finally{setBusy(false)}};return <div className="adminauth"><div className="adminloginbox"><div className="adminlogo"><img src="/nexora-logo.png"/><div><div className="brand">NEXORA<span>.</span></div><span>ADMIN CONTROL</span></div></div><div className="adminshield"><LockKeyhole size={26}/></div><h1>Administrator login</h1><p className="muted">Secure access to users, payments, withdrawals and plans.</p>{err&&<div className="error">{err}</div>}<form onSubmit={submit}><label>Email</label><input required type="email" autoComplete="username" placeholder="admin@yourdomain.com" value={email} onChange={e=>setEmail(e.target.value)}/><label>Password</label><input required type="password" autoComplete="current-password" placeholder="Admin password" value={password} onChange={e=>setPassword(e.target.value)}/><button disabled={busy} className="primary adminloginbtn"><LogIn size={17}/>{busy?"Signing in…":"Sign in securely"}</button></form><a className="adminback" href="/">← Back to member login</a></div></div>}
+function AdminManagement({action,busy=false}){
+ const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[editing,setEditing]=useState(null),[form,setForm]=useState({name:"",email:"",password:"",role:"ADMIN"}),[creating,setCreating]=useState(false);
+ const load=async()=>{setLoading(true);setError("");try{setRows(await adminApi("/admin/admins"))}catch(e){setError(e.message)}finally{setLoading(false)}};
+ useEffect(()=>{load()},[]);
+ const save=async()=>{if(!form.name.trim()||!form.email.trim()||(!editing&&!form.password)){setError("Name, email and password are required");return} const ok=await action(()=>editing?adminApi(`/admin/admins/${editing.id}`,{method:"PATCH",body:JSON.stringify({name:form.name,role:form.role,...(form.password?{password:form.password}:{})})}):adminApi("/admin/admins",{method:"POST",body:JSON.stringify(form)}),editing?"Administrator updated":"Administrator created");if(ok){setEditing(null);setCreating(false);setForm({name:"",email:"",password:"",role:"ADMIN"});await load()}};
+ const toggle=async a=>{const next=a.status==="ACTIVE"?"SUSPENDED":"ACTIVE";await action(()=>adminApi(`/admin/admins/${a.id}`,{method:"PATCH",body:JSON.stringify({status:next})}),next==="ACTIVE"?"Administrator activated":"Administrator suspended");await load()};
+ const remove=async a=>{if(!window.confirm(`Remove administrator ${a.email}? This cannot be undone.`))return;await action(()=>adminApi(`/admin/admins/${a.id}`,{method:"DELETE"}),"Administrator removed");await load()};
+ const openEdit=a=>{setEditing(a);setCreating(false);setForm({name:a.name,email:a.email,password:"",role:a.role})};
+ const roles={SUPER_ADMIN:"Super Admin",ADMIN:"Admin",FINANCE_ADMIN:"Finance Admin",SUPPORT_ADMIN:"Support Admin"};
+ return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">ADMINISTRATION</span><h1>Administrator accounts</h1><p className="muted">Create separate admin logins, assign roles and control access without sharing passwords.</p></div><button className="primary" onClick={()=>{setCreating(true);setEditing(null);setForm({name:"",email:"",password:"",role:"ADMIN"})}}><UserCog size={16}/> Add administrator</button></div>
+ <div className="adminpanel"><h3>Role permissions</h3><div className="adminquick"><span><ShieldCheck size={14}/> Super Admin · full control</span><span><UsersRound size={14}/> Admin · member and platform management</span><span><WalletCards size={14}/> Finance Admin · payments, wallet and withdrawals</span><span><LifeBuoy size={14}/> Support Admin · support and member assistance</span></div></div>
+ {(creating||editing)&&<div className="adminpanel adminedit"><h3>{editing?"Edit administrator":"Create administrator"}</h3><div className="formgrid"><label>Name<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Email<input type="email" disabled={!!editing} value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Role<select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}><option value="ADMIN">Admin</option><option value="FINANCE_ADMIN">Finance Admin</option><option value="SUPPORT_ADMIN">Support Admin</option><option value="SUPER_ADMIN">Super Admin</option></select></label><label>{editing?"New password (optional)":"Password"}<input type="password" minLength="10" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} placeholder="At least 10 characters"/></label></div><div className="rowactions"><button className="secondary" onClick={()=>{setCreating(false);setEditing(null)}}>Cancel</button><button className="primary" disabled={busy} onClick={save}><KeyRound size={15}/>{editing?"Save changes":"Create administrator"}</button></div></div>}
+ <div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Administrator</span><span>Role</span><span>Status</span><span>Created</span><span>Actions</span></div>{loading?<div className="adminempty">Loading administrators…</div>:rows.map(a=><div className="adminrow" key={a.id}><div><b>{a.name}</b><small>{a.email}</small></div><span>{roles[a.role]||a.role}</span><em className={`adminstatus ${String(a.status).toLowerCase()}`}>{a.status}</em><small>{new Date(a.createdAt).toLocaleString()}</small><div className="rowactions"><button className="rowaction" onClick={()=>openEdit(a)}><Settings2 size={13}/> Edit</button><button className={`rowaction ${a.status==="ACTIVE"?"dangeraction":"successaction"}`} onClick={()=>toggle(a)}>{a.status==="ACTIVE"?<><Ban size={13}/> Suspend</>:<><UserCheck size={13}/> Activate</>}</button><button className="rowaction dangeraction" onClick={()=>remove(a)} disabled={rows.length===1}><Trash2 size={13}/> Remove</button></div></div>)}{!loading&&!rows.length&&<div className="adminempty">No administrator accounts.</div>}</div></div></section>}
+
+function AdminApp(){const [admin,setAdmin]=useState(null),[loading,setLoading]=useState(true),[page,setPage]=useState("overview"),[data,setData]=useState({overview:null,users:[],transactions:[],withdrawals:[],packages:[],announcements:[],deposits:[]}),[error,setError]=useState(""),[search,setSearch]=useState(""),[mobile,setMobile]=useState(false),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[busyMessage,setBusyMessage]=useState("");
+ const load=async(show=true)=>{if(show)setLoading(true);setError("");try{const a=await adminApi("/admin/me");setAdmin(a.admin);const r=a.admin.role;const isSuper=r==="SUPER_ADMIN", isAdmin=r==="ADMIN", isFinance=r==="FINANCE_ADMIN", isSupport=r==="SUPPORT_ADMIN";const [overview,users,transactions,withdrawals,packages,announcements,adProducts,adSubmissions,deposits,marketProducts,marketOrders]=await Promise.all([adminApi("/admin/overview"),adminApi("/admin/users"),((isSuper||isAdmin||isFinance)?adminApi("/admin/transactions"):Promise.resolve([])),((isSuper||isAdmin||isFinance)?adminApi("/admin/withdrawals"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/packages"):Promise.resolve([])),((isSuper||isAdmin||isSupport)?adminApi("/admin/announcements"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/ad-products"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/ad-submissions"):Promise.resolve([])),((isSuper||isAdmin||isFinance)?adminApi("/admin/wallet/deposits"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/marketplace/products"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/marketplace/orders"):Promise.resolve([]))]);setData({overview,users,transactions,withdrawals,packages,announcements,adProducts,adSubmissions,deposits,marketProducts,marketOrders});}catch(e){localStorage.removeItem("adminToken");setAdmin(null);if(!String(e.message).toLowerCase().includes("session"))setError(e.message)}finally{setLoading(false)}};
+ useEffect(()=>{if(localStorage.getItem("adminToken"))load();else setLoading(false)},[]);
+ const action=async(fn,msg)=>{if(busy)return false;setBusy(true);setBusyMessage(msg);setError("");setNotice(`Processing… ${msg}`);try{await fn();await load(false);setNotice(`✓ ${msg}`);return true}catch(e){setError(e.message);setNotice("");return false}finally{setBusy(false);setBusyMessage("")}};
+ if(loading&&!admin)return <NexoraSplash label="Opening admin console…"/>;if(!admin)return <AdminLogin onLogin={a=>{setAdmin(a);load(false)}}/>;
+ const nav=[["overview","Overview",BarChart3],["users","Users",UsersRound]]; const r=admin.role; if(["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"].includes(r)) nav.push(["transactions","Transactions",ReceiptText],["deposits","Wallet deposits",WalletCards],["paybillverify","Paybill verification",BadgeCheck],["withdrawals","Withdrawals",HandCoins]); if(["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"].includes(r)) nav.push(["repair","Payment repair",Wrench]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["packages","Packages",PackageIcon],["advertising","Advertising",Megaphone],["marketplace","Marketplace",Store]); if(["SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"].includes(r)) nav.push(["announcements","Announcements",Megaphone],["support","Support tickets",LifeBuoy]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["activity","Activity log",Activity]); if(r==="SUPER_ADMIN") nav.push(["admins","Admin management",UserCog]);
+ const logout=()=>{localStorage.removeItem("adminToken");setAdmin(null)};
+ const title=nav.find(x=>x[0]===page)?.[1]||"Overview";
+ return <div className="adminapp" data-busy={busy?"true":"false"}><aside className={mobile?"open":""}><div className="adminnavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>ADMIN</small></div></div>{nav.map(([id,t,I])=><button key={id} className={page===id?"active":""} onClick={()=>{setPage(id);setMobile(false)}}><I size={18}/>{t}</button>)}<div className="adminnavspacer"/><button onClick={()=>setNotice(`Co-op Paybill is currently ${data.overview?.paymentProvider||"unconfigured"}.`)}><Settings2 size={18}/>Payment mode</button><button onClick={logout}><LogOut size={18}/>Logout</button></aside><main className="adminmain"><header className="adminheader"><button className="mobilemenu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button><div><b>{title}</b><div className="muted small">NEXORA administrator console</div></div><div className="adminuser"><PWAInstall compact/><ShieldCheck size={17}/><span>{admin.name} · {String(admin.role||"ADMIN").replaceAll("_"," ")}</span></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{notice&&<div className={`notice topmsg ${busy?"processingnotice":""}`}><span>{busy&&<LoaderCircle size={15} className="spin"/>}{notice}</span>{!busy&&<button onClick={()=>setNotice("")}>×</button>}</div>}
+ {page==="overview"&&<AdminOverview data={data.overview} onRefresh={()=>load(false)}/>} {page==="users"&&<AdminUsers rows={data.users} search={search} setSearch={setSearch} action={action}/>} {page==="transactions"&&<AdminTransactions rows={data.transactions}/>} {page==="repair"&&<AdminPaymentRepair action={action}/>} {page==="paybillverify"&&<AdminPaybillVerify action={action}/>} {page==="deposits"&&<AdminDepositVerify action={action}/>} {page==="withdrawals"&&<AdminWithdrawals rows={data.withdrawals} action={action}/>} {page==="packages"&&<AdminPackages rows={data.packages} action={action}/>} {page==="advertising"&&<AdminAdvertising products={data.adProducts||[]} submissions={data.adSubmissions||[]} action={action} reload={()=>load(false)}/>} {page==="marketplace"&&<AdminMarketplace products={data.marketProducts||[]} orders={data.marketOrders||[]} action={action}/>} {page==="announcements"&&<AdminAnnouncements action={action}/>} {page==="support"&&<AdminSupportTickets action={action}/>} {page==="activity"&&<AdminActivity/>} {page==="admins"&&admin.role==="SUPER_ADMIN"&&<AdminManagement action={action} busy={busy}/>}</main></div>}
+function AdminMarketplace({products,orders,action}){const [tab,setTab]=useState("products");const moderate=async(p,status)=>{await action(()=>adminApi(`/admin/marketplace/products/${p.id}`,{method:"PATCH",body:JSON.stringify({status})}),`Product ${status.toLowerCase()}`)};const verifySeller=async(id,v)=>{await action(()=>adminApi(`/admin/marketplace/sellers/${id}`,{method:"PATCH",body:JSON.stringify({sellerVerified:v})}),v?"Seller verified":"Seller verification removed")};return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">MARKETPLACE CONTROL</span><h1>Marketplace Manager</h1><p className="muted">Moderate listings, verify sellers and monitor marketplace orders.</p></div></div><div className="adminquick adtabs"><button className={tab==="products"?"active":""} onClick={()=>setTab("products")}>Listings ({products.length})</button><button className={tab==="orders"?"active":""} onClick={()=>setTab("orders")}>Orders ({orders.length})</button></div>{tab==="products"&&<div className="table">{products.map(p=><div className="row" key={p.id}><div><b>{p.title}</b><small>{p.seller?.name} · {p.seller?.email}</small></div><strong>{money(p.price)}</strong><span>{p.status}</span><span>{p.seller?.sellerVerified?"Verified seller":"Seller not verified"}</span><div className="rowactions">{!p.seller?.sellerVerified&&<button className="secondary" onClick={()=>verifySeller(p.sellerId,true)}>Verify seller</button>}<button className="secondary" onClick={()=>moderate(p,p.status==="ACTIVE"?"HIDDEN":"ACTIVE")}>{p.status==="ACTIVE"?"Hide":"Publish"}</button><button className="secondary" onClick={()=>moderate(p,"REJECTED")}>Reject</button></div></div>)}{!products.length&&<p className="muted">No marketplace listings.</p>}</div>}{tab==="orders"&&<div className="table">{orders.map(o=><div className="row" key={o.id}><div><b>{o.reference}</b><small>Buyer: {o.buyer?.name} · Seller: {o.seller?.name}</small></div><strong>{money(o.total)}</strong><span>{o.status}</span><span>{o.paymentStatus}</span><small>{new Date(o.createdAt).toLocaleString()}</small></div>)}{!orders.length&&<p className="muted">No marketplace orders.</p>}</div>}</section>}
+function AdminOverview({data,onRefresh}){if(!data)return <div className="adminloading">Loading overview…</div>;const cards=[["Total users",data.users,UsersRound],["Active users",data.activeUsers,UserCheck],["Transactions",data.transactions,ReceiptText],["Pending payments",data.pendingPayments,Clock3],["Failed payments",data.failedPayments||0,AlertTriangle],["Successful plan activations",money(data.successfulPayments),CheckCircle2],["Pending withdrawals",data.pendingWithdrawals,HandCoins],["Total commissions",money(data.totalCommissions),ArrowUpRight]];return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">CONTROL CENTER</span><h1>Good to see you, Administrator</h1><p className="muted">Monitor NEXORA activity, repair verified payments and manage member operations.</p></div><button className="secondary" onClick={onRefresh}><RefreshCw size={16}/> Refresh</button></div><div className="adminstats">{cards.map(([label,value,I])=><div className="adminstat" key={label}><I size={19}/><span>{label}</span><strong>{value}</strong></div>)}</div>{((data.pendingPayments||0)>0||(data.pendingWithdrawals||0)>0||(data.failedPayments||0)>0)&&<div className="adminpanel alertpanel"><div><h3><AlertTriangle size={18}/> Attention needed</h3><p className="muted">{data.pendingPayments||0} pending payment(s), {data.pendingWithdrawals||0} pending withdrawal(s), and {data.failedPayments||0} failed payment(s) are currently recorded.</p></div><div className="adminquick"><span>{data.pendingPayments||0} Pending payments</span><span>{data.pendingWithdrawals||0} Pending withdrawals</span><span>{data.failedPayments||0} Failed payments</span></div></div>}<div className="adminpanel"><div><h3>Admin access</h3><p className="muted">Admin sessions expire after 12 hours. Sensitive actions are recorded in the Activity Log.</p></div><div className="adminquick"><span><Check size={14}/> Users</span><span><Check size={14}/> Payments</span><span><Check size={14}/> Withdrawals</span><span><Check size={14}/> Audit log</span></div></div><div className="adminpanel"><div><h3>Data exports</h3><p className="muted">Download current member, transaction or withdrawal records as CSV.</p></div><div className="adminquick"><button className="rowaction" onClick={()=>downloadAdminCsv("users")}><Download size={14}/> Users CSV</button><button className="rowaction" onClick={()=>downloadAdminCsv("transactions")}><Download size={14}/> Transactions CSV</button><button className="rowaction" onClick={()=>downloadAdminCsv("withdrawals")}><Download size={14}/> Withdrawals CSV</button></div></div><div className="adminpanel warningpanel"><div><h3>Co-op Bank payment environment</h3><p className="muted">Current payment provider: <strong>{data.paymentProvider}</strong>. Co-op Bank Paybill is the active payment method while Paystack live verification is pending.</p></div><span className="secondary">Manual verification · Co-op Paybill</span></div></section>}
+function AdminPlanModal({user,onClose,action}){
+ const [confirm,setConfirm]=useState(null);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState("");
+ useEffect(()=>{
+  if(!user)return;
+  const previousOverflow=document.body.style.overflow;
+  document.body.style.overflow="hidden";
+  return()=>{document.body.style.overflow=previousOverflow};
+ },[user]);
+ if(!user) return null;
+ const planName=user.package?.name||"Current plan";
+ const planPrice=money(user.package?.price||0);
+ const status=String(user.planStatus||"ACTIVE").toUpperCase();
+ const canReactivate=status==="SUSPENDED"||status==="DEACTIVATED";
+ const choose=(kind)=>{
+   const copy={
+    SUSPEND:{title:"Suspend this plan?",message:`${planName} will be temporarily suspended for ${user.email}. The plan assignment and history will remain intact.`,button:"Suspend plan",tone:"warning"},
+    DEACTIVATE:{title:"Deactivate this plan?",message:`${planName} will become inactive for ${user.email}. The plan assignment and history will remain available and an administrator can reactivate it later.`,button:"Deactivate plan",tone:"danger"},
+    REACTIVATE:{title:"Reactivate this plan?",message:`${planName} will become active again for ${user.email}.`,button:"Reactivate plan",tone:"success"},
+    REMOVE:{title:"Remove this plan?",message:`This removes the current plan assignment from ${user.email}. Historical transactions remain available, but the member will no longer have this plan assigned.`,button:"Remove plan",tone:"danger"}
+   };
+   setError("");setConfirm({action:kind,...copy[kind]});
+ };
+ const submit=async()=>{
+   if(!confirm||busy)return;
+   setBusy(true);setError("");
+   try{
+     const ok=await action(()=>adminApi(`/admin/users/${user.id}/plan`,{method:"PATCH",body:JSON.stringify({action:confirm.action})}),`${planName} ${confirm.action.toLowerCase()}d for ${user.email}`);
+     if(ok) onClose();
+   }catch(e){setError(e.message||"Unable to update this plan.");}
+   finally{setBusy(false);}
+ };
+ return createPortal(<div className="modalbackdrop adminplanmodalbackdrop" onClick={()=>{if(!busy)onClose()}}>
+   <div className="modal adminbalance adminplanmodal" onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Manage member plan">
+    <div className="modalhead"><div><span className="pill">PLAN CONTROL</span><h2>Manage member plan</h2><p className="muted">{user.name} · {user.email}</p></div><button className="iconbtn" disabled={busy} onClick={onClose}><X size={20}/></button></div>
+    {error&&<div className="error" role="alert">{error}</div>}
+    <div className="adminplanconfirm">
+      <div className="adminplansummary"><span>Current plan</span><strong>{planName}</strong><small>{planPrice} · <b className={`adminstatus ${status.toLowerCase()}`}>{status}</b></small></div>
+      {!confirm?<>
+       <p className="muted">Choose what should happen to this member's plan. Historical payment records are preserved.</p>
+       <div className="adminplanchoices">
+        {canReactivate?<button className="rowaction successaction" disabled={busy} onClick={()=>choose("REACTIVATE")}><UserCheck size={15}/> Reactivate plan</button>:<>
+         <button className="rowaction warningaction" disabled={busy} onClick={()=>choose("SUSPEND")}><Clock3 size={15}/> Suspend plan</button>
+         <button className="rowaction dangeraction" disabled={busy} onClick={()=>choose("DEACTIVATE")}><Ban size={15}/> Deactivate plan</button>
+        </>}
+        <button className="rowaction dangeraction" disabled={busy} onClick={()=>choose("REMOVE")}><Trash2 size={15}/> Remove plan</button>
+        <button className="secondary" disabled={busy} onClick={onClose}>Cancel</button>
+       </div>
+      </>:<div className="adminplanwarning">
+       <div className="adminplanwarningicon"><AlertTriangle size={20}/></div>
+       <div><h3>{confirm.title}</h3><p>{confirm.message}</p></div>
+       <div className="adminplanoptions"><button className="secondary" disabled={busy} onClick={()=>setConfirm(null)}>Cancel</button><button className={`rowaction ${confirm.tone==='success'?'successaction':confirm.tone==='warning'?'warningaction':'dangeraction'}`} disabled={busy} onClick={submit}>{busy?<><LoaderCircle size={15} className="spin"/> Processing…</>:confirm.button}</button></div>
+      </div>}
+    </div>
+   </div>
+ </div>, document.body);
+}
+
+function AdminUsers({rows,search,setSearch,action}){
+ const [balanceOpen,setBalanceOpen]=useState(false),[detail,setDetail]=useState(null),[detailsLoading,setDetailsLoading]=useState(false),[planUserId,setPlanUserId]=useState(null);
+ const [form,setForm]=useState({email:"",mode:"add",amount:"",reason:"",updateTotalEarned:false});
+ const filtered=rows.filter(u=>!search||`${u.name} ${u.email} ${u.phone} ${u.referralCode}`.toLowerCase().includes(search.toLowerCase()));
+ const openBalance=(u=null)=>{const preset=u?.email || (search.includes("@") ? search : "");setForm({email:preset,mode:"add",amount:"",reason:"",updateTotalEarned:false});setBalanceOpen(true)};
+ const openPlan=u=>{if(!u?.id)return;setPlanUserId(String(u.id));};
+ const closePlan=()=>setPlanUserId(null);
+ const planUser=planUserId?rows.find(x=>String(x.id)===String(planUserId)):null;
+ const openDetails=async u=>{setDetailsLoading(true);try{setDetail(await adminApi(`/admin/users/${u.id}/details`))}catch(e){alert(e.message)}finally{setDetailsLoading(false)}};
+ const submit=async e=>{e.preventDefault();const ok=await action(()=>adminApi("/admin/users/balance",{method:"POST",body:JSON.stringify({...form,amount:Number(form.amount)})}),"Member balance corrected successfully");if(ok){setBalanceOpen(false);setForm({email:"",mode:"add",amount:"",reason:"",updateTotalEarned:false})}};
+ return <section className="adminsection">
+  <div className="adminsectionhead"><div><h1>Users</h1><p className="muted">Search members, inspect full account history and manage account status.</p></div><div className="rowactions"><button className="secondary" onClick={()=>downloadAdminCsv("users")}><Download size={16}/> Export CSV</button><button className="secondary" onClick={()=>openBalance()}><WalletCards size={16}/> Correct balance</button></div></div>
+  <div className="adminsearch"><Search size={17}/><input placeholder="Search name, email, phone or referral code" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+  <div className="adminpanel balancehelp"><div><h3>Manual balance correction</h3><p className="muted">Use this only after verifying the member's payment or earnings. Every correction requires a reason and is added to the audit trail.</p></div><button className="secondary" onClick={()=>openBalance()}>Open tool</button></div>
+  <div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>User</span><span>Phone</span><span>Plan</span><span>Balance</span><span>Status</span><span>Action</span></div>{filtered.map(u=><div className="adminrow" key={u.id}><div><b>{u.name}</b><small>{u.email}</small><small>Ref: {u.referralCode}</small></div><span>{u.phone}</span><span>{u.package?.name||"—"}{u.package&&<small className={`adminstatus ${String(u.planStatus||"ACTIVE").toLowerCase()}`}>{u.planStatus||"ACTIVE"}</small>}</span><span>{money(u.wallet?.balance)}</span><span><em className={`adminstatus ${String(u.status||"").toLowerCase()}`}>{u.status}</em></span><div className="rowactions"><button className="rowaction" onClick={()=>openDetails(u)}><Eye size={14}/> Details</button><button className="rowaction" onClick={()=>openBalance(u)}><WalletCards size={14}/> Balance</button>{(u.package||u.planStatus)&&<button className="rowaction dangeraction" onClick={()=>openPlan(u)}><Ban size={14}/> Plan</button>}<button className="rowaction" onClick={()=>action(()=>adminApi(`/admin/users/${u.id}/status`,{method:"PATCH",body:JSON.stringify({status:u.status==="ACTIVE"?"SUSPENDED":"ACTIVE"})}),u.status==="ACTIVE"?"User suspended":"User reactivated")}>{u.status==="ACTIVE"?<><Ban size={14}/> Suspend</>:<><UserCheck size={14}/> Activate</>}</button></div></div>)}{!filtered.length&&<div className="adminempty">No users match your search.</div>}</div></div>
+  {balanceOpen&&<div className="modalbackdrop" onClick={()=>setBalanceOpen(false)}><div className="modal adminbalance" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">WALLET CORRECTION</span><h2>Update member balance</h2></div><button className="iconbtn" onClick={()=>setBalanceOpen(false)}><X size={20}/></button></div><form className="adminbalanceform" onSubmit={submit}><p className="muted">Enter the member's email address. For a missing commission, choose <b>Add to balance</b> and enter the verified amount.</p><label>Member email<input required type="email" placeholder="member@example.com" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Correction type<select value={form.mode} onChange={e=>setForm({...form,mode:e.target.value})}><option value="add">Add to balance</option><option value="subtract">Subtract from balance</option><option value="set">Set exact balance</option></select></label><label>Amount (KSh)<input required type="number" min="0" step="1" placeholder="e.g. 200" value={form.amount} onChange={e=>setForm({...form,amount:e.target.value})}/></label><label>Reason<input required maxLength="500" placeholder="Verified plan commission missing" value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></label><label className="checkline"><input type="checkbox" checked={form.updateTotalEarned} onChange={e=>setForm({...form,updateTotalEarned:e.target.checked})}/> Also update Total Earned</label><p className="muted small">Only enable Total Earned when the correction represents genuine earnings that were missed. Pending balance is not changed.</p><div className="rowactions"><button type="button" className="secondary" onClick={()=>setBalanceOpen(false)}>Cancel</button><button type="submit" className="primary narrow">Apply correction</button></div></form></div></div>}
+  {detail&&<div className="modalbackdrop" onClick={()=>setDetail(null)}><div className="modal adminmemberdetail" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">MEMBER PROFILE</span><h2>{detail.name}</h2><p className="muted">{detail.email} · {detail.phone}</p></div><button className="iconbtn" onClick={()=>setDetail(null)}><X size={20}/></button></div><div className="detailgrid"><div><span>Balance</span><b>{money(detail.wallet?.balance)}</b></div><div><span>Total earned</span><b>{money(detail.wallet?.totalEarned)}</b></div><div><span>Pending</span><b>{money(detail.wallet?.pendingBalance)}</b></div><div><span>Withdrawn</span><b>{money(detail.wallet?.totalWithdrawn)}</b></div><div><span>Plan</span><b>{detail.package?.name||"None"}</b></div><div><span>Status</span><b>{detail.status}</b></div></div><div className="detailcols"><div><h3>Recent transactions</h3>{(detail.transactions||[]).slice(0,10).map(x=><div className="detailrow" key={x.id}><span>{String(x.type||"").replaceAll("_"," ")}<small>{x.reference}</small></span><b>{money(x.amount)} · {x.status}</b></div>)}{!detail.transactions?.length&&<p className="muted">No transactions.</p>}</div><div><h3>Referrals</h3>{(detail.referrals||[]).slice(0,10).map(x=><div className="detailrow" key={x.id}><span>{x.name}<small>{x.email}</small></span><b>{x.package?.name||"No plan"}</b></div>)}{!detail.referrals?.length&&<p className="muted">No referrals.</p>}</div></div><div className="detailactions"><button className="secondary" onClick={()=>{setDetail(null);openBalance(detail)}}><WalletCards size={15}/> Correct balance</button>{detail.package&&<button className="rowaction dangeraction" onClick={()=>{setDetail(null);openPlan(detail)}}><Ban size={15}/> Manage plan</button>}{detail.status==="ACTIVE"?<button className="rowaction dangeraction" onClick={()=>action(()=>adminApi(`/admin/users/${detail.id}/status`,{method:"PATCH",body:JSON.stringify({status:"SUSPENDED"})}),"User suspended")}>Suspend account</button>:<button className="rowaction successaction" onClick={()=>action(()=>adminApi(`/admin/users/${detail.id}/status`,{method:"PATCH",body:JSON.stringify({status:"ACTIVE"})}),"User reactivated")}>Activate account</button>}</div></div></div>}
+  {planUser&&<AdminPlanModal key={String(planUser.id)} user={planUser} action={action} onClose={closePlan}/>} {detailsLoading&&<div className="detailloading">Loading member details…</div>}
+ </section>;
+}
+
+function AdminTransactions({rows}){const [repair,setRepair]=useState(null);return <section className="adminsection"><div className="adminsectionhead"><div><h1>Transactions</h1><p className="muted">Plan payments, commissions, refunds and withdrawal records.</p></div><div className="rowactions"><button className="secondary" onClick={()=>downloadAdminCsv("transactions")}><Download size={16}/> Export CSV</button><button className="secondary" onClick={()=>setRepair({email:"",reference:""})}><Wrench size={16}/> Repair payment</button></div></div><div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Reference</span><span>Member</span><span>Type</span><span>Amount</span><span>Status</span><span>Date</span></div>{rows.map(x=><div className="adminrow" key={x.id}><div><b>{x.reference}</b><small>{x.metadata?.paystack?.display_text||""}</small></div><div><b>{x.user?.name}</b><small>{x.user?.email}</small></div><span>{x.metadata?.adminBalanceAdjustment?"ADMIN BALANCE ADJUSTMENT":x.type.replaceAll("_"," ")}</span><strong className={x.metadata?.adminBalanceAdjustment?(Number(x.amount)>=0?"green":"adminnegative"):""}>{money(x.amount)}</strong><em className={`adminstatus ${String(x.status).toLowerCase()}`}>{x.status}</em><small>{new Date(x.createdAt).toLocaleString()}</small></div>)}{!rows.length&&<div className="adminempty">No transactions yet.</div>}</div></div>{repair&&<AdminPaymentRepairInline value={repair} onClose={()=>setRepair(null)}/>}</section>}
+
+
+function AdminDepositVerify({action}){
+ const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[err,setErr]=useState(""),[busyId,setBusyId]=useState("");
+ const load=async()=>{setLoading(true);setErr("");try{setRows(await adminApi("/admin/wallet/deposits"))}catch(e){setErr(e.message)}finally{setLoading(false)}};
+ useEffect(()=>{load()},[]);
+ const verify=async(row,act)=>{const note=act==="reject"?(window.prompt("Reason for rejection (optional):","")||""):"";setBusyId(row.reference);try{const d=await adminApi("/admin/wallet/deposits/verify",{method:"POST",body:JSON.stringify({reference:row.reference,action:act,confirmedAmount:row.amount,note})});if(action)await action(async()=>d,d.message||"Deposit updated");await load()}catch(e){setErr(e.message)}finally{setBusyId("")}};
+ return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">WALLET DEPOSITS</span><h1>Verify wallet deposits</h1><p className="muted">Confirm the M-Pesa statement/code and exact amount before crediting a member's available balance.</p></div><button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div>{err&&<div className="error">{err}</div>}{loading&&<p className="muted">Loading…</p>}<div className="table admin-paybill-table">{rows.map(r=><div className="row paybillrow" key={r.id}><div><b>{r.user?.name}</b><small>{r.user?.email} · {r.user?.phone}</small></div><div><small>Amount</small><strong>{money(r.amount)}</strong></div><div><small>Reference</small><strong className="refcode">{r.reference}</strong></div><div><small>M-Pesa code</small><strong>{r.mpesaCode||"—"}</strong></div><div><small>Submitted</small><span>{new Date(r.createdAt).toLocaleString()}</span></div><div className="rowactions"><button className="primary" disabled={busyId===r.reference||!r.mpesaCode} onClick={()=>verify(r,"approve")}><Check size={14}/> Credit wallet</button><button className="secondary" disabled={busyId===r.reference} onClick={()=>verify(r,"reject")}><X size={14}/> Reject</button></div></div>)}{!loading&&!rows.length&&<div className="adminempty">No pending wallet deposits.</div>}</div></section>}
+
+function AdminPaybillVerify({action}){
+ const [rows,setRows]=useState([]);
+ const [loading,setLoading]=useState(true);
+ const [err,setErr]=useState("");
+ const [busyId,setBusyId]=useState("");
+ const load=async()=>{
+  setLoading(true);setErr("");
+  try{setRows(await adminApi("/admin/payments/pending-paybill"))}
+  catch(e){setErr(e.message)}
+  finally{setLoading(false)};
+ };
+ useEffect(()=>{load()},[]);
+ const verify=async(row, act)=>{
+  const note=act==="reject"?window.prompt("Reason for rejection (optional):","")||"":"";
+  setBusyId(row.reference);
+  try{
+   const d=await adminApi("/admin/payments/verify-paybill",{method:"POST",body:JSON.stringify({reference:row.reference,action:act,confirmedAmount:row.amount,note})});
+   if(action) await action(async()=>d, d.message||"Updated");
+   await load();
+  }catch(e){setErr(e.message)}
+  finally{setBusyId("")};
+ };
+ return <section className="adminsection">
+  <div className="adminsectionhead"><div><span className="pill">PAYBILL VERIFICATION</span><h1>Confirm M-Pesa Paybill payments</h1><p className="muted">Only approve after you confirm the M-Pesa SMS/paybill statement shows the same amount and confirmation code.</p></div>
+   <button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div>
+  {err&&<div className="error">{err}</div>}
+  {loading&&<p className="muted">Loading…</p>}
+  <div className="table admin-paybill-table">
+   {rows.map(r=>(
+    <div className="row paybillrow" key={r.id}>
+     <div><b>{r.user?.name}</b><small>{r.user?.email} · {r.user?.phone}</small></div>
+     <div><small>Amount</small><strong>{money(r.amount)}</strong></div>
+     <div><small>Reference</small><strong className="refcode">{r.reference}</strong></div>
+     <div><small>M-Pesa code</small><strong>{r.mpesaCode||"—"}</strong></div>
+     <div><small>Submitted</small><span>{new Date(r.createdAt).toLocaleString()}</span></div>
+     <div className="rowactions">
+      <button className="primary" disabled={busyId===r.reference||!r.mpesaCode} onClick={()=>verify(r,"approve")}><Check size={14}/> Approve & activate</button>
+      <button className="secondary" disabled={busyId===r.reference} onClick={()=>verify(r,"reject")}><X size={14}/> Reject</button>
+     </div>
+    </div>
+   ))}
+   {!loading&&!rows.length&&<p className="muted">No pending Paybill payments.</p>}
+  </div>
+ </section>;
+}
+function AdminPaymentRepair({action}){return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">PAYMENT RECOVERY</span><h1>Repair a verified payment</h1><p className="muted">Enter the member email and NEXORA payment reference. NEXORA verifies the Co-op Bank Paybill transaction before activating the plan or restoring the missing record.</p></div></div><AdminPaymentRepairInline action={action}/></section>}
+function AdminPaymentRepairInline({value,onClose,action}){const [form,setForm]=useState(value||{email:"",reference:""}),[busy,setBusy]=useState(false),[result,setResult]=useState(""),[ok,setOk]=useState(false);const submit=async e=>{e.preventDefault();setBusy(true);setResult("");setOk(false);try{const d=await adminApi("/admin/payments/repair",{method:"POST",body:JSON.stringify(form)});setResult(d.message||"Payment repair complete");setOk(true);if(action)await action(async()=>d,"Payment repair completed")}catch(e){setResult(e.message);setOk(false)}finally{setBusy(false)}};return <div className="adminpanel repairpanel"><form className="repairform" onSubmit={submit}><div className="repairintro"><CreditCard size={22}/><div><h3>Verify before crediting</h3><p className="muted small">This tool never trusts an email or reference alone. The backend checks the current Co-op Paybill payment record (or a legacy Paystack record) and only repairs a payment that can be independently verified.</p></div></div><label>Member email<input required type="email" placeholder="member@example.com" value={form.email} onChange={e=>{setForm({...form,email:e.target.value});setOk(false);setResult("")}}/></label><label>NEXORA transaction reference<input required placeholder="e.g. NEXORA-..." value={form.reference} onChange={e=>{setForm({...form,reference:e.target.value});setOk(false);setResult("")}}/></label>{result&&<div className={ok?"repairdone":"error"} role="status">{ok&&<CheckCircle2 size={20}/>}<div><b>{ok?"Done — payment repaired":"Repair failed"}</b><p>{result}</p></div></div>}<div className="rowactions">{onClose&&<button type="button" className="secondary" onClick={onClose}>Cancel</button>}<button className="primary" disabled={busy}>{busy?"Verifying…":ok?"Repair another":"Verify & repair payment"}</button></div></form></div>}
+
+function AdminAdvertising({products:initialProducts,submissions:initialSubs,action,reload}){
+ const [tab,setTab]=useState("submissions"),[products,setProducts]=useState(initialProducts),[subs,setSubs]=useState(initialSubs),[editing,setEditing]=useState(null),[form,setForm]=useState({title:"",description:"",platforms:"WhatsApp Status\nTikTok\nInstagram\nX",viewRatePer1000:0,engagementRate:0,active:true});
+ useEffect(()=>{setProducts(initialProducts);setSubs(initialSubs)},[initialProducts,initialSubs]);
+ const refresh=async()=>{setProducts(await adminApi("/admin/ad-products"));setSubs(await adminApi("/admin/ad-submissions"));if(reload)await reload()};
+ const save=async()=>{const body={...form,platforms:form.platforms.split("\n").map(x=>x.trim()).filter(Boolean),viewRatePer1000:Number(form.viewRatePer1000),engagementRate:Number(form.engagementRate)};const ok=await action(()=>adminApi(editing?`/admin/ad-products/${editing}`:"/admin/ad-products",{method:editing?"PATCH":"POST",body:JSON.stringify(body)}),editing?"Advertising product updated":"Advertising product created");if(ok){setEditing(null);await refresh()}};
+ const review=async(x,status)=>{const approved=status==="APPROVED"?(x.approvedPay??x.calculatedPay):status==="PAID"?(x.approvedPay??x.calculatedPay):0;const ok=await action(()=>adminApi(`/admin/ad-submissions/${x.id}`,{method:"PATCH",body:JSON.stringify({status,approvedPay:approved})}),`Submission marked ${status}`);if(ok)await refresh()};
+ return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">ADVERTISING CONTROL CENTER</span><h1>Advertising Manager</h1><p className="muted">Create campaigns, set view/engagement rates, review member evidence and process Friday advertising payouts.</p></div><button className="secondary" onClick={refresh}><RefreshCw size={16}/> Refresh</button></div><div className="adminquick adtabs"><button className={tab==="submissions"?"active": ""} onClick={()=>setTab("submissions")}>Submissions ({subs.length})</button><button className={tab==="products"?"active": ""} onClick={()=>setTab("products")}>Products ({products.length})</button></div>{tab==="products"&&<><div className="adminpanel"><div className="adminedit packagecreate"><label>Campaign title<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><label>Description<textarea rows="3" value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><label>Approved platforms <span className="muted small">one per line</span><textarea rows="4" value={form.platforms} onChange={e=>setForm({...form,platforms:e.target.value})}/></label><label>KSh per 1,000 views<input type="number" min="0" value={form.viewRatePer1000} onChange={e=>setForm({...form,viewRatePer1000:e.target.value})}/></label><label>KSh per engagement<input type="number" min="0" value={form.engagementRate} onChange={e=>setForm({...form,engagementRate:e.target.value})}/></label><label className="checkline"><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})}/> Campaign active</label><div className="rowactions"><button className="primary" onClick={save}>{editing?"Save campaign":"Create campaign"}</button>{editing&&<button className="secondary" onClick={()=>setEditing(null)}>Cancel</button>}</div></div></div><div className="adminpanel tablepanel"><div className="admintable">{products.map(p=><div className="adminrow" key={p.id}><div><b>{p.title}</b><small>{p.description}</small></div><span>{(p.platforms||[]).join(", ")}</span><span>{money(p.viewRatePer1000)}/1k views</span><span>{money(p.engagementRate)}/engagement</span><span>{p._count?.submissions||0} submissions</span><em className={`adminstatus ${p.active?"active":"suspended"}`}>{p.active?"LIVE":"OFF"}</em><button className="rowaction" onClick={()=>{setEditing(p.id);setForm({title:p.title,description:p.description,platforms:(p.platforms||[]).join("\n"),viewRatePer1000:p.viewRatePer1000,engagementRate:p.engagementRate,active:p.active})}}>Edit</button></div>)}</div></div></>}{tab==="submissions"&&<div className="adminpanel tablepanel"><div className="admintable">{subs.map(x=><div className="adminrow adreviewrow" key={x.id}><div><b>{x.user?.name}</b><small>{x.user?.email}</small><small>{x.product?.title}</small></div><div><a href={x.postUrl} target="_blank" rel="noreferrer">Open post</a>{x.postMediaData&&<details><summary>View submitted creative</summary>{String(x.postMediaType||"").startsWith("video/")?<video controls src={x.postMediaData}/>:<img src={x.postMediaData} alt="Submitted campaign creative"/>}</details>}</div><span>{x.views.toLocaleString()} views<br/>{x.engagements.toLocaleString()} engagements</span><strong>Calc: {money(x.calculatedPay)}<br/>Approved: {money(x.approvedPay??0)}</strong><em className={`adminstatus ${String(x.status).toLowerCase()}`}>{x.status}</em><div className="rowactions">{x.status==="SUBMITTED"&&<><button className="rowaction successaction" onClick={()=>review(x,"APPROVED")}>Approve</button><button className="rowaction dangeraction" onClick={()=>review(x,"REJECTED")}>Reject</button></>}{x.status==="APPROVED"&&<button className="rowaction successaction" onClick={()=>review(x,"PAID")}>Mark Friday paid</button>}</div></div>)}{!subs.length&&<div className="adminempty">No advertising submissions yet.</div>}</div></div>}</section>
+}
+function AdminWithdrawals({rows,action}){return <section className="adminsection"><div className="adminsectionhead"><div><h1>Withdrawals</h1><p className="muted">Review M-Pesa withdrawal requests and mark them processed.</p></div></div><div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Member</span><span>Phone</span><span>Amount</span><span>Reference</span><span>Status</span><span>Action</span></div>{rows.map(x=><div className="adminrow" key={x.id}><div><b>{x.user?.name}</b><small>{x.user?.email}</small></div><span>{x.phone}</span><strong>{money(x.amount)}</strong><span>{x.reference}</span><em className={`adminstatus ${String(x.status).toLowerCase()}`}>{x.status}</em><div className="rowactions">{x.status!=="PAID"&&x.status!=="FAILED"&&<><button className="rowaction" onClick={()=>action(()=>adminApi(`/admin/withdrawals/${x.id}/status`,{method:"PATCH",body:JSON.stringify({status:"PROCESSING"})}),"Withdrawal marked processing")}><Clock3 size={13}/> Process</button><button className="rowaction successaction" onClick={()=>action(()=>adminApi(`/admin/withdrawals/${x.id}/status`,{method:"PATCH",body:JSON.stringify({status:"PAID"})}),"Withdrawal marked paid")}><Check size={13}/> Paid</button><button className="rowaction dangeraction" onClick={()=>action(()=>adminApi(`/admin/withdrawals/${x.id}/status`,{method:"PATCH",body:JSON.stringify({status:"FAILED"})}),"Withdrawal failed and funds returned")}><Ban size={13}/> Fail</button></>}</div></div>)}{!rows.length&&<div className="adminempty">No withdrawal requests yet.</div>}</div></div></section>}
+function AdminActivity(){const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[err,setErr]=useState("");const load=async()=>{setLoading(true);try{setRows(await adminApi("/admin/activity"))}catch(e){setErr(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[]);return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">AUDIT TRAIL</span><h1>Admin activity</h1><p className="muted">A record of sensitive administrator actions.</p></div><button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div>{err&&<div className="error">{err}</div>}<div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Action</span><span>Target</span><span>Admin</span><span>Details</span><span>Date</span><span>Reference</span></div>{loading?<div className="adminempty">Loading activity…</div>:rows.map(x=><div className="adminrow" key={x.id}><div><b>{String(x.action).replaceAll("_"," ")}</b></div><div><b>{x.targetType||"—"}</b><small>{x.targetEmail||x.targetId||""}</small></div><span>{x.adminEmail}</span><span>{x.details?.reason||x.details?.reference||x.details?.status||"—"}</span><small>{new Date(x.createdAt).toLocaleString()}</small><small>{x.details?.reference||"—"}</small></div>)}{!loading&&!rows.length&&<div className="adminempty">No admin activity recorded yet.</div>}</div></div></section>}
+function AdminSupportTickets({action}){const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[open,setOpen]=useState(null),[response,setResponse]=useState("");const load=async()=>{setLoading(true);try{setRows(await adminApi("/admin/support/tickets"))}catch(e){alert(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[]);const save=async()=>{if(!open)return;await action(()=>adminApi(`/admin/support/tickets/${open.id}`,{method:"PATCH",body:JSON.stringify({status:open.status,response})}),"Support ticket updated");setOpen(null);setResponse("");await load()};return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">MEMBER CARE</span><h1>Support tickets</h1><p className="muted">Respond to member questions and keep the support history in one place.</p></div><button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div><div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Member</span><span>Subject</span><span>Status</span><span>Message</span><span>Date</span><span>Action</span></div>{loading?<div className="adminempty">Loading tickets…</div>:rows.map(t=><div className="adminrow" key={t.id}><div><b>{t.user?.name}</b><small>{t.user?.email}</small></div><span>{t.subject}</span><em className={`adminstatus ${t.status.toLowerCase()}`}>{t.status}</em><small>{t.message}</small><small>{new Date(t.createdAt).toLocaleString()}</small><button className="rowaction" onClick={()=>{setOpen(t);setResponse(t.response||"")}}>Open</button></div>)}{!loading&&!rows.length&&<div className="adminempty">No support tickets yet.</div>}</div></div>{open&&<div className="modalbackdrop" onClick={()=>setOpen(null)}><div className="modal adminbalance" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">SUPPORT TICKET</span><h2>{open.subject}</h2><p className="muted">{open.user?.name} · {open.user?.email}</p></div><button className="iconbtn" onClick={()=>setOpen(null)}><X size={20}/></button></div><div className="adminbalanceform"><div className="notice">{open.message}</div><label>Status<select value={open.status} onChange={e=>setOpen({...open,status:e.target.value})}><option>OPEN</option><option>IN_PROGRESS</option><option>CLOSED</option></select></label><label>Support reply<textarea rows="8" value={response} onChange={e=>setResponse(e.target.value)} placeholder="Write a clear response to the member…"/></label><div className="rowactions"><button className="secondary" onClick={()=>setOpen(null)}>Cancel</button><button className="primary" onClick={save}><Send size={15}/> Save response</button></div></div></div></div>}</section>}
+function AdminAnnouncements({action}){const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[editing,setEditing]=useState(null),[form,setForm]=useState({title:"",body:"",category:"UPDATE",active:true});const load=async()=>{setLoading(true);try{setRows(await adminApi("/admin/announcements"))}catch(e){alert(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[]);const save=async()=>{if(!form.title.trim()||!form.body.trim())return alert("Title and body are required");const ok=await action(()=>adminApi(editing?`/admin/announcements/${editing}`:"/admin/announcements",{method:editing?"PATCH":"POST",body:JSON.stringify(form)}),editing?"Announcement updated":"Announcement published");if(ok){setEditing(null);setForm({title:"",body:"",category:"UPDATE",active:true});await load()}};return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">COMMUNICATION CENTER</span><h1>Announcements</h1><p className="muted">Publish platform updates, education reminders and member guidance.</p></div><button className="primary" onClick={()=>{setEditing("");setForm({title:"",body:"",category:"UPDATE",active:true})}}>New announcement</button></div>{editing!==null&&<div className="adminpanel adminedit"><label>Title<input value={form.title} onChange={e=>setForm({...form,title:e.target.value})}/></label><label>Category<input value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></label><label>Message<textarea rows="7" value={form.body} onChange={e=>setForm({...form,body:e.target.value})}/></label><label className="checkline"><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})}/> Visible to members</label><div className="rowactions"><button className="secondary" onClick={()=>setEditing(null)}>Cancel</button><button className="primary" onClick={save}>Publish</button></div></div>}<div className="adminpanel tablepanel"><div className="admintable">{loading?<div className="adminempty">Loading announcements…</div>:rows.map(x=><div className="adminrow" key={x.id}><div><b>{x.title}</b><small>{x.category}</small></div><span>{x.body}</span><em className={`adminstatus ${x.active?"active":"suspended"}`}>{x.active?"LIVE":"HIDDEN"}</em><small>{new Date(x.createdAt).toLocaleString()}</small><div className="rowactions"><button className="rowaction" onClick={()=>{setEditing(x.id);setForm({title:x.title,body:x.body,category:x.category,active:x.active})}}><Settings2 size={13}/> Edit</button><button className="rowaction" onClick={()=>action(()=>adminApi(`/admin/announcements/${x.id}`,{method:"PATCH",body:JSON.stringify({active:!x.active})}),x.active?"Announcement hidden":"Announcement published")}>{x.active?"Hide":"Publish"}</button></div></div>)}{!rows.length&&!loading&&<div className="adminempty">No announcements yet.</div>}</div></div></section>}
+function AdminPackages({rows,action}){const [editing,setEditing]=useState(null),[creating,setCreating]=useState(false),[form,setForm]=useState({});const open=p=>{setEditing(p.id);setForm({price:p.price,directCommission:p.directCommission,level2Commission:p.level2Commission,active:p.active,description:p.description||"",features:(p.features||[]).join("\n"),badge:p.badge||"",popular:!!p.popular,withdrawalLimit:p.withdrawalLimit||0})};return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">PLAN CONTROL</span><h1>Plans</h1><p className="muted">Control prices, referral rewards, benefits, badges, limits and which plan is highlighted.</p></div><button className="primary" onClick={()=>{setCreating(true);setEditing(null);setForm({name:"",price:0,directCommission:0,level2Commission:0,description:"",features:"",badge:"",popular:false,active:true,withdrawalLimit:0})}}>Add plan</button></div>{creating&&<div className="adminpanel"><div className="adminedit packagecreate"><label>Name<input value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label><label>Price<input type="number" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Direct commission<input type="number" value={form.directCommission} onChange={e=>setForm({...form,directCommission:e.target.value})}/></label><label>Level 2 commission<input type="number" value={form.level2Commission} onChange={e=>setForm({...form,level2Commission:e.target.value})}/></label><label>Description<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><label>Features <span className="muted small">one per line</span><textarea rows="5" value={form.features} onChange={e=>setForm({...form,features:e.target.value})}/></label><label>Badge<input value={form.badge} onChange={e=>setForm({...form,badge:e.target.value})}/></label><label>Withdrawal limit<input type="number" value={form.withdrawalLimit} onChange={e=>setForm({...form,withdrawalLimit:e.target.value})}/></label><label className="checkline"><input type="checkbox" checked={form.popular} onChange={e=>setForm({...form,popular:e.target.checked})}/> Mark as popular</label><div className="rowactions"><button className="secondary" onClick={()=>setCreating(false)}>Cancel</button><button className="primary" onClick={()=>action(()=>adminApi("/admin/packages",{method:"POST",body:JSON.stringify({...form,name:form.name.trim(),price:Number(form.price),directCommission:Number(form.directCommission),level2Commission:Number(form.level2Commission),withdrawalLimit:Number(form.withdrawalLimit),features:form.features.split("\n").map(x=>x.trim()).filter(Boolean)})}),"Plan created")}>Create plan</button></div></div></div>}<div className="adminpackagegrid">{rows.map(p=><div className="adminpkg" key={p.id}><div className="adminpkghead"><div><span className="pkgname">{p.name}</span><small>{p._count?.users||0} members</small></div><em className={`adminstatus ${p.active?"active":"suspended"}`}>{p.active?"ACTIVE":"OFF"}</em></div>{editing===p.id?<div className="adminedit"><label>Price<input type="number" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label>Direct commission<input type="number" value={form.directCommission} onChange={e=>setForm({...form,directCommission:e.target.value})}/></label><label>Level 2 commission<input type="number" value={form.level2Commission} onChange={e=>setForm({...form,level2Commission:e.target.value})}/></label><label>Description<input value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></label><label>Features <span className="muted small">one per line</span><textarea rows="6" value={form.features} onChange={e=>setForm({...form,features:e.target.value})}/></label><label>Badge<input value={form.badge} onChange={e=>setForm({...form,badge:e.target.value})}/></label><label>Withdrawal limit (0 = no plan limit)<input type="number" value={form.withdrawalLimit} onChange={e=>setForm({...form,withdrawalLimit:e.target.value})}/></label><label className="checkline"><input type="checkbox" checked={form.popular} onChange={e=>setForm({...form,popular:e.target.checked})}/> Mark as popular</label><label className="checkline"><input type="checkbox" checked={form.active} onChange={e=>setForm({...form,active:e.target.checked})}/> Active</label><div className="rowactions"><button className="secondary" onClick={()=>setEditing(null)}>Cancel</button><button className="primary" onClick={()=>action(()=>adminApi(`/admin/packages/${p.id}`,{method:"PATCH",body:JSON.stringify({...form,price:Number(form.price),directCommission:Number(form.directCommission),level2Commission:Number(form.level2Commission),withdrawalLimit:Number(form.withdrawalLimit),features:form.features.split("\n").map(x=>x.trim()).filter(Boolean)})}),"Plan updated")}>Save</button></div></div>:<><h2>{money(p.price)}</h2>{p.description&&<p className="pkgdesc">{p.description}</p>}<div className="commission"><div><b>{money(p.directCommission)}</b><small>Direct</small></div><div><b>{money(p.level2Commission)}</b><small>Level 2</small></div></div>{p.features?.length>0&&<ul className="pkgfeatures">{p.features.slice(0,4).map((x,j)=><li key={j}><Check size={14}/>{x}</li>)}</ul>}<button className="secondary" onClick={()=>open(p)}>Edit plan benefits</button></>}</div>)}</div></section>}
+
+
+function ReferralTree({data,me}){const direct=data?.direct||[];const level2=data?.level2||[];return <div className="panel trepanel"><div className="paneltitle"><h3><Users2 size={18}/> Network map</h3><span>{direct.length} direct · {level2.length} level 2</span></div><div className="tree"><div className="treeperson root"><div className="avatar">{me.user.name?.[0]?.toUpperCase()||"N"}</div><b>{me.user.name?.split(" ")[0]}</b><small>Your account</small></div><div className="treebranch">{direct.slice(0,8).map((x,i)=><div className="treecolumn" key={x.id}><div className="treeperson"><div className="avatar">{x.name?.[0]?.toUpperCase()||"M"}</div><b>{x.name?.split(" ")[0]}</b><small>{x.package?.name||"No plan"}</small></div><div className="treechildren">{level2.filter(y=>y.referredById===x.id).slice(0,4).map(y=><div className="treeperson mini" key={y.id}><div className="avatar">{y.name?.[0]?.toUpperCase()||"M"}</div><b>{y.name?.split(" ")[0]}</b></div>)}</div></div>)}</div>{!direct.length&&<p className="muted">Your network map will appear here as your direct referrals join.</p>}</div></div>}
+function ProfileCard({me,strength,goSecurity}){return <div className="panel profilecard"><div className="profileavatar">{me.user.name?.[0]?.toUpperCase()||"N"}</div><div className="profileinfo"><span className="pill">MEMBER PROFILE</span><h2>{me.user.name}</h2><p>{me.user.email}</p><div className="profilemeta"><span>{me.package?.name||"No plan"}</span><span>Code: {me.user.referralCode}</span><span>Member since {new Date(me.user.createdAt).toLocaleDateString()}</span></div><div className="profilemeter"><b>Profile completeness · {strength}%</b><div className="progress"><i style={{width:`${strength}%`}}/></div></div><button className="secondary" onClick={goSecurity}><UserCog size={15}/> Edit profile</button></div></div>}
+function Products({me,packages=[],purchase,goPlans}){
+ const premium=me?.package?.name==="Premium";
+ const [products,setProducts]=useState([]),[loading,setLoading]=useState(false),[selected,setSelected]=useState(null),[err,setErr]=useState(""),[msg,setMsg]=useState(""),[submissions,setSubmissions]=useState([]);
+ const [form,setForm]=useState({postUrl:"",proofUrl:"",views:"",engagements:"",postMediaData:"",postMediaName:"",postMediaType:""});
+ const [busy,setBusy]=useState(false);
+ const load=async()=>{if(!premium)return;setLoading(true);try{setProducts(await api("/ad-products"));setSubmissions(await api("/ad-submissions"));}catch(e){setErr(e.message||"Unable to load advertising products")}finally{setLoading(false)}};
+ useEffect(()=>{load()},[premium]);
+ const openSubmit=p=>{setSelected(p);setErr("");setMsg("");setForm({postUrl:"",proofUrl:"",views:"",engagements:"",postMediaData:"",postMediaName:"",postMediaType:""})};
+ const readMedia=e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>8*1024*1024){setErr("Please choose an image or video under 8 MB.");e.target.value="";return}const reader=new FileReader();reader.onload=()=>setForm(x=>({...x,postMediaData:String(reader.result),postMediaName:f.name,postMediaType:f.type}));reader.readAsDataURL(f)};
+ const submit=async e=>{e.preventDefault();if(!selected)return;if(!form.postMediaData)return setErr("Upload the exact post creative you published so NEXORA can compare it with the campaign.");setBusy(true);setErr("");setMsg("");try{const r=await api(`/ad-products/${selected.id}/submit`,{method:"POST",body:JSON.stringify({...form,views:Number(form.views),engagements:Number(form.engagements)})});setMsg(r.message||"Advertising performance submitted for review.");setSelected(null);await load()}catch(e){setErr(e.message||"Unable to submit advertising performance")}finally{setBusy(false)}};
+ const copyPost=async()=>{const text=`🚀 Turn your social reach into an opportunity with NEXORA!\n\nNEXORA is a member platform where you can learn, build referrals and, after activating Premium, access selected advertising products. Premium members can promote approved products on WhatsApp Status, TikTok, Instagram, X and other approved platforms.\n\n📊 Advertising payouts are based on verified views and engagements and are processed weekly on Friday after review.\n🤝 All members can also participate in qualifying referrals.\n\nLearn more: ${location.origin}`;try{await navigator.clipboard.writeText(text);setMsg("Marketing post copied. Personalize it before publishing.")}catch{window.prompt("Copy this post:",text)}};
+ if(!premium){
+  const premiumPkg=(packages||[]).find(x=>x.name==="Premium");
+  const currentPrice=Number(me?.package?.price||0);
+  const charge=premiumPkg?Math.max(0,Number(premiumPkg.price)-currentPrice):null;
+  const isUpgrade=!!me?.package && charge!=null && charge<Number(premiumPkg?.price||0);
+  return <section className="premiumgate"><div className="adtruststrip"><ShieldCheck size={16}/><span>Verified post + Friday review · No fixed income is promised.</span></div>
+    <div className="sectionhead"><div><span className="pill">PREMIUM MEMBER AREA</span><h1>Products & Advertising</h1><p className="muted">Advertising campaigns are available only on the Premium plan. Activate Premium below to unlock approved products and Friday payout review.</p></div></div>
+    <div className="lockedpanel productlock">
+      <Crown size={32}/>
+      <div>
+        <h3>Premium plan required</h3>
+        <p className="muted">Starter, Growth, Pro and Elite plans focus on referral earning. Premium unlocks the advertising marketplace on top of full referral access.</p>
+      </div>
+    </div>
+    {premiumPkg&&(
+      <div className="panel premiumoffer">
+        <div className="premiumofferhead">
+          <div>
+            <span className="packagebadge">VIP</span>
+            <h2>Premium plan</h2>
+            <p className="muted">{premiumPkg.description||"The complete NEXORA member experience with Premium advertising access."}</p>
+          </div>
+          <div className="premiumprice">
+            <strong>{money(premiumPkg.price)}</strong>
+            {isUpgrade&&charge!=null&&<small>Upgrade difference: {money(charge)}</small>}
+            {!me?.package&&<small>One-time plan activation</small>}
+          </div>
+        </div>
+        <ul className="premiumfeatures">
+          {(premiumPkg.features&&premiumPkg.features.length?premiumPkg.features:[
+            "Everything in Elite",
+            "Products & Advertising access",
+            "Weekly Friday advertising payout processing",
+            "Referral earning across all plan levels",
+            "VIP support and Premium badge"
+          ]).map((f,i)=><li key={i}><Check size={14}/>{f}</li>)}
+        </ul>
+        <div className="premiumterms">
+          <b>Premium advertising terms</b>
+          <ul>
+            <li>Advertising is available only after Premium is active on your account.</li>
+            <li>You may promote only approved campaign products published by NEXORA.</li>
+            <li>Submit the public post link and the exact creative you published so performance can be verified.</li>
+            <li>Approved earnings are processed weekly on Friday and depend on verified views and engagements — not on unverified screenshots alone.</li>
+            <li>Submission does not guarantee approval or any fixed payout amount.</li>
+            <li>NEXORA does not guarantee income. Advertising results vary by campaign, platform and audience.</li>
+            <li>Upgrades charge only the price difference from your current plan (if any).</li>
+            <li>By purchasing Premium you confirm you have reviewed the <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>, <a href="/terms" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a>.</li>
+          </ul>
+        </div>
+        <div className="premiumactions">
+          <button type="button" className="primary" onClick={()=>purchase?purchase(premiumPkg):null} disabled={!purchase||!premiumPkg}>
+            <Crown size={16}/> {isUpgrade?`Upgrade to Premium · ${money(charge)}`:`Activate Premium · ${money(premiumPkg.price)}`}
+          </button>
+          <button type="button" className="secondary" onClick={()=>goPlans?goPlans():null}>Compare all plans</button>
+        </div>
+      </div>
+    )}
+    {!premiumPkg&&(
+      <div className="panel empty">
+        <PackageIcon size={28}/>
+        <h3>Premium plan unavailable</h3>
+        <p className="muted">We could not load the Premium plan right now. Open Membership plans or try again later.</p>
+        <button type="button" className="primary" onClick={()=>goPlans?goPlans():null}>View membership plans</button>
+      </div>
+    )}
+    <div className="notice"><CalendarCheck2 size={16}/> Approved advertising payouts are processed weekly on Friday and depend on verified views and engagements. No fixed income is guaranteed.</div>
+  </section>;
+}
+ return <section><div className="sectionhead"><div><span className="pill">PREMIUM ADVERTISING</span><h1>Products & Advertising</h1><p className="muted">Choose an approved product, publish the supplied creative, share the public post link and upload the exact post you published.</p></div><div className="sectionactions"><span className="packagebadge">Premium</span></div></div>
+ <div className="adtruststrip"><ShieldCheck size={16}/><span>Verified post + Friday review · Performance-based — results vary by campaign.</span></div>
+ {products[0]&&<div className="panel campaignweek"><div className="campaignweekhead"><span className="pill">CAMPAIGN OF THE WEEK</span><h3>{products[0].title}</h3><p className="muted">{products[0].description||"Featured advertising product."}</p></div><div className="campaignweekmeta"><span>{money(products[0].viewRatePer1000)} / 1,000 views</span><span>{money(products[0].engagementRate)} / engagement</span></div><button type="button" className="primary" onClick={()=>openSubmit(products[0])}><Link2 size={16}/> Promote this campaign</button></div>}
+ <div className="adpolicygrid"><div className="panel"><Store size={22}/><h3>How it works</h3><p className="muted">1. Select a campaign. 2. Publish the campaign creative on an approved platform. 3. Submit the public post link and the exact image/video you posted. 4. Enter the platform's current views and engagements. 5. NEXORA reviews the evidence and schedules approved earnings for Friday processing.</p></div><div className="panel"><CalendarCheck2 size={22}/><h3>Friday payout cycle</h3><p className="muted">Rates are configured per campaign. Final payout uses verified performance, not unverified screenshots or self-reported figures alone.</p></div></div>
+ <div className="panel marketingpostkit"><div><Megaphone size={22}/><h3>Ready-to-use NEXORA marketing post</h3><p className="muted">Use this as a starting point. Add your own voice and never promise guaranteed earnings.</p></div><div className="postpreview"><strong>🚀 Discover NEXORA</strong><p>Learn. Connect. Grow. Build.</p><p>NEXORA brings referrals, learning tools, analytics and — for Premium members — approved advertising opportunities together in one workspace.</p><p>Premium members can promote selected products on approved social platforms and submit verified performance for Friday payout review.</p><b>Learn more: {location.origin}</b></div><button className="secondary" onClick={copyPost}><ClipboardCopy size={15}/> Copy marketing post</button></div>
+ {msg&&<div className="notice">{msg}</div>}{err&&<div className="error">{err}</div>}
+ {loading?<div className="panel"><p className="muted">Loading available products…</p></div>:products.length?<div className="productgrid">{products.map(p=><div className="productcard" key={p.id}><div className="producttop"><span className="pill">AVAILABLE</span><small>{(p.platforms||[]).join(" · ")}</small></div><h3>{p.title}</h3><p className="muted">{p.description}</p><div className="productmeta"><span>Views rate: {money(p.viewRatePer1000)} / 1,000</span><span>Engagement rate: {money(p.engagementRate)} / engagement</span></div><button className="primary" onClick={()=>openSubmit(p)}><Link2 size={16}/> Submit promotion</button></div>)}</div>:<div className="panel empty"><Store size={30}/><h3>No advertising products are available yet</h3><p className="muted">Check back when NEXORA publishes a campaign.</p></div>}
+ <div className="panel"><h3>Your advertising submissions</h3>{submissions.length?submissions.map(x=><div className="adsubmissionrow" key={x.id}><div><b>{x.product?.title}</b><small>{new Date(x.submittedAt).toLocaleString()} · {x.views.toLocaleString()} views · {x.engagements.toLocaleString()} engagements</small></div><em className={`adminstatus ${String(x.status).toLowerCase()}`}>{x.status}</em><strong>{money(x.approvedPay??x.calculatedPay)}</strong></div>):<p className="muted">No advertising submissions yet.</p>}</div>
+ {selected&&<div className="modalbackdrop" onClick={()=>setSelected(null)}><div className="modal adsubmitmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">CAMPAIGN SUBMISSION</span><h2>{selected.title}</h2></div><button className="iconbtn" onClick={()=>setSelected(null)}><X size={20}/></button></div><form onSubmit={submit}><div className="adsubmitbody"><p className="muted">Paste the public post URL and upload the exact creative you published. This helps NEXORA verify that the campaign was actually posted.</p><label className="fieldlabel">Public post / status link<input required type="url" value={form.postUrl} onChange={e=>setForm({...form,postUrl:e.target.value})} placeholder="https://…"/></label><label className="fieldlabel">Upload the post you published<input required type="file" accept="image/*,video/*" onChange={readMedia}/></label>{form.postMediaData&&<div className="mediapreview">{form.postMediaType.startsWith("video/")?<video controls src={form.postMediaData}/>:<img src={form.postMediaData} alt="Submitted campaign post"/>}<small>{form.postMediaName}</small></div>}<label className="fieldlabel">Proof / analytics screenshot link (optional)<input type="url" value={form.proofUrl} onChange={e=>setForm({...form,proofUrl:e.target.value})} placeholder="https://…"/></label><div className="admetricgrid"><label className="fieldlabel">Current views<input required min="0" type="number" value={form.views} onChange={e=>setForm({...form,views:e.target.value})}/></label><label className="fieldlabel">Current engagements<input required min="0" type="number" value={form.engagements} onChange={e=>setForm({...form,engagements:e.target.value})}/></label></div><div className="notice"><Eye size={16}/> Enter the figures visible on the platform. NEXORA can request additional verification before approval.</div></div><div className="modalfoot"><button type="button" className="secondary" onClick={()=>setSelected(null)} disabled={busy}>Cancel</button><button className="primary" disabled={busy}>{busy?"Submitting…":"Submit for review"}</button></div></form></div></div>}</section>
+}
+
+function Marketplace({me}){
+ const [tab,setTab]=useState("shop"),[products,setProducts]=useState([]),[mine,setMine]=useState([]),[orders,setOrders]=useState({buying:[],selling:[]}),[wishlist,setWishlist]=useState([]),[cart,setCart]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-cart")||"[]")}catch{return[]}}),[recentViews,setRecentViews]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-recent-products")||"[]")}catch{return[]}}),[q,setQ]=useState(""),[category,setCategory]=useState("All"),[location,setLocation]=useState(""),[sort,setSort]=useState("newest"),[minPrice,setMinPrice]=useState(""),[maxPrice,setMaxPrice]=useState(""),[selected,setSelected]=useState(null),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[form,setForm]=useState({title:"",description:"",price:"",stock:"1",category:"Other",location:"",phone:me.user.phone||"",images:[]}),[checkout,setCheckout]=useState({deliveryName:me.user.name||"",deliveryPhone:me.user.phone||"",deliveryAddress:"",deliveryNotes:"",paymentMethod:"CASH_ON_DELIVERY"});
+ const categories=["All","Fashion","Electronics","Phones & Accessories","Home","Beauty","Food","Services","Vehicles","Property","Jobs","Other"];
+ const saveCart=c=>{setCart(c);localStorage.setItem("nexora-cart",JSON.stringify(c))};
+ const loadProducts=async()=>{setBusy(true);try{setProducts(await api(`/marketplace/products?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}&location=${encodeURIComponent(location)}`));}catch(e){setError(e.message)}finally{setBusy(false)}};
+ const loadMine=async()=>{try{setMine(await api("/marketplace/my-products"))}catch(e){setError(e.message)}};
+ const loadWishlist=async()=>{try{setWishlist(await api("/marketplace/wishlist"))}catch(e){setError(e.message)}};
+ const loadOrders=async()=>{try{setOrders(await api("/marketplace/orders"))}catch(e){setError(e.message)}};
+ useEffect(()=>{loadProducts();loadWishlist()},[category]); useEffect(()=>{if(tab==="sell")loadMine();if(tab==="orders")loadOrders()},[tab]);
+ const toggleWishlist=async p=>{try{const r=await api(`/marketplace/wishlist/${p.id}`,{method:"POST"});setWishlist(w=>r.saved?[...w,{product:p}]:w.filter(x=>x.productId!==p.id));setNotice(r.saved?"Saved to wishlist.":"Removed from wishlist.")}catch(e){setError(e.message)}};
+ const isSaved=p=>wishlist.some(x=>(x.productId||x.product?.id)===p.id);
+ const addToCart=p=>{const existing=cart.find(x=>x.productId===p.id);if(existing){if(existing.quantity>=p.stock)return setError("You have reached the available stock for this product.");saveCart(cart.map(x=>x.productId===p.id?{...x,quantity:x.quantity+1}:x));}else saveCart([...cart,{productId:p.id,title:p.title,price:p.price,quantity:1,stock:p.stock,sellerId:p.sellerId,sellerName:p.seller?.name,images:p.images||[]}]);setNotice("Added to cart.");};
+ const remove=p=>saveCart(cart.filter(x=>x.productId!==p.productId));
+ const changeQty=(id,n)=>saveCart(cart.map(x=>x.productId===id?{...x,quantity:Math.max(1,Math.min(x.stock,Number(n)||1))}:x));
+ const total=cart.reduce((a,x)=>a+x.price*x.quantity,0);
+ const displayedProducts=[...products].filter(p=>(!minPrice||Number(p.price)>=Number(minPrice))&&(!maxPrice||Number(p.price)<=Number(maxPrice))).sort((a,b)=>sort==="priceLow"?Number(a.price)-Number(b.price):sort==="priceHigh"?Number(b.price)-Number(a.price):sort==="popular"?Number(b._count?.orderItems||0)-Number(a._count?.orderItems||0):new Date(b.createdAt)-new Date(a.createdAt));
+ const submitProduct=async e=>{e.preventDefault();setBusy(true);setError("");try{const r=await api("/marketplace/products",{method:"POST",body:JSON.stringify(form)});setNotice("Product published successfully.");setMine([r,...mine]);setForm({title:"",description:"",price:"",stock:"1",category:"Other",location:"",phone:me.user.phone||"",images:[]});}catch(e){setError(e.message)}finally{setBusy(false)}};
+ const readImages=e=>{const files=[...e.target.files].slice(0,6);Promise.all(files.map(f=>new Promise((resolve,reject)=>{if(f.size>1800000)return reject(new Error("Each product image must be under 1.8 MB."));const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)}))).then(images=>setForm({...form,images})).catch(e=>setError(e.message))};
+ const checkoutNow=async e=>{e.preventDefault();if(!cart.length)return setError("Your cart is empty.");setBusy(true);setError("");try{const r=await api("/marketplace/orders",{method:"POST",body:JSON.stringify({...checkout,items:cart.map(x=>({productId:x.productId,quantity:x.quantity}))})});setNotice(r.message);saveCart([]);setTab("orders");await loadOrders();}catch(e){setError(e.message)}finally{setBusy(false)}};
+ const updateOrder=async(id,status)=>{try{await api(`/marketplace/orders/${id}/status`,{method:"PATCH",body:JSON.stringify({status})});await loadOrders();setNotice("Order status updated.")}catch(e){setError(e.message)}};
+ const disputeOrder=async(id)=>{const reason=window.prompt("What is the issue with this order?","Order issue");if(!reason)return;try{await api(`/marketplace/orders/${id}/disputes`,{method:"POST",body:JSON.stringify({reason,details:"Submitted from NEXORA Marketplace"})});setNotice("Order issue submitted to NEXORA support.")}catch(e){setError(e.message)}};
+ const sameSeller=cart.length<2||cart.every(x=>x.sellerId===cart[0].sellerId);
+ return <section><div className="sectionhead"><div><span className="pill">NEXORA MARKETPLACE</span><h1>Shop, sell & grow</h1><p className="muted">A member marketplace for buying and selling products and services with clear pricing, seller details and delivery information.</p></div><div className="sectionactions"><button className="primary" onClick={()=>setTab("cart")}><ShoppingCart size={16}/> Cart ({cart.reduce((a,x)=>a+x.quantity,0)})</button></div></div>
+ <div className="market-tabs"><button className={tab==="shop"?"active":""} onClick={()=>setTab("shop")}><Store size={16}/> Shop</button><button className={tab==="wishlist"?"active":""} onClick={()=>setTab("wishlist")}><Heart size={16}/> Wishlist ({wishlist.length})</button><button className={tab==="cart"?"active":""} onClick={()=>setTab("cart")}><ShoppingCart size={16}/> Cart</button><button className={tab==="sell"?"active":""} onClick={()=>setTab("sell")}><Plus size={16}/> Sell a product</button><button className={tab==="myshop"?"active":""} onClick={()=>{setTab("myshop");loadMine()}}><PackageIcon size={16}/> My listings</button><button className={tab==="orders"?"active":""} onClick={()=>{setTab("orders");loadOrders()}}><Truck size={16}/> Orders</button><button className={tab==="seller"?"active":""} onClick={()=>{setTab("seller");loadMine();loadOrders()}}><BarChart2 size={16}/> Seller dashboard</button></div>
+ {notice&&<div className="notice">{notice}</div>}{error&&<div className="error">{error}</div>}
+ {tab==="shop"&&<>{recentViews.length>0&&<div className="recentstrip panel"><div className="paneltitle"><h3>Recently viewed</h3><button type="button" className="secondary narrow" onClick={()=>{setRecentViews([]);localStorage.removeItem("nexora-recent-products")}}>Clear</button></div><div className="recentrow">{recentViews.map(p=><button type="button" className="recentchip" key={p.id} onClick={()=>setSelected(p)}><b>{p.title}</b><span>{money(p.price)}</span></button>)}</div></div>}<div className="marketfilters"><div className="searchbox"><Search size={17}/><input value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadProducts()} placeholder="Search products, services or locations…"/></div><select value={category} onChange={e=>setCategory(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select><div className="searchbox"><MapPin size={17}/><input value={location} onChange={e=>setLocation(e.target.value)} onKeyDown={e=>e.key==="Enter"&&loadProducts()} placeholder="Location e.g. Nairobi"/></div><input className="pricefilter" type="number" min="0" value={minPrice} onChange={e=>setMinPrice(e.target.value)} placeholder="Min KSh"/><input className="pricefilter" type="number" min="0" value={maxPrice} onChange={e=>setMaxPrice(e.target.value)} placeholder="Max KSh"/><select value={sort} onChange={e=>setSort(e.target.value)}><option value="newest">Newest</option><option value="priceLow">Price: low to high</option><option value="priceHigh">Price: high to low</option><option value="popular">Most ordered</option></select><button className="secondary" onClick={loadProducts}><Filter size={15}/> Search</button></div>{busy?<div className="panel"><p className="muted">Loading marketplace…</p></div>:<div className="marketgrid">{displayedProducts.map(p=><article className="marketcard" key={p.id}><div className="marketimage">{p.images?.[0]?<img src={p.images[0]} alt={p.title}/>:<Store size={38}/>}<span>{p.category}</span></div><div className="marketcardbody"><h3>{p.title}</h3><p className="muted marketdesc">{p.description}</p><strong className="marketprice">{money(p.price)}</strong><div className="marketseller"><span><MapPin size={14}/> {p.location}</span><span>Seller: {p.seller?.name||"Member"}</span>{p.seller?.sellerVerified&&<span className="verifiedseller"><ShieldCheck size={12}/> Verified</span>}</div><div className="marketstock">{p.stock} available</div><div className="marketactions"><button className="iconbtn" title="Wishlist" onClick={()=>toggleWishlist(p)}><Heart size={16} fill={isSaved(p)?"currentColor":"none"}/></button><button className="secondary" onClick={()=>{setSelected(p);const next=[p,...recentViews.filter(x=>x.id!==p.id)].slice(0,8);setRecentViews(next);try{localStorage.setItem("nexora-recent-products",JSON.stringify(next.map(x=>({id:x.id,title:x.title,price:x.price,images:x.images,location:x.location,category:x.category,seller:x.seller}))))}catch{}}}>View details</button><button className="primary" onClick={()=>addToCart(p)}><ShoppingCart size={15}/> Add</button></div></div></article>)}{!displayedProducts.length&&<div className="panel empty"><Store size={30}/><h3>No products found</h3><p className="muted">Try another search or category.</p></div>}</div>}</>}
+ {tab==="wishlist"&&<div className="marketgrid">{wishlist.map(w=>{const p=w.product;return <article className="marketcard" key={p.id}><div className="marketimage">{p.images?.[0]?<img src={p.images[0]} alt={p.title}/>:<Store size={38}/>}<span>{p.category}</span></div><div className="marketcardbody"><h3>{p.title}</h3><p className="muted marketdesc">{p.description}</p><strong className="marketprice">{money(p.price)}</strong><div className="marketactions"><button className="secondary" onClick={()=>setSelected(p)}>View</button><button className="primary" onClick={()=>addToCart(p)}><ShoppingCart size={15}/> Add</button></div></div></article>})}{!wishlist.length&&<div className="panel empty"><Heart size={30}/><h3>Your wishlist is empty</h3><p className="muted">Save products you want to compare or buy later.</p></div>}</div>}{tab==="cart"&&<div className="marketlayout"><div className="panel cartpanel"><div className="paneltitle"><h3>Your cart</h3>{cart.length>0&&<button className="secondary" onClick={()=>saveCart([])}><Trash2 size={15}/> Clear</button>}</div>{cart.map(x=><div className="cartrow" key={x.productId}><div className="cartthumb">{x.images?.[0]?<img src={x.images[0]} alt=""/>:<Store size={20}/>}</div><div className="cartinfo"><b>{x.title}</b><small>{money(x.price)} · {x.sellerName||"Member seller"}</small></div><input type="number" min="1" max={x.stock} value={x.quantity} onChange={e=>changeQty(x.productId,e.target.value)}/><strong>{money(x.price*x.quantity)}</strong><button className="iconbtn" onClick={()=>remove(x)}><Trash2 size={16}/></button></div>)}{!cart.length&&<p className="muted">Your cart is empty. Browse the marketplace and add something you like.</p>}</div>{cart.length>0&&<form className="panel checkoutpanel" onSubmit={checkoutNow}><h3>Checkout</h3>{!sameSeller&&<div className="error">Checkout is currently one seller at a time. Remove items from other sellers.</div>}<div className="checkouttotal"><span>Total</span><strong>{money(total)}</strong></div><div className="couponrow"><input placeholder="Coupon code (optional)" id="market-coupon"/><button type="button" className="secondary" onClick={async()=>{const code=document.getElementById("market-coupon")?.value?.trim();if(!code)return;try{const r=await api("/marketplace/coupons/validate",{method:"POST",body:JSON.stringify({code,subtotal:total})});setNotice(`Coupon applied: ${money(r.discount)} discount.`)}catch(e){setError(e.message)}}}>Apply</button></div><input required placeholder="Delivery / pickup name" value={checkout.deliveryName} onChange={e=>setCheckout({...checkout,deliveryName:e.target.value})}/><input required inputMode="tel" placeholder="Phone" value={checkout.deliveryPhone} onChange={e=>setCheckout({...checkout,deliveryPhone:e.target.value})}/><textarea required placeholder="Delivery address / location" value={checkout.deliveryAddress} onChange={e=>setCheckout({...checkout,deliveryAddress:e.target.value})}/><textarea placeholder="Delivery notes (optional)" value={checkout.deliveryNotes} onChange={e=>setCheckout({...checkout,deliveryNotes:e.target.value})}/><label className="fieldlabel">Payment method<select value={checkout.paymentMethod} onChange={e=>setCheckout({...checkout,paymentMethod:e.target.value})}><option value="CASH_ON_DELIVERY">Cash / M-Pesa on delivery</option><option value="WALLET">NEXORA Wallet</option></select></label><button className="primary" disabled={busy||!sameSeller}>{busy?"Placing order…":"Place order"}</button><p className="muted small">Seller contact and delivery details are shared only for fulfilling the order. For wallet orders, the amount is deducted immediately.</p></form>}</div>}
+ {tab==="sell"&&<form className="panel sellerform" onSubmit={submitProduct}><div className="paneltitle"><div><h3>List a product or service</h3><p className="muted">Add accurate information so buyers know exactly what they are purchasing.</p></div><Store size={24}/></div><div className="formgrid two"><label className="fieldlabel">Product title<input required maxLength="120" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Samsung Galaxy S24"/></label><label className="fieldlabel">Category<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.filter(x=>x!=="All").map(c=><option key={c}>{c}</option>)}</select></label></div><label className="fieldlabel">Description<textarea required maxLength="5000" rows="6" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Describe condition, features, size, color, what is included, warranty/returns, etc."/></label><div className="formgrid three"><label className="fieldlabel">Price (KSh)<input required type="number" min="1" value={form.price} onChange={e=>setForm({...form,price:e.target.value})}/></label><label className="fieldlabel">Stock / quantity<input required type="number" min="0" value={form.stock} onChange={e=>setForm({...form,stock:e.target.value})}/></label><label className="fieldlabel">Seller phone<input required value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></label></div><label className="fieldlabel">Location / pickup area<input required value={form.location} onChange={e=>setForm({...form,location:e.target.value})} placeholder="e.g. Westlands, Nairobi"/></label>
+<div className="deliveryhints"><span className="muted small">Delivery tips for Kenya buyers:</span><div className="deliverychiprow">
+<button type="button" className="secondary narrow" onClick={()=>setForm(f=>({...f,location:(f.location?f.location+", ":"")+"Nairobi meetup"}))}>Nairobi meetup</button>
+<button type="button" className="secondary narrow" onClick={()=>setForm(f=>({...f,location:(f.location?f.location+", ":"")+"County courier"}))}>County courier</button>
+<button type="button" className="secondary narrow" onClick={()=>setForm(f=>({...f,location:(f.location?f.location+", ":"")+"G4S / Well-pack"}))}>G4S / Well-pack</button>
+<button type="button" className="secondary narrow" onClick={()=>setForm(f=>({...f,description:(f.description?f.description+"\n":"")+"Delivery: buyer pays courier / meetup preferred."}))}>Add delivery note</button>
+</div></div><label className="fieldlabel">Product photos <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={readImages}/><small className="muted">Up to 6 images. Use clear photos; each image must be under 1.8 MB.</small></label>{form.images.length>0&&<div className="imagepickgrid">{form.images.map((x,i)=><img key={i} src={x} alt="Product preview"/>)}</div>}<div className="notice"><ShieldCheck size={16}/> Only list products you are authorized to sell. Do not upload counterfeit, illegal or misleading listings. Buyers should verify products and delivery details before payment.</div><button className="primary" disabled={busy}>{busy?"Publishing…":"Publish listing"}</button></form>}
+ {tab==="seller"&&<SellerDashboard me={me} mine={mine} orders={orders} goSell={()=>setTab("sell")}/>}{tab==="myshop"&&<div className="marketgrid">{mine.map(p=><article className="marketcard" key={p.id}><div className="marketimage">{p.images?.[0]?<img src={p.images[0]} alt={p.title}/>:<Store size={38}/>}<span>{p.status}</span></div><div className="marketcardbody"><h3>{p.title}</h3><p className="muted marketdesc">{p.description}</p><strong className="marketprice">{money(p.price)}</strong><div className="marketseller"><span>{p.stock} in stock</span><span><MapPin size={14}/> {p.location}</span></div><div className="marketactions"><button className="secondary" onClick={async()=>{const next=p.status==="ACTIVE"?"HIDDEN":"ACTIVE";try{const u=await api(`/marketplace/products/${p.id}`,{method:"PATCH",body:JSON.stringify({status:next})});setMine(mine.map(x=>x.id===u.id?u:x));}catch(e){setError(e.message)}}}><Edit3 size={15}/> {p.status==="ACTIVE"?"Hide":"Publish"}</button></div></div></article>)}{!mine.length&&<div className="panel empty"><PackageIcon size={30}/><h3>No listings yet</h3><p className="muted">Use Sell a product to publish your first listing.</p></div>}</div>}
+ {tab==="orders"&&<div className="ordersgrid" data-market-orders><div className="panel"><h3>My purchases</h3>{orders.buying.map(o=><div className="ordercard" key={o.id}><div><b>{o.items.map(i=>i.title).join(", ")}</b><small>{o.reference} · {new Date(o.createdAt).toLocaleString()}</small></div><strong>{money(o.total)}</strong><span className={`orderstatus ${o.status.toLowerCase()}`}>{o.status}</span><small>Seller: {o.seller?.name} · {o.seller?.phone}</small>{o.status!=="DELIVERED"&&o.status!=="CANCELLED"&&<button className="secondary" onClick={()=>updateOrder(o.id,"DELIVERED")}><PackageCheck size={15}/> Confirm received</button>}<button className="secondary" onClick={()=>disputeOrder(o.id)}>Report an issue</button></div>)}{!orders.buying.length&&<p className="muted">No purchases yet.</p>}</div><div className="panel"><h3>Orders for my listings</h3>{orders.selling.map(o=><div className="ordercard" key={o.id}><div><b>{o.items.map(i=>i.title).join(", ")}</b><small>{o.reference} · Buyer: {o.buyer?.name} · {o.buyer?.phone}</small></div><strong>{money(o.total)}</strong><span className={`orderstatus ${o.status.toLowerCase()}`}>{o.status}</span><select value={o.status} onChange={e=>updateOrder(o.id,e.target.value)}><option>PENDING</option><option>CONFIRMED</option><option>PROCESSING</option><option>SHIPPED</option><option>DELIVERED</option><option>CANCELLED</option></select><button className="secondary" onClick={()=>disputeOrder(o.id)}>Report an issue</button></div>)}{!orders.selling.length&&<p className="muted">No customer orders yet.</p>}</div></div>}
+ {selected&&<div className="modalbackdrop" onClick={()=>setSelected(null)}><div className="modal productdetailmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">MARKETPLACE</span><h2>{selected.title}</h2></div><button className="iconbtn" onClick={()=>setSelected(null)}><X size={20}/></button></div><div className="productdetailbody"><div className="detailhero">{selected.images?.length?<div className="detailimages">{selected.images.map((x,i)=><img key={i} src={x} alt={`${selected.title} ${i+1}`}/>)}</div>:<div className="detailplaceholder"><Store size={48}/></div>}</div><div><strong className="marketprice">{money(selected.price)}</strong><p>{selected.description}</p><p><MapPin size={15}/> {selected.location}</p><p>Seller: <b>{selected.seller?.name}</b> {selected.seller?.sellerVerified&&<span className="pill">Verified seller</span>} · {selected.seller?.phone}</p><p className="muted">{selected.seller?.sellerBio||"Member seller on NEXORA Marketplace."}</p>{selected.reviews?.length>0&&<div className="reviewlist"><b>Recent reviews</b>{selected.reviews.map(r=><div key={r.id}><span>{"★".repeat(r.rating)}{"☆".repeat(5-r.rating)}</span> · {r.author?.name}<p className="muted small">{r.body||"Verified purchase"}</p></div>)}</div>}<p>{selected.stock} available</p><button className="primary" onClick={()=>{addToCart(selected);setSelected(null)}}><ShoppingCart size={16}/> Add to cart</button></div></div></div></div>}</section>
+}
+
+function Community({announcements=[]}){const fallback=[["Welcome to NEXORA","Explore your member workspace, Academy, analytics, referral tools and support center.","WELCOME"],["Learn before you share","Use NEXORA Academy to understand the platform and communicate membership details clearly.","EDUCATION"],["Protect your account","Never share your password or M-Pesa PIN. NEXORA support will not ask for those credentials.","SECURITY"]];const posts=announcements.length?announcements.map(x=>[x.title,x.body,x.category]):fallback;return <section><div className="sectionhead"><div><span className="pill">NEXORA COMMUNITY</span><h1>Community & updates</h1><p className="muted">A calm place for platform announcements, learning reminders and member guidance.</p></div></div><div className="communitygrid">{posts.map(([t,d,c])=><article className="communitypost" key={t}><div className="featureicon"><Megaphone size={20}/></div><small>{c||"PLATFORM UPDATE"}</small><h3>{t}</h3><p>{d}</p><span>Platform guidance →</span></article>)}</div><div className="panel"><h3>Community principles</h3><div className="principles"><span><Check size={15}/> Be transparent</span><span><Check size={15}/> Respect other members</span><span><Check size={15}/> Avoid misleading income claims</span><span><Check size={15}/> Protect private information</span></div></div></section>}
+function NotificationsCenter({me,analytics,tickets}){const notes=[];if(me.package)notes.push({I:CheckCircle2,t:"Membership active",d:`Your ${me.package.name} plan is active.`});else notes.push({I:PackageIcon,t:"Explore membership",d:"Review the membership plans and benefits when you're ready."});if((analytics?.month?.directReferrals||0)<5)notes.push({I:Target,t:"Monthly activity goal",d:`${5-(analytics?.month?.directReferrals||0)} direct referral(s) remaining for the current activity goal.`});if(tickets?.some(x=>x.status!=="CLOSED"))notes.push({I:LifeBuoy,t:"Support ticket open",d:"You have an active support request. Check Help & Support for replies."});if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push({I:Clock3,t:"Payment awaiting confirmation",d:"A plan payment is still pending. Open Transactions to check it."});return <section><div className="sectionhead"><div><span className="pill">NOTIFICATION CENTER</span><h1>Stay up to date</h1><p className="muted">Useful account reminders and platform activity in one place.</p></div></div><div className="notificationcenter">{notes.map((n,i)=><div className="notification large" key={i}><n.I size={20}/><div><b>{n.t}</b><p>{n.d}</p><small>Account update</small></div></div>)}</div><div className="panel"><h3>Notification guidance</h3><p className="muted">NEXORA notifications describe recorded account activity and useful reminders. They do not represent guaranteed earnings or future financial outcomes.</p></div></section>}
+
+function NexoraPageTransition({label="Opening workspace…"}){
+ return <div className="nx-page-transition" aria-hidden="true">
+  <div className="nx-transition-stars"><i/><i/><i/><i/><i/><i/><i/><i/></div>
+  <div className="nx-transition-orbit orbit-a"/><div className="nx-transition-orbit orbit-b"/>
+  <div className="nx-transition-core"><span className="core-ring ring-a"/><span className="core-ring ring-b"/><img src="/nexora-logo.png" alt=""/><b>NEXORA</b></div>
+  <div className="nx-transition-beam"/>
+  <div className="nx-transition-label"><span>FORMING</span>{label}</div>
+ </div>
+}
+
+function App(){
+ const path=window.location.pathname || "/";
+ const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState("dashboard"),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[notifications,setNotifications]=useState([]),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false);
+ if(path === "/admin" || path.startsWith("/admin/")) return <AdminApp/>;
+ if(path === "/terms" || path === "/privacy" || path === "/membership") return <LegalPage type={path.slice(1)}/>;
+ if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
+ const load=async(show=true)=>{
+  if(show)setLoading(true);setError("");
+  try{
+   const m=await api("/me");
+   setMe(m);
+   setLoading(false);
+   const results=await Promise.allSettled([api("/payments/methods"),api("/packages"),api("/referrals"),api("/earnings"),api("/transactions"),api("/member/analytics"),api("/member/leaderboard"),api("/announcements"),api("/support/tickets"),api("/notifications")]);
+   if(results[0].status==="fulfilled")setPayMethods(results[0].value);
+   if(results[1].status==="fulfilled")setPackages(results[1].value);
+   if(results[2].status==="fulfilled")setReferrals(results[2].value);
+   if(results[3].status==="fulfilled")setEarnings(results[3].value);
+   if(results[4].status==="fulfilled")setTransactions(results[4].value);
+   if(results[5].status==="fulfilled")setAnalytics(results[5].value);
+   if(results[6].status==="fulfilled")setLeaderboard(results[6].value);
+   if(results[7].status==="fulfilled")setAnnouncements(results[7].value);
+   if(results[8].status==="fulfilled")setTickets(results[8].value);
+   if(results[9].status==="fulfilled"){
+    const rows=results[9].value||[];setNotifications(rows);
+    const unread=rows.filter(x=>!x.read).slice(0,8);
+    if(unread.length){setLoginUpdates(unread);setTimeout(()=>api("/notifications/read-all",{method:"POST"}).catch(()=>{}),8000)}
+   }
+   const failed=results.find(x=>x.status==="rejected");if(failed)setError(failed.reason?.message||"Some account data could not be loaded");
+  }catch(e){if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");setMe(null)}else setError(e.message);setLoading(false)}
+ };
+ useEffect(()=>{if(localStorage.getItem("token"))load();else setLoading(false)},[]);
+ useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
+ if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
+ const nav=[
+  ["dashboard","Home",BarChart3],["marketplace","🛒 Shop & Marketplace",Store],["wallet","Wallet & Payments",WalletCards],["transactions","Orders & Transactions",History],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
+ ];
+ const primaryNavIds=new Set(["dashboard","marketplace","wallet","transactions"]);
+ const startPayment=async(_ignored,pkg)=>{
+  if(!pkg?.id){setError("Select a plan first.");return;}
+  setPhoneModal(null);setMsg("");setError("");
+  try{
+   const d=await api("/payments/paybill/initiate",{method:"POST",body:JSON.stringify({packageId:pkg.id})});
+   if(!d?.reference){setError(d?.message||"Could not start Paybill payment.");return;}
+   setPayment({
+     method:"paybill",
+     reference:d.reference,
+     package:pkg,
+     status:d.status||"pending",
+     chargeAmount:Number(d.chargeAmount!=null?d.chargeAmount:pkg.price)||0,
+     paybillNumber:d.paybillNumber||payMethods?.paybillNumber||"400200",
+     paybillAccount:d.paybillAccount||payMethods?.paybillAccount||"",
+     paybillName:d.paybillName||payMethods?.paybillName||"NEXORA",
+     instructions:Array.isArray(d.instructions)?d.instructions:[],
+     message:d.message||""
+   });
+  }catch(e){setError(e?.message||"Could not start Paybill payment.");}
+ };
+ const purchase=p=>{
+  setMsg("");setError("");
+  if(!p?.id){setError("That plan is unavailable.");return;}
+  const currentPrice=Number(me?.package?.price||0);
+  const price=Number(p.price||0);
+  const chargeAmount=Math.max(0, price - currentPrice);
+  setPhoneModal({package:p,chargeAmount});
+ };
+ const walletPurchase=async(p)=>{
+  setMsg("");setError("");
+  const d=await api("/payments/wallet-purchase",{method:"POST",body:JSON.stringify({packageId:p.id})});
+  setPhoneModal(null);
+  await load(false);
+  setReceipt({reference:d.reference,package:p,amount:Number(d.chargeAmount||0),method:"Wallet Balance",status:"PAID",previousBalance:Number(me?.wallet?.balance||0),remainingBalance:Number(d.wallet?.balance||0),createdAt:new Date().toISOString()});
+  setMsg(d.message||"Plan activated using your wallet balance.");
+ };
+ const flashCopied=(kind,msg)=>{
+  setError("");
+  setCopiedKind(kind);
+  setMsg(msg);
+  clearTimeout(window.__nexoraCopyTimer);
+  window.__nexoraCopyTimer=setTimeout(()=>setCopiedKind(""),2500);
+ };
+ const copy=async()=>{
+  if(!hasPackage){setError("Purchase a plan first to unlock your referral link.");return;}
+  const link=`${location.origin}/?ref=${me.user.referralCode}`;
+  try{await navigator.clipboard.writeText(link)}catch{window.prompt("Copy your referral link:",link)}
+  flashCopied("link","Referral link copied. Share it so people can join under you.");
+ };
+ const copyCode=async()=>{
+  if(!hasPackage){setError("Purchase a plan first to unlock your referral code.");return;}
+  const code=me.user.referralCode;
+  try{await navigator.clipboard.writeText(code)}catch{window.prompt("Copy your referral code:",code)}
+  flashCopied("code","Referral code copied. Friends can paste it when they register.");
+ };
+ const share=async()=>{
+  if(!hasPackage){setError("Purchase a plan first to unlock your referral link.");return;}
+  const link=`${location.origin}/?ref=${me.user.referralCode}`;
+  if(navigator.share){try{await navigator.share({title:"Join NEXORA",text:"Join me on NEXORA.",url:link})}catch{}}else copy()
+ };
+ const logout=()=>{localStorage.removeItem("token");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
+ const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
+ return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Orders · Wallet · Seller tools</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} notifications={notifications} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
+ <div className="nx-page-stage" key={page}>
+ {page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load}/>} 
+ {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><div className="earnnotice panel"><PackageIcon size={20}/><div><h3>Plan required to earn</h3><p className="muted">Activate a membership plan to unlock your referral link. Commissions follow plan rules only; NEXORA does not guarantee income. See <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>.</p></div></div><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
+ {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
+ {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
+ {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="notifications"&&<NotificationsCenter me={me} analytics={analytics} tickets={tickets}/>} 
+ {page==="academy"&&<Academy/>} 
+ {page==="leaderboard"&&<Leaderboard rows={leaderboard}/>} 
+ {page==="challenges"&&<Challenges referrals={referrals} earnings={earnings}/>} 
+ {page==="wallet"&&<Wallet me={me} load={()=>load(false)}/>} 
+ {page==="transactions"&&<Transactions rows={transactions} onOpenReceipt={x=>setReceipt({reference:x.reference,type:x.type.replaceAll("_"," "),amount:x.amount,status:x.status,method:x.metadata?.method||x.metadata?.paystack?.provider||"NEXORA",createdAt:x.createdAt})} onOpenPending={x=>{const packageId=x.metadata?.packageId;const pkg=packages.find(p=>p.id===packageId);if(pkg)setPayment({reference:x.reference,package:pkg,phone:cleanPhone(x.metadata?.phone||me.user.phone||""),status:String(x.status||"PENDING").toLowerCase(),chargeAmount:Number(x.metadata?.chargeAmount||x.amount),display_text:x.metadata?.paystack?.display_text||"",message:""})}}/>} 
+ {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}
+ </div></main>{pageTransition&&<NexoraPageTransition label={nav.find(x=>x[0]===page)?.[1]||"Opening workspace…"}/>}<CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/><nav className="mobile-bottom-nav">{[["dashboard","Home",BarChart3],["marketplace","Shop",Store],["wallet","Wallet",CreditCard],["transactions","Orders",History],["security","Profile",UserCog]].map(([id,label,I])=><button key={id} className={page===id?"active":""} onClick={()=>setPage(id)}><I size={18}/><span>{label}</span></button>)}</nav><NexBot goPage={setPage} goPackages={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} me={me}/><SupportButton/>{instructions&&<Instructions onClose={()=>setInstructions(false)}/>} {loginUpdates.length>0&&<LoginUpdatesModal items={loginUpdates} onClose={()=>setLoginUpdates([])}/>} {phoneModal&&<PhoneModal data={phoneModal} walletBalance={Number(me?.wallet?.balance||0)} onCancel={()=>{setPhoneModal(null);load(false)}} onContinue={(_,pkg)=>startPayment(null,pkg)} onWallet={walletPurchase} paymentConfig={payMethods}/>} {receipt&&<ReceiptModal receipt={receipt} onClose={()=>setReceipt(null)}/>} {payment&&<PaymentModal payment={payment} onReceipt={x=>{setReceipt({reference:x.reference,package:x.package,amount:Number(x.amount||x.chargeAmount||x.package?.price||0),method:x.method||"M-Pesa Paybill",status:"PAID",createdAt:new Date().toISOString()});setPayment(null)}} onSuccess={()=>load(false)} onClose={()=>setPayment(null)} onCheck={async()=>{try{const v=await api(`/payments/status/${payment.reference}`);setPayment(x=>x?{...x,status:v.status||"pending",display_text:v.display_text||x.display_text,message:v.message&&v.message!=="Charge attempted"?v.message:x.message}:x);if(v.status==="success"){await load(false);setMsg("Payment confirmed. Your plan is now active.");try{localStorage.setItem("nexora-milestone-paid","1")}catch{}}}catch(e){setError(e.message)}}}/>}</div>
+}
+function Notifications({me,analytics,tickets,notifications=[]}){
+ const notes=[];
+ notifications.forEach(n=>notes.push([Bell,n.title,n.message,n.createdAt,n.read]));
+ if(!me.package)notes.push([PackageIcon,"Choose a plan","Explore the membership plans when you are ready.",null,true]);
+ if(me.package)notes.push([CheckCircle2,"Plan active",`${me.package.name} is currently active on your account.`,null,true]);
+ if((analytics?.month?.directReferrals||0)<5)notes.push([Target,"Monthly challenge",`${5-(analytics?.month?.directReferrals||0)} more direct referral(s) to reach the current activity goal.`,null,true]);
+ if(tickets?.some(x=>x.status!=="CLOSED"))notes.push([Bell,"Support update","You have an open support request. Check Help & Support for updates.",null,true]);
+ if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push([Clock3,"Payment pending","A payment is still awaiting confirmation. Check Transactions for status.",null,true]);
+ return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Notifications</h3><span>{notifications.filter(x=>!x.read).length} unread</span></div><div className="notificationlist">{notes.slice(0,12).map(([I,t,d,date,read],i)=><div className={`notification ${read===false?"unread":""}`} key={i}><I size={17}/><div><b>{t}</b><p>{d}</p><small>{date?new Date(date).toLocaleString():"Account update"}</small></div></div>)}{!notes.length&&<p className="muted">You're all caught up.</p>}</div><div className="rowactions"><button className="secondary" onClick={()=>api("/notifications/read-all",{method:"POST"}).then(()=>window.location.reload()).catch(()=>{})}>Mark all as read</button></div></div>}
+
+
+function OnboardingChecklist({me,goPackages,goPage}){
+ const uid=me?.user?.id||"guest";
+ const storageKey=checklistKey(uid);
+ const defaults={profile:Boolean(me?.user?.phone&&me?.user?.name),plan:Boolean(me?.package),marketplace:false,shared:false,ads:false};
+ const [done,setDone]=useState(()=>{
+  try{return {...defaults,...JSON.parse(localStorage.getItem(storageKey)||"{}")};}catch{return defaults;}
+ });
+ useEffect(()=>{
+  setDone(d=>({...d,profile:Boolean(me?.user?.phone&&me?.user?.name),plan:Boolean(me?.package)}));
+ },[me?.package,me?.user?.phone,me?.user?.name]);
+ useEffect(()=>{try{localStorage.setItem(storageKey,JSON.stringify(done));}catch{}},[done,storageKey]);
+ const mark=(id)=>setDone(x=>({...x,[id]:true}));
+ const items=[
+  {id:"profile",label:"Complete your profile",hint:"Name, phone & email",ok:done.profile,action:()=>goPage&&goPage("security")},
+  {id:"plan",label:"Activate a membership plan",hint:"Unlocks referral tools",ok:done.plan,action:goPackages},
+  {id:"marketplace",label:"Open Marketplace",hint:"Browse or list a product",ok:done.marketplace,action:()=>{mark("marketplace");goPage&&goPage("marketplace");}},
+  {id:"shared",label:"Share your referral link",hint:"After a plan is active",ok:done.shared,action:()=>{if(!me?.package){goPackages&&goPackages();return;}mark("shared");goPage&&goPage("marketing");}},
+  {id:"ads",label:"Explore Advertise",hint:"Premium campaigns",ok:done.ads,action:()=>{mark("ads");goPage&&goPage("products");}}
+ ];
+ const completed=items.filter(x=>x.ok).length;
+ if(completed>=items.length) return null;
+ return <div className="panel onboardingpanel">
+  <div className="paneltitle"><div><span className="pill">GET STARTED</span><h3><Sparkles size={17}/> Your first 10 minutes</h3><p className="muted small">{completed} of {items.length} complete</p></div><span className="checkcount">{completed}/{items.length}</span></div>
+  <div className="progress"><i style={{width:`${(completed/items.length)*100}%`}}/></div>
+  <div className="checklist">
+   {items.map(x=>(
+    <button type="button" key={x.id} className={`checkitem ${x.ok?"done":""}`} onClick={x.action}>
+     <span className="checkicon">{x.ok?<CheckCircle2 size={18}/>:<span className="checkempty"/>}</span>
+     <span className="checkcopy"><b>{x.label}</b><small>{x.hint}</small></span>
+     {!x.ok&&<ArrowUpRight size={15}/>}
+    </button>
+   ))}
+  </div>
+ </div>;
+}
+
+function PendingPaymentBanner({transactions,goPage}){
+  const pending=(transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING");
+  if(!pending.length) return null;
+  const first=pending[0];
+  return <div className="pendingbanner" role="status">
+    <Clock3 size={18}/>
+    <div><b>Payment awaiting confirmation</b><span>{pending.length>1?`${pending.length} pending payments`:`Ref ${first.reference||"—"}`} · Check status in Transactions.</span></div>
+    <button type="button" className="secondary narrow" onClick={()=>goPage("transactions")}>Check status</button>
+  </div>;
+}
+function SoftPlanReminder({me,goPackages}){
+  if(me?.package) return null;
+  const [hide,setHide]=useState(()=>sessionStorage.getItem("nexora-plan-nudge")==="1");
+  if(hide) return null;
+  return <div className="plannudge">
+    <PackageIcon size={18}/>
+    <div><b>Activate a plan to unlock earning tools</b><span>Referral link and Premium advertising start with a membership plan.</span></div>
+    <button type="button" className="primary narrow" onClick={goPackages}>View plans</button>
+    <button type="button" className="iconbtn" aria-label="Dismiss" onClick={()=>{sessionStorage.setItem("nexora-plan-nudge","1");setHide(true)}}><X size={16}/></button>
+  </div>;
+}
+
+function RecommendedMarketplace({goPage}){
+ const [items,setItems]=useState([]),[loading,setLoading]=useState(true);
+ useEffect(()=>{let alive=true;(async()=>{try{const rows=await api('/marketplace/products?category=All&location=');if(alive)setItems((rows||[]).filter(x=>x.status==='ACTIVE').slice(0,6));}catch{}finally{if(alive)setLoading(false)}})();return()=>{alive=false}},[]);
+ if(loading)return <div className="panel marketplacepreview"><div className="paneltitle"><h3>Latest on NEXORA Marketplace</h3></div><p className="muted">Loading products…</p></div>;
+ return <div className="panel marketplacepreview"><div className="paneltitle"><div><span className="pill">MARKETPLACE</span><h3>Latest products</h3><p className="muted small">Discover what NEXORA members are selling today.</p></div><button className="secondary" onClick={()=>goPage('marketplace')}>View all <ArrowUpRight size={14}/></button></div>{items.length?<div className="dashboardproductgrid">{items.map(p=><button className="dashboardproduct" key={p.id} onClick={()=>goPage('marketplace')}><div className="dashboardproductimage">{p.images?.[0]?<img src={p.images[0]} alt=""/>:<Store size={26}/>}</div><div className="dashboardproductinfo"><b>{p.title}</b><strong>{money(p.price)}</strong><span>{p.location||'Kenya'} · {p.category}</span></div></button>)}</div>:<div className="dashboardempty"><Store size={32}/><div><b>No marketplace products yet</b><p className="muted small">Be among the first members to list a product.</p></div><button type="button" className="primary" onClick={()=>goPage('marketplace')}>Open marketplace</button></div>}</div>
+}
+
+function SellerDashboard({me,mine,orders,goSell}){
+ const [bio,setBio]=useState(me?.user?.sellerBio||""),[savingBio,setSavingBio]=useState(false),[bioMsg,setBioMsg]=useState("");
+ const saveBio=async()=>{setSavingBio(true);setBioMsg("");try{await api('/marketplace/seller/profile',{method:'POST',body:JSON.stringify({sellerBio:bio})});setBioMsg('Seller profile saved.')}catch(e){setBioMsg(e.message)}finally{setSavingBio(false)}};
+ const sales=orders.selling||[]; const active=mine.filter(x=>x.status==='ACTIVE').length; const revenue=sales.filter(x=>x.paymentStatus==='SUCCESS'||x.status==='DELIVERED').reduce((a,x)=>a+Number(x.total||0),0); const pending=sales.filter(x=>!['DELIVERED','CANCELLED'].includes(x.status)).length; const low=mine.filter(x=>Number(x.stock||0)<=3).length;
+ return <div className="sellerdash"><div className="sellerstatgrid"><div><span>Active listings</span><strong>{active}</strong></div><div><span>Orders to action</span><strong>{pending}</strong></div><div><span>Sales value</span><strong>{money(revenue)}</strong></div><div><span>Low stock</span><strong>{low}</strong></div></div><div className="sellerdashgrid"><div className="panel"><div className="paneltitle"><h3>Seller profile</h3>{me?.user?.sellerVerified&&<span className="verifiedseller"><CheckCircle2 size={13}/> Verified</span>}</div><textarea rows="4" maxLength="1200" value={bio} onChange={e=>setBio(e.target.value)} placeholder="Tell buyers about your business, products, service area, delivery options or experience."/><div className="rowactions"><button className="primary" onClick={saveBio} disabled={savingBio}>{savingBio?"Saving…":"Save profile"}</button>{bioMsg&&<span className="muted small">{bioMsg}</span>}</div></div><div className="panel"><div className="paneltitle"><h3>Seller actions</h3></div><div className="selleractiongrid"><button className="secondary" onClick={goSell}><Plus size={15}/> Add product</button><button className="secondary" onClick={()=>document.querySelector('[data-market-orders]')?.scrollIntoView({behavior:'smooth'})}><Truck size={15}/> Manage orders</button></div></div><div className="panel"><div className="paneltitle"><h3>Listing health</h3></div>{mine.slice(0,5).map(p=><div className="sellerhealth" key={p.id}><div><b>{p.title}</b><small>{p.stock} in stock · {p.status}</small></div><span className={Number(p.stock)<=3?'lowstock':''}>{Number(p.stock)<=3?'Restock':'Healthy'}</span></div>)}{!mine.length&&<p className="muted">Create your first listing to start selling.</p>}</div></div></div>
+}
+
+function ThemeToggle(){
+ const [dark,setDark]=useState(()=>{try{return localStorage.getItem("nexora-theme")!=="light"}catch{return true}});
+ useEffect(()=>{document.documentElement.classList.toggle("nexora-light",!dark);try{localStorage.setItem("nexora-theme",dark?"dark":"light")}catch{}},[dark]);
+ return <button className="theme-toggle" onClick={()=>setDark(x=>!x)} title={dark?"Switch to light theme":"Switch to dark theme"} aria-label="Toggle theme"><span>{dark?"☀":"☾"}</span><small>{dark?"Light":"Dark"}</small></button>
+}
+function LoginUpdatesModal({items,onClose}){
+ useEffect(()=>{const t=setTimeout(onClose,8000);return()=>clearTimeout(t)},[onClose]);
+ return <div className="modalbackdrop loginupdatesbackdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="Recent account updates">
+  <div className="modal loginupdates" onClick={e=>e.stopPropagation()}>
+   <div className="modalhead"><div><span className="pill">ACCOUNT UPDATES</span><h2>Recent updates to your account</h2><p className="muted">An administrator made these changes while you were away.</p></div><button className="iconbtn" onClick={onClose} aria-label="Close"><X size={20}/></button></div>
+   <div className="loginupdateslist">{items.map((n,i)=><div className="loginupdate" key={n.id||i}><span className="loginupdateicon"><Bell size={17}/></span><div><b>{n.title}</b><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString()}</small></div></div>)}</div>
+   <div className="modalfoot"><button className="secondary" onClick={onClose}>Close</button><button className="primary" onClick={()=>{onClose();window.dispatchEvent(new CustomEvent("nexora-open-notifications"))}}><Bell size={15}/> View notifications</button></div>
+  </div>
+ </div>
+}
+
+function ActivityCenter({me,tickets,goPage,notifications=[]}){
+ const [open,setOpen]=useState(false);
+ useEffect(()=>{const fn=()=>setOpen(true);window.addEventListener("nexora-open-notifications",fn);return()=>window.removeEventListener("nexora-open-notifications",fn)},[]);
+ const items=[];
+ notifications.slice(0,3).forEach(n=>items.push({icon:Bell,title:n.title,text:n.message,page:"notifications",notification:true,id:n.id}));
+ if((me.transactions||[]).some(x=>String(x.status).toUpperCase()==="PENDING"))items.push({icon:Clock3,title:"Payment needs attention",text:"You have a pending transaction.",page:"transactions"});
+ if((tickets||[]).some(x=>x.status!=="CLOSED"))items.push({icon:LifeBuoy,title:"Support request open",text:"Check your support requests for updates.",page:"support"});
+ if(!me.package)items.push({icon:PackageIcon,title:"Choose a membership plan",text:"Review plans when you're ready.",page:"referrals"});
+ if(!items.length)items.push({icon:CheckCheck,title:"You're all caught up",text:"No urgent account activity right now."});
+ return <div className="activity-center"><button className="header-icon-btn" onClick={()=>setOpen(x=>!x)} aria-label="Open activity center"><Bell size={18}/>{items.length>0&&<span>{Math.min(items.length,9)}</span>}</button>{open&&<><button className="popover-backdrop" onClick={()=>setOpen(false)} aria-label="Close activity center"/><div className="activity-popover"><div className="popover-head"><div><span className="pill">ACTIVITY CENTER</span><h3>What's happening</h3></div><button className="iconbtn" onClick={()=>setOpen(false)}><X size={16}/></button></div>{items.map((x,i)=>{const I=x.icon;return <button className="activity-popover-row" key={i} onClick={()=>{setOpen(false);x.page&&goPage(x.page)}}><span><I size={16}/></span><div><b>{x.title}</b><small>{x.text}</small></div><ArrowUpRight size={14}/></button>})}<button className="secondary wide" onClick={()=>{setOpen(false);goPage("notifications")}}>Open notifications</button></div></>}</div>
+}
+function CommandCenter({goPage,goPackages,share,goSecurity,onDeposit}){
+ const [open,setOpen]=useState(false);
+ const actions=[
+  ["Deposit",WalletCards,()=>onDeposit(),"mint"],["Earn",TrendingUp,()=>goPage("referrals"),"gold"],["Marketplace",Store,()=>goPage("marketplace"),"blue"],["Sell",Plus,()=>goPage("marketplace"),"purple"],["Wallet",CreditCard,()=>goPage("wallet"),"teal"],["Invite",Share2,()=>share(),"rose"],["Academy",GraduationCap,()=>goPage("academy"),"indigo"],["Profile",UserCog,()=>goSecurity(),"slate"]
+ ];
+ return <div className={`command-center ${open?"open":""}`}><button className="command-main" onClick={()=>setOpen(x=>!x)} aria-label="Open quick actions"><Plus size={21}/><span>Quick</span></button>{open&&<div className="command-menu">{actions.map(([label,I,action,tone])=><button key={label} className={`command-item ${tone}`} onClick={()=>{setOpen(false);action()}}><span><I size={16}/></span><b>{label}</b></button>)}</div>}</div>
+}
+function GamificationPanel({me,analytics,goPage,profileStrength}){
+ const direct=Number(me.stats?.direct||0), monthly=Number(analytics?.month?.directReferrals||0);
+ const milestones=[{label:"Complete profile",value:profileStrength>=100,action:()=>goPage("security")},{label:"Reach 5 monthly referrals",value:monthly>=5,action:()=>goPage("referrals")},{label:"Explore Marketplace",value:localStorage.getItem("nexora-milestone-market")==="1",action:()=>goPage("marketplace")},{label:"Build your network",value:direct>=3,action:()=>goPage("referrals")}];
+ const done=milestones.filter(x=>x.value).length; const pct=Math.round(done/milestones.length*100);
+ return <div className="panel gamification"><div className="paneltitle"><div><span className="pill">MEMBER MILESTONES</span><h3><Trophy size={17}/> Your progress</h3></div><strong>{done}/{milestones.length}</strong></div><div className="levelrow"><div className="levelbadge"><Crown size={18}/></div><div><b>{done>=4?"NEXORA Champion":done>=2?"NEXORA Builder":"NEXORA Starter"}</b><small>Complete useful actions to unlock milestones.</small></div><span>{pct}%</span></div><div className="progress"><i style={{width:`${pct}%`}}/></div><div className="milestonerow">{milestones.map((m,i)=><button key={i} className={`milestone ${m.value?"done":""}`} onClick={m.action}><span>{m.value?<CheckCircle2 size={15}/>:<Target size={15}/>}</span><b>{m.label}</b><ArrowUpRight size={12}/></button>)}</div></div>
+}
+function Dashboard({me,goPage,profileStrength,tickets,goSecurity,load}){
+ const [depositOpen,setDepositOpen]=useState(false);
+ const [typedGreeting,setTypedGreeting]=useState("");
+ const firstName=me?.user?.name?.split(" ")[0]||"there";
+ useEffect(()=>{
+  const full=`Good evening, ${firstName}`;
+  let i=0; setTypedGreeting("");
+  const timer=setInterval(()=>{ i+=1; setTypedGreeting(full.slice(0,i)); if(i>=full.length)clearInterval(timer); },105);
+  return ()=>clearInterval(timer);
+ },[firstName]);
+ const [showBalance,setShowBalance]=useState(true);
+ const recent=(me.transactions||[]).slice(0,4);
+ const balance=Number(me.wallet?.balance||0);
+ const openTickets=(tickets||[]).filter(x=>x.status!=="CLOSED").length;
+ const pendingPayments=(me.transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING").length;
+ const quickActions=[
+  {label:"Shop now",hint:"Browse products",icon:Store,action:()=>goPage("marketplace"),tone:"blue"},
+  {label:"My orders",hint:"Track purchases",icon:Truck,action:()=>goPage("marketplace"),tone:"teal"},
+  {label:"Sell a product",hint:"Create a listing",icon:Plus,action:()=>goPage("marketplace"),tone:"purple"},
+  {label:"Wishlist",hint:"Saved products",icon:Heart,action:()=>goPage("marketplace"),tone:"rose"},
+  {label:"Wallet",hint:"Balance & payments",icon:WalletCards,action:()=>goPage("wallet"),tone:"mint"},
+  {label:"Transactions",hint:"Payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
+  {label:"Academy",hint:"Learn marketplace skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
+  {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"gold"}
+ ];
+ const nextAction=pendingPayments
+  ? {title:"Check your pending payment",text:"A payment is still waiting for confirmation.",button:"View transactions",action:()=>goPage("transactions"),icon:Clock3}
+  : profileStrength<100
+  ? {title:"Complete your shopper profile",text:"Keep your contact and delivery details up to date for smoother orders.",button:"Update profile",action:goSecurity,icon:UserCog}
+  : {title:"Explore the marketplace",text:"Discover products from NEXORA sellers and find something useful for you.",button:"Start shopping",action:()=>goPage("marketplace"),icon:Store};
+ const NextIcon=nextAction.icon;
+ return <>
+  <section className="hero dashboardhero ecommerce-dashboard-hero">
+   <div className="dashboardhero-copy">
+    <div className="dashboard-greeting" aria-live="polite"><span>{typedGreeting}</span></div>
+    <span className="pill">NEXORA MARKETPLACE</span>
+    <h1>Shop smarter, <span>all in one place.</span></h1>
+    <p>Discover products, compare listings, save favorites, place orders and manage your purchases from one modern marketplace.</p>
+    <div className="heroactions">
+     <button className="primary" onClick={()=>goPage("marketplace")}><ShoppingCart size={16}/> Start shopping</button>
+     <button className="secondary" onClick={()=>goPage("marketplace")}><Plus size={16}/> Sell a product</button>
+    </div>
+    <div className="ecom-trust-row"><span><ShieldCheck size={15}/> Verified marketplace tools</span><span><Truck size={15}/> Order tracking</span><span><WalletCards size={15}/> Secure payment options</span></div>
+   </div>
+   <div className="dashboardhero-side">
+    <div className="dashboardhero-balance ecommerce-balance-card">
+     <div className="dashboardhero-balance-head"><span>WALLET BALANCE</span><button className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={13}/>:<Eye size={13}/>}</button></div>
+     <strong>{showBalance?money(balance):"KSh •••••"}</strong>
+     <div className="heroactions compact"><button className="hero-balance-btn" onClick={()=>setDepositOpen(true)}><WalletCards size={13}/> Add funds</button><button className="secondary" onClick={()=>goPage("wallet")}>Wallet</button></div>
+    </div>
+    <div className="dashboardhero-plan shop-status-card"><div className="dashboardmini-label">SHOPPER ACCOUNT</div><strong>{me.package?.name||"NEXORA Member"}</strong><span>{me.package?"Membership active":"Ready to shop and sell"}</span></div>
+   </div>
+  </section>
+
+  <div className="shopcategorybar panel">
+   <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
+   <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
+  </div>
+
+  <div className="dashboardquick">
+   <div className="dashboardquick-head"><div><span className="pill">SHOPPING TOOLS</span><h2>Everything you need</h2></div><span className="muted small">Quick access to shopping, selling and account tools</span></div>
+   <div className="dashboardquick-grid">{quickActions.map(({label,hint,icon:Icon,action,tone})=><button key={label} className={`quickaction ${tone}`} onClick={action}><span className="quickaction-icon"><Icon size={18}/></span><span className="quickaction-copy"><b>{label}</b><small>{hint}</small></span><ArrowUpRight size={15}/></button>)}</div>
+  </div>
+
+  <div className="dashboardstats ecommerce-stats">
+   <div className="dashboardstat"><span>Available wallet</span><strong>{money(balance)}</strong><small>Ready for eligible purchases</small></div>
+   <div className="dashboardstat"><span>Profile completion</span><strong>{profileStrength}%</strong><small>Keep your account details current</small></div>
+   <div className="dashboardstat"><span>Account activity</span><strong>{recent.length}</strong><small>Recent transactions shown below</small></div>
+  </div>
+
+  <div className="dashboard-main-grid">
+   <div className="dashboard-left">
+    <div className="panel nextaction ecommerce-nextaction"><div className="nextaction-icon"><NextIcon size={21}/></div><div className="nextaction-copy"><span className="pill">RECOMMENDED</span><h3>{nextAction.title}</h3><p className="muted">{nextAction.text}</p></div><button className="primary narrow" onClick={nextAction.action}>{nextAction.button}<ArrowUpRight size={14}/></button></div>
+    <RecommendedMarketplace goPage={goPage}/>
+    <div className="panel"><div className="paneltitle"><div><span className="pill">ACCOUNT ACTIVITY</span><h3>Recent transactions</h3></div><button className="secondary narrow" onClick={()=>goPage("transactions")}>View all</button></div>{recent.length?recent.map(x=><div className="activityrow" key={x.id}><span className="activityicon"><ReceiptText size={15}/></span><div><b>{String(x.type||"Transaction").replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()}</small></div><strong>{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No transactions yet.</p><button className="primary narrow" onClick={()=>goPage("marketplace")}><Store size={15}/> Browse marketplace</button></div>}</div>
+   </div>
+   <div className="dashboard-right">
+    <div className="panel shopbenefits-panel"><div className="paneltitle"><div><span className="pill">WHY SHOP HERE</span><h3>A better marketplace experience</h3></div><Store size={18}/></div><div className="shopbenefit"><ShieldCheck size={17}/><div><b>Clear seller information</b><p className="muted small">See seller details, location and verification status on listings.</p></div></div><div className="shopbenefit"><Heart size={17}/><div><b>Save products you like</b><p className="muted small">Keep favorites in your wishlist for later.</p></div></div><div className="shopbenefit"><Truck size={17}/><div><b>Track your orders</b><p className="muted small">Keep purchase and delivery information in one place.</p></div></div><div className="shopbenefit"><WalletCards size={17}/><div><b>Flexible checkout</b><p className="muted small">Use the payment methods available at checkout.</p></div></div><button className="primary full" onClick={()=>goPage("marketplace")}><ShoppingCart size={16}/> Browse products</button></div>
+    <ProfileCard me={me} strength={profileStrength} goSecurity={goSecurity}/>
+   </div>
+  </div>
+
+  <div className="panel seller-cta-panel"><div><span className="pill">SELL ON NEXORA</span><h3>Have something to sell?</h3><p className="muted">Create a product listing with photos, pricing, stock and delivery information, then manage customer orders from your seller dashboard.</p></div><button className="primary" onClick={()=>goPage("marketplace")}><Plus size={16}/> List a product</button></div>
+  <Notifications me={me} analytics={null} tickets={tickets}/>
+  {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>} 
+ </>
+}
+function Analytics({data,earnings,referrals}){if(!data)return <section><div className="panel"><p>Loading analytics…</p></div></section>;return <section><div className="sectionhead"><div><span className="pill">PERFORMANCE CENTER</span><h1>Referral analytics</h1><p className="muted">Understand your network activity and the history of recorded commissions.</p></div><RefreshCw size={18}/></div><div className="cards three"><Card title="Direct members" value={data.directCount}/><Card title="Level 2 members" value={data.level2Count}/><Card title="Members with plans" value={data.paidReferrals}/></div><div className="analyticsgrid"><div className="panel"><h3>Network conversion</h3><div className="bigmetric">{data.conversion}%</div><p className="muted">Percentage of direct referrals with an active plan.</p><div className="progress"><i style={{width:`${data.conversion}%`}}/></div></div><div className="panel"><h3>Commission mix</h3><div className="analyticbars"><div><span>Direct</span><b>{money(data.directCommission)}</b><i style={{width:`${data.totalCommission?data.directCommission/data.totalCommission*100:0}%`}}/></div><div><span>Level 2</span><b>{money(data.level2Commission)}</b><i style={{width:`${data.totalCommission?data.level2Commission/data.totalCommission*100:0}%`}}/></div></div></div></div><div className="panel"><h3>Network snapshot</h3><div className="networkcards"><div><span>New this month</span><strong>{data.month.directReferrals}</strong></div><div><span>Commissions this month</span><strong>{money(data.month.commissions)}</strong></div><div><span>All-time commissions</span><strong>{money(data.totalCommission)}</strong></div></div></div></section>}
+function Marketing({me,copy,copyCode,copiedKind,share}){
+ const hasPackage=Boolean(me?.package);
+ const link=`${location.origin}/?ref=${me.user.referralCode}`;
+ const [localCopied,setLocalCopied]=useState("");
+ const scripts=[
+  ["Warm opener","I have been using NEXORA to organise my membership, learning and network in one place. If you want to see how it works, I can share my link."],
+  ["Curiosity","NEXORA is a member workspace with plans, referrals, Academy lessons and a wallet. Want me to walk you through it before you decide?"],
+  ["Value-first","Before anything else, look at the plans and the rules. NEXORA does not promise income — it gives tools. Here is my invite link if you want to explore."],
+  ["Follow-up","Did you get a chance to open NEXORA? I can explain the plans and how referrals are recorded so there is no confusion."]
+ ];
+ const channelKits=[
+  {id:"wa",label:"WhatsApp",icon:MessageCircle,text:()=>`Hi! I use NEXORA for membership, marketplace and referrals.\n\nReview the plans first — no guaranteed income.\n\nJoin here: ${link}`},
+  {id:"sms",label:"SMS",icon:Send,text:()=>`NEXORA invite — review plans first (no income promise): ${link}`},
+  {id:"ig",label:"Instagram / TikTok bio",icon:Share2,text:()=>`NEXORA · marketplace + member plans. Review plans first. ${link}`},
+  {id:"x",label:"X / Twitter",icon:Megaphone,text:()=>`Exploring NEXORA — marketplace, learning & referrals. Plans first, no guaranteed income. ${link}`},
+ ];
+ const copyText=async(t,kind="msg")=>{try{await navigator.clipboard.writeText(t);}catch{window.prompt("Copy message:",t);}setLocalCopied(kind);setTimeout(()=>setLocalCopied(""),2500);};
+ return <section>
+  <div className="sectionhead"><div><span className="pill">GROWTH TOOLS</span><h1>Referral marketing center</h1><p className="muted">Share clearly, invite honestly, and help people understand NEXORA before they join.</p></div></div>
+  {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after plan activation</h3><p className="muted">Activate a membership plan first (Earn → Membership plans). Your personal referral link, QR code and share messages become available once a plan is active.</p></div></div>}
+  {hasPackage&&<>
+   <div className="marketinggrid">
+    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button onClick={copy}>{(copiedKind==="link"||localCopied==="link")?<><Check size={16}/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review plans first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{(copiedKind==="code"||localCopied==="code")?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code"||localCopied)&&<p className="muted small copyhint">{copiedKind==="code"||localCopied==="code"?"Referral code copied — friends paste it when registering.":copiedKind==="link"||localCopied==="link"?"Referral link copied — paste it in chat or social media.":"Message copied."}</p>}</div>
+    <div className="panel qrcodepanel"><QrCode size={24}/><h3>QR referral card</h3><p className="muted">Let people scan your referral link from your screen.</p><img className="qrcode" alt="Referral QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`}/><small className="muted">Scan to open your NEXORA referral page.</small></div>
+    <div className="panel"><Sparkles size={24}/><h3>Ready-to-share messages</h3>
+     <div className="template"><b>Short</b><p>Join me on NEXORA — member tools, learning and network in one place: {link}</p><button className="secondary" onClick={()=>copyText(`Join me on NEXORA — member tools, learning and network in one place: ${link}`)}>Copy</button></div>
+     <div className="template"><b>Honest invite</b><p>I'm on NEXORA. It is a membership platform with plans, referrals and Academy lessons. No guaranteed income — review the plans first: {link}</p><button className="secondary" onClick={()=>copyText(`I'm on NEXORA. It is a membership platform with plans, referrals and Academy lessons. No guaranteed income — review the plans first: ${link}`)}>Copy</button></div>
+     <div className="template"><b>WhatsApp-friendly</b><p>Hi! I use NEXORA for membership + referrals. If you want to see how it works, open this link and we can talk through the plans: {link}</p><button className="secondary" onClick={()=>copyText(`Hi! I use NEXORA for membership + referrals. If you want to see how it works, open this link and we can talk through the plans: ${link}`)}>Copy</button></div>
+    </div>
+   </div>
+
+   <div className="panel invitetips">
+    <div className="paneltitle"><h3><Target size={18}/> How to invite someone to NEXORA</h3><span className="pill">TIPS</span></div>
+    <div className="tipsteps">
+     <div className="tipstep"><span>1</span><div><b>Lead with clarity, not pressure</b><p>Explain what NEXORA is: a member workspace with plans, learning, wallet and referral tools. Avoid hype and income promises.</p></div></div>
+     <div className="tipstep"><span>2</span><div><b>Show the product first</b><p>Let them open your link, view plans and the public pages. People trust what they can see more than a long pitch.</p></div></div>
+     <div className="tipstep"><span>3</span><div><b>Answer the real questions</b><p>Plan prices, how upgrades work, how commissions are recorded, and that earnings depend on qualifying purchases — not guarantees.</p></div></div>
+     <div className="tipstep"><span>4</span><div><b>Use your own experience</b><p>Share what you use (Dashboard, Academy, Marketing Center). Personal honesty converts better than copied scripts alone.</p></div></div>
+     <div className="tipstep"><span>5</span><div><b>Invite, then follow up once</b><p>Send the link, offer to explain plans, and follow up politely. Do not spam or pressure family and friends.</p></div></div>
+     <div className="tipstep"><span>6</span><div><b>Protect trust</b><p>Never ask for someone's M-Pesa PIN or password. Direct them to official support if they need help.</p></div></div>
+    </div>
+   </div>
+
+   <div className="panel channelkits">
+    <div className="paneltitle"><h3><Share2 size={18}/> Share kits by channel</h3></div>
+    <p className="muted">One-tap copy for WhatsApp, SMS, bio links and X. Personalize before sending.</p>
+    <div className="channelkitgrid">{channelKits.map(k=>{const Icon=k.icon;return <button type="button" key={k.id} className="channelkit" onClick={()=>copyText(k.text(),k.id)}><Icon size={16}/><span><b>{k.label}</b></span><em>{localCopied===k.id?"Copied":"Copy"}</em></button>})}</div>
+   </div>
+   <div className="panel">
+    <div className="paneltitle"><h3><MessageCircle size={18}/> Conversation starters</h3></div>
+    <div className="scriptlist">
+     {scripts.map(([t,body])=><div className="scriptcard" key={t}><div><b>{t}</b><p>{body}</p></div><div className="scriptactionsactions"><button className="secondary" onClick={()=>copyText(`${body} ${link}`)}><Copy size={15}/> Copy</button><button className="secondary" onClick={()=>waShare(`${body} ${link}`)}><MessageCircle size={15}/> WhatsApp</button></div></div>)}
+    </div>
+   </div>
+
+   <div className="panel">
+    <h3>Marketing best practice</h3>
+    <div className="tips">
+     <span><Check size={15}/> Explain the platform honestly.</span>
+     <span><Check size={15}/> Never promise guaranteed earnings.</span>
+     <span><Check size={15}/> Share plan details before someone pays.</span>
+     <span><Check size={15}/> Encourage people to review Terms and Membership Rules.</span>
+     <span><Check size={15}/> Prefer people who are curious, not people you pressure.</span>
+     <span><Check size={15}/> Keep screenshots and claims consistent with the live app.</span>
+    </div>
+   </div>
+  </>}
+ </section>;
+}
+
+
+function Academy(){
+ const [selected,setSelected]=useState(null);
+ const lessons=[
+  {title:'NEXORA & your member workspace',level:'START HERE',time:'5 min',text:'Learn how the main areas of NEXORA fit together and where to find the information you need.',sections:[['What you will learn','How Dashboard, Earn (plans & referrals), Analytics, Marketing Center, Wallet, Transactions, Support and Security work together.'],['Your first steps','Complete your profile, review your plan information, check your wallet and learn where your transaction records appear.'],['Good habit','Read the platform information before taking action. Keep your login details private and contact Support when something is unclear.']],takeaway:'Use NEXORA as a workspace for learning, tracking activity and managing your account—not as a promise of income.'},
+  {title:'NEXORA Marketplace: buy & sell',level:'MARKETPLACE',time:'9 min',text:'Learn how to list products, shop safely, manage orders and communicate with buyers or sellers.',sections:[['Create a strong listing','Use clear photos, an accurate title, detailed description, price, stock and pickup/delivery location.'],['Buying','Search by product, category or location, add products to your cart, confirm delivery details and choose an available payment method.'],['Selling responsibly','Only list items you are authorized to sell. Be honest about condition, stock, warranties and delivery. Never upload prohibited or counterfeit goods.'],['Order management','Use Orders to track purchases and customer orders. Update statuses as an order moves from pending to confirmed, processing, shipped and delivered. Buyers can review completed purchases and report an order issue through the dispute process.']],takeaway:'A trustworthy marketplace depends on accurate listings, clear communication, secure payments and reliable fulfillment.'},
+  {title:'Understanding membership plans',level:'FOUNDATIONS',time:'7 min',text:'Understand plan levels, upgrades, configured benefits and earning eligibility.',sections:[['Plan levels','NEXORA has Starter, Growth, Pro, Elite and Premium plans. Each plan can have its own configured benefits, price and commission settings.'],['Referral earning access','Starter, Growth, Pro and Elite earn through their qualifying referral levels. Premium can earn from all five plan levels through referrals.'],['Premium advertising access','Only Premium unlocks Advertise (Products & Advertising). Non-Premium members continue with referral earning only.'],['Upgrading','When upgrading, NEXORA charges the difference between your current plan price and the target plan price. Review the displayed amount before confirming.']],takeaway:'Always check the current plan details shown in NEXORA before making a membership decision.'},
+  {title:'Premium advertising & weekly payouts',level:'PREMIUM ADVERTISING',time:'8 min',text:'Learn how Premium members can promote NEXORA products and submit performance for Friday payout processing.',sections:[['Who can advertise','Products are available only to members with an active Premium plan. Starter, Growth, Pro and Elite do not receive advertising products.'],['Where to publish','Campaigns may specify WhatsApp Status, TikTok, Instagram, X or another approved social platform. Follow each campaign\'s instructions and use accurate information.'],['How payout is calculated','Payouts use verified views and engagements multiplied by the rates configured for the campaign. NEXORA reviews submissions before approval, and approved advertising earnings are scheduled for Friday processing.']],takeaway:'Premium unlocks advertising access, but advertising earnings depend on verified campaign performance and approval; no fixed income is guaranteed.'},
+  {title:'Referral fundamentals',level:'REFERRALS',time:'7 min',text:'Learn the difference between direct referrals and Level 2 activity and how your personal link is used.',sections:[['Direct referrals','A person who joins through your personal referral link is recorded as your direct referral when the platform records the relationship.'],['Level 2','Level 2 refers to qualifying members connected through your direct network. Use My Referrals to understand the network structure.'],['Quality over quantity','Share accurate information with people who genuinely want to understand NEXORA. Do not pressure people or make claims about guaranteed returns.']],takeaway:'A healthy referral network starts with clear communication and people who understand what they are joining.'},
+  {title:'Marketing that builds trust',level:'MARKETING',time:'8 min',text:'Use the Marketing Center responsibly to communicate clearly and consistently.',sections:[['Before you share','Know what NEXORA does, what membership costs, what the platform records and where people can get support.'],['Use the tools','Copy your personal referral link, use the QR code or adapt the ready-to-share messages in Marketing Center.'],['Avoid misleading claims','Never promise guaranteed income, guaranteed returns, instant profits or risk-free results. Describe commissions as eligibility-based and dependent on the platform rules.']],takeaway:'Trust grows when your message is accurate, simple and honest about both benefits and responsibilities.'},
+  {title:'Reading your analytics',level:'ANALYTICS',time:'6 min',text:'Turn your referral and commission records into useful information without confusing activity with guaranteed results.',sections:[['Key metrics','Review direct members, Level 2 members, paid referrals, conversion information and recorded commissions.'],['Compare activity','Use monthly activity and direct-versus-Level 2 commission records to understand where your recorded activity is coming from.'],['Use analytics wisely','Analytics describes recorded activity. It does not predict future earnings or guarantee that the same results will continue.']],takeaway:'Use analytics to understand what has happened and improve your process—not to promise what will happen next.'},
+  {title:'Wallet, transactions & payments',level:'MONEY SAFETY',time:'7 min',text:'Understand where balances and payment records appear and how to handle payment questions safely.',sections:[['Wallet','Check available, pending and withdrawn amounts in Wallet. Give transactions time to update when a payment is still being processed.'],['Transactions','Use your transaction history to review membership payments and other recorded account activity. Keep references when contacting Support.'],['Payment safety','Never share your M-Pesa PIN, password or one-time security codes with another person. If a payment looks wrong, contact NEXORA Support and provide the relevant transaction reference.']],takeaway:'Protect your credentials and use the transaction record as your source of truth when resolving payment questions.'},
+  {title:'Account security & privacy',level:'SECURITY',time:'6 min',text:'Build simple habits that reduce the risk of losing access to your NEXORA account.',sections:[['Password protection','Use a strong, unique password and never share it with another person or support agent.'],['Profile information','Keep your name and phone number accurate so account communication and support can work properly.'],['Suspicious activity','If you notice unexpected account activity, change your password and contact Support promptly. Do not send your password or M-Pesa PIN.']],takeaway:'Your account security is your responsibility too: protect credentials, keep profile information current and ask for help when something looks wrong.'},
+  {title:'Growing sustainably & ethically',level:'ADVANCED',time:'8 min',text:'Build a long-term approach based on education, useful communication and respect for other members.',sections:[['Set realistic goals','Focus on learning, consistent communication and quality relationships rather than chasing a promised income target.'],['Be transparent','Explain membership costs, plan rules and the fact that commissions depend on qualifying activity.'],['Build relationships','Answer questions honestly, allow people time to decide and direct complex questions to NEXORA Support.']],takeaway:'Sustainable growth comes from informed people, responsible communication and accurate expectations.'}
+ ];
+ const lesson=selected!==null?lessons[selected]:null;
+ return <section><div className="sectionhead"><div><span className="pill">LEARNING HUB</span><h1>NEXORA Academy</h1><p className="muted">Practical, step-by-step lessons to help members understand NEXORA, use its tools and communicate responsibly.</p></div></div><div className="panel academyintro"><BookOpen size={23}/><div><h3>Learn at your own pace</h3><p className="muted">Start with the foundations, then work through referrals, marketing, analytics, payment safety and sustainable growth. These lessons are educational and do not guarantee earnings.</p></div></div><div className="academygrid">{lessons.map((lesson,i)=><div className="academycard" key={lesson.title}><div className="lessonnum">{i+1}</div><GraduationCap size={23}/><small className="lessonlevel">{lesson.level} · {lesson.time}</small><h3>{lesson.title}</h3><p className="muted">{lesson.text}</p><button className="secondary" onClick={()=>setSelected(i)}><BookOpen size={15}/> Start lesson</button></div>)}</div>{lesson&&<div className="modalbackdrop" onClick={()=>setSelected(null)}><div className="modal lessonmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">{lesson.level} · {lesson.time}</span><h2>{lesson.title}</h2></div><button className="iconbtn" onClick={()=>setSelected(null)} aria-label="Close lesson"><X size={20}/></button></div><div className="lessonbody"><p className="lessonlead">{lesson.text}</p>{lesson.sections.map(([heading,body])=><div className="lessonsection" key={heading}><h3>{heading}</h3><p>{body}</p></div>)}<div className="lessontakeaway"><CheckCircle2 size={19}/><div><b>Key takeaway</b><p>{lesson.takeaway}</p></div></div></div><div className="modalfoot"><button className="primary" onClick={()=>setSelected(null)}><Check size={16}/> Finish lesson</button></div></div></div>}</section>}
+function Leaderboard({rows}){return <section><div className="sectionhead"><div><span className="pill">COMMUNITY</span><h1>Leaderboard</h1><p className="muted">A transparent snapshot of recorded referral commissions. Only first names are displayed.</p></div></div><div className="panel leaderboard"><div className="leaderhead"><span>Rank</span><span>Member</span><span>Plan</span><span>Recorded earnings</span></div>{rows.map((x,i)=><div className="leaderrow" key={x.id}><strong className="rank">{i<3?<Crown size={17}/>:i+1}</strong><div><b>{x.name}</b><small>Member since {new Date(x.createdAt).toLocaleDateString()}</small></div><span>{x.package||"No plan"}</span><strong>{money(x.totalEarned)}</strong></div>)}{!rows.length&&<p className="muted">No leaderboard data yet.</p>}</div><div className="notice"><Trophy size={16}/> Leaderboard figures are informational and reflect recorded commissions, not guaranteed future income.</div></section>}
+function Challenges({referrals,earnings}){const now=new Date(),month=now.getMonth(),year=now.getFullYear();const count=referrals.direct.filter(x=>{const d=new Date(x.createdAt);return d.getMonth()===month&&d.getFullYear()===year}).length;const goal=5;const pct=Math.min(100,count/goal*100);const directE=earnings.filter(x=>x.level===1).reduce((a,x)=>a+Number(x.amount||0),0);return <section><div className="sectionhead"><div><span className="pill">MONTHLY CHALLENGE</span><h1>Build your momentum</h1><p className="muted">Track useful activity goals without turning them into promises of earnings.</p></div></div><div className="challengehero"><div><Target size={30}/><span>Current challenge</span><h2>Make 5 quality direct referrals</h2><p>Invite people who genuinely want to understand and use NEXORA.</p></div><div className="challengecount"><strong>{count}</strong><span>/ {goal}</span></div></div><div className="progress challengeprogress"><i style={{width:`${pct}%`}}/></div><div className="cards three"><Card title="Direct referrals this month" value={count}/><Card title="Direct commissions recorded" value={money(directE)}/><Card title="Challenge progress" value={`${Math.round(pct)}%`}/></div><div className="panel"><h3>Achievement ideas</h3><div className="achievementgrid"><Achievement icon={<Users2/>} title="First connection" text="Make your first direct referral." unlocked={referrals.direct.length>=1}/><Achievement icon={<TrendingUp/>} title="Network builder" text="Reach 5 direct referrals." unlocked={referrals.direct.length>=5}/><Achievement icon={<Medal/>} title="Consistent promoter" text="Reach 10 direct referrals." unlocked={referrals.direct.length>=10}/><Achievement icon={<Crown/>} title="Community leader" text="Reach 25 direct referrals." unlocked={referrals.direct.length>=25}/></div></div></section>}
+function Achievement({icon,title,text,unlocked}){return <div className={`achievement ${unlocked?"unlocked":""}`}>{icon}<div><b>{title}</b><p>{text}</p></div><span>{unlocked?<CheckCheck size={17}/>:"Locked"}</span></div>}
+function SupportCenter({tickets,reload}){const [subject,setSubject]=useState(""),[message,setMessage]=useState(""),[busy,setBusy]=useState(false),[err,setErr]=useState("");const submit=async e=>{e.preventDefault();if(!subject.trim()||!message.trim())return setErr("Enter a subject and message.");setBusy(true);setErr("");try{await api("/support/tickets",{method:"POST",body:JSON.stringify({subject,message})});setSubject("");setMessage("");await reload()}catch(e){setErr(e.message)}finally{setBusy(false)}};return <section><div className="sectionhead"><div><span className="pill">MEMBER CARE</span><h1>Help & Support</h1><p className="muted">Get help, track your requests and use the direct WhatsApp support option.</p></div><a className="secondary" href="https://wa.me/254703265774" target="_blank" rel="noreferrer"><MessageCircle size={16}/> WhatsApp</a></div><div className="supportgrid"><div className="panel"><LifeBuoy size={24}/><h3>Open a support ticket</h3>{err&&<div className="error">{err}</div>}<form className="supportform" onSubmit={submit}><input required maxLength="120" placeholder="Subject" value={subject} onChange={e=>setSubject(e.target.value)}/><textarea required maxLength="3000" rows="7" placeholder="Describe what you need help with…" value={message} onChange={e=>setMessage(e.target.value)}/><button className="primary" disabled={busy}><Send size={16}/>{busy?"Sending…":"Send support request"}</button></form></div><div className="panel"><h3>Your tickets</h3>{tickets.length?tickets.map(t=><div className="ticket" key={t.id}><div><b>{t.subject}</b><small>{new Date(t.createdAt).toLocaleString()}</small></div><span className={`ticketstatus ${t.status.toLowerCase()}`}>{t.status}</span><p>{t.message}</p>{t.response&&<div className="ticketresponse"><b>Support reply</b><p>{t.response}</p></div>}</div>):<p className="muted">No support tickets yet.</p>}</div></div><div className="notice"><Bell size={16}/> For payment issues, include your transaction reference. Never send your password or PIN to support.</div></section>}
+function Security({me,reload,strength}){const [name,setName]=useState(me.user.name),[phone,setPhone]=useState(me.user.phone),[oldPass,setOld]=useState(""),[newPass,setNew]=useState(""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);const saveProfile=async()=>{setBusy(true);setMsg("");try{const d=await api("/member/profile",{method:"PATCH",body:JSON.stringify({name,phone})});setMsg(d.message);await reload()}catch(e){setMsg(e.message)}finally{setBusy(false)}};const changePassword=async()=>{setBusy(true);setMsg("");try{const d=await api("/member/password",{method:"POST",body:JSON.stringify({currentPassword:oldPass,newPassword:newPass})});setMsg(d.message);setOld("");setNew("")}catch(e){setMsg(e.message)}finally{setBusy(false)}};return <section><div className="sectionhead"><div><span className="pill">ACCOUNT SECURITY</span><h1>Security center</h1><p className="muted">Keep your profile accurate and protect your account.</p></div><Shield size={22}/></div>{msg&&<div className="notice">{msg}</div>}<div className="securitygrid"><div className="panel"><UserCog size={23}/><h3>Profile</h3><label>Name<input value={name} onChange={e=>setName(e.target.value)}/></label><label>Phone<input inputMode="tel" value={phone} onChange={e=>setPhone(e.target.value)}/></label><button className="primary" disabled={busy} onClick={saveProfile}>Save profile</button></div><div className="panel"><KeyRound size={23}/><h3>Change password</h3><label>Current password<input type="password" value={oldPass} onChange={e=>setOld(e.target.value)}/></label><label>New password<input type="password" minLength="8" value={newPass} onChange={e=>setNew(e.target.value)} placeholder="8+ characters"/></label><button className="primary" disabled={busy} onClick={changePassword}>Update password</button></div></div><div className="panel"><h3>Security checklist</h3><div className="securitychecks"><span><Check size={15}/> Use a unique password</span><span><Check size={15}/> Never share your M-Pesa PIN</span><span><Check size={15}/> Verify payment references before reporting a problem</span><span><Check size={15}/> Keep your phone number current</span></div><div className="profilemeter"><b>Profile completeness: {strength}%</b><div className="progress"><i style={{width:`${strength}%`}}/></div></div></div></section>}
+function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentConfig={}}){
+ const [err,setErr]=useState("");
+ const [method,setMethod]=useState("paybill");
+ const [busy,setBusy]=useState(false);
+ const [walletConfirm,setWalletConfirm]=useState(false);
+ const [copied,setCopied]=useState(false);
+ const pkg=data?.package||null;
+ const amount=Number(data?.chargeAmount!=null?data.chargeAmount:pkg?.price)||0;
+ const bal=Number(walletBalance||0);
+ const canWallet=bal>=amount&&amount>0;
+ const cfg=paymentConfig&&typeof paymentConfig==="object"?paymentConfig:{};
+ const paybillNumber=cfg.paybillNumber||"400200";
+ const paybillAccount=cfg.paybillAccount||"";
+ const paybillName=cfg.paybillName||"NEXORA";
+ const copyAccount=async()=>{
+  if(!paybillAccount)return;
+  try{await navigator.clipboard.writeText(String(paybillAccount));setCopied(true);setTimeout(()=>setCopied(false),2200);}
+  catch{try{window.prompt("Copy Co-op account number:",String(paybillAccount));}catch{}}
+ };
+ const useWallet=()=>{
+  if(!canWallet)return setErr("Insufficient wallet balance for this plan.");
+  setErr("");setMethod("wallet");setWalletConfirm(true);
+ };
+ const confirmWallet=async()=>{
+  if(!canWallet||!pkg)return setErr("Unable to use wallet for this plan.");
+  setErr("");setWalletConfirm(false);setBusy(true);
+  try{await onWallet(pkg);}
+  catch(ex){setErr(ex?.message||"Wallet purchase failed");setBusy(false);}
+ };
+ const submit=async e=>{
+  e.preventDefault();
+  setErr("");
+  if(method==="wallet")return useWallet();
+  if(!pkg?.id)return setErr("Plan not found. Close and try again.");
+  setBusy(true);
+  try{await onContinue(null,pkg);}
+  catch(ex){setErr(ex?.message||"Could not start Paybill payment");setBusy(false);}
+ };
+ if(!pkg){
+  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><h2>Plan unavailable</h2><button type="button" className="iconbtn" onClick={onCancel}><X size={20}/></button></div><div className="paymentbody"><p className="muted">Please close and select a plan again.</p></div><div className="modalfoot"><button type="button" className="secondary" onClick={onCancel}>Close</button></div></div></div>;
+ }
+ return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
+  <div className="modalhead"><div><span className="pill">CO-OP BANK · LIPA NA M-PESA</span><h2>Choose how to pay</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close"><X size={20}/></button></div>
+  <form className="phonemodalform" onSubmit={submit}><div className="paymentbody phonebody">
+   <div className="phonepackage"><div><span>Plan</span><strong>{pkg.name||"Plan"}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(bal)}</strong></div></div>
+   <div className="paymethods">
+    <button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={()=>{setMethod("paybill");setWalletConfirm(false);setErr("");}}><CreditCard size={18}/><div><b>Co-op Bank Lipa na M-Pesa Paybill</b><span>Pay with Paybill {paybillNumber}, then submit your M-Pesa confirmation code</span></div></button>
+    <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={useWallet} disabled={!canWallet||busy}><WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} instantly from your wallet`:`Need ${money(amount)} · you have ${money(bal)}`}</span></div></button>
+   </div>
+   {method==="paybill"&&<div className="paybillbox">
+    <div className="paybilltitle"><div><b>{paybillName}</b><span>Manual M-Pesa payment</span></div><span className="paybillsecure">LIPA NA M-PESA</span></div>
+    <div className="paybilldetails">
+     <div><span>Paybill</span><strong>{paybillNumber}</strong></div>
+     <div className="paybillrowcopy"><span>Account number</span><div className="paybillaccountvalue"><strong>{paybillAccount||"Set on server"}</strong>{paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy</>}</button>}</div></div>
+     <div><span>Amount</span><strong>{money(amount)}</strong></div>
+    </div>
+    <ol className="paybillsteps">
+     <li>Open <b>M-Pesa → Lipa na M-Pesa → PayBill</b>.</li>
+     <li>Enter Paybill number <b>{paybillNumber}</b>.</li>
+     <li>Enter account number <b>{paybillAccount||"shown above"}</b>.</li>
+     <li>Enter exactly <b>{money(amount)}</b> and complete with your M-Pesa PIN.</li>
+     <li>Return here and continue, then submit the M-Pesa confirmation code.</li>
+    </ol>
+    <div className="notice"><Info size={15}/> Your payment is verified before the plan is activated. Never share your M-Pesa PIN.</div>
+   </div>}
+   {method==="wallet"&&walletConfirm&&!busy&&<div className="walletconfirmbox"><div className="walletconfirmicon"><WalletCards size={22}/></div><div><h3>Confirm wallet payment</h3><p className="muted small">Use <strong>{money(amount)}</strong> from your wallet for <strong>{pkg.name}</strong>? Available: <strong>{money(bal)}</strong>.</p></div><div className="walletconfirmactions"><button type="button" className="dangeroutline" onClick={()=>{setWalletConfirm(false);setMethod("paybill");setErr("");}} disabled={busy}>Cancel</button><button type="button" className="primary" onClick={confirmWallet} disabled={busy}>Yes, use my balance</button></div></div>}
+   {method==="wallet"&&busy&&<div className="walletconfirmbox"><p className="muted small"><strong>Processing wallet payment…</strong></p></div>}
+   {err&&<div className="error">{err}</div>}
+  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button>{method==="paybill"&&<button type="submit" className="primary" disabled={busy}>{busy?"Starting…":"Continue to Paybill"}</button>}</div></form>
  </div></div>;
 }
 function PaymentModal({payment,onClose,onReceipt,onSuccess}){
@@ -481,13 +1511,15 @@ function PaymentModal({payment,onClose,onReceipt,onSuccess}){
 }
 
 function Packages({packages,current,purchase,reload}){
- const sorted=[...packages].sort((a,b)=>Number(a.tier||999)-Number(b.tier||999)||Number(a.price)-Number(b.price));
+ const buy=typeof purchase==="function"?purchase:(()=>{});
+ const list=Array.isArray(packages)?packages:[];
+ const sorted=[...list].sort((a,b)=>Number(a.tier||999)-Number(b.tier||999)||Number(a.price)-Number(b.price));
  const currentPrice=Number(current?.price||0);
  const upgradeOnly=sorted.filter(p=>Number(p.price)>currentPrice);
  return <section><div className="sectionhead"><div><h1>Choose your plan</h1><p className="muted">Compare transparent membership plan benefits and understand exactly which plan levels you can earn from.</p></div><button className="secondary" onClick={reload}><RefreshCw size={16}/> Refresh</button></div>
  <div className="earningsnotice"><div><strong>How plan earnings work</strong><p>Starter, Growth, Pro and Elite earn through qualifying referrals. Premium can earn through qualifying referrals across all five plan levels and also unlocks the Products & Advertising area for approved campaigns.</p><p>Your plan unlocks the plan levels you can earn from. Starter can earn from Starter purchases; Growth can earn from Starter + Growth; Pro can earn from Starter + Growth + Pro; Elite can earn from Starter + Growth + Pro + Elite; Premium can earn from all five. When an eligible referral purchases a plan, the commission shown for that purchased plan applies.</p></div></div>
- {current&&upgradeOnly.length>0&&<div className="upgradebanner"><div><span className="pill">UPGRADE AVAILABLE</span><h3>Unlock more NEXORA benefits</h3><p className="muted">You already have {current.name}. Upgrading charges the difference between your current plan and the higher plan.</p></div><button className="primary" onClick={()=>purchase(upgradeOnly[0])}>See upgrade options</button></div>}
- {sorted.length?<><div className="packages">{sorted.map((p,i)=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>currentPrice;const difference=isUpgrade?Number(p.price)-currentPrice:Number(p.price);return <div className={`pkg ${p.popular||(!p.popular&&i===2) ?"featured":""}`} key={p.id}>{(p.popular||(!p.popular&&i===2))&&<div className="popular">{p.badge||"POPULAR"}</div>}<span className="pkgname">{p.name}</span>{p.badge&&!(p.popular||(!p.popular&&i===2))&&<span className="packagebadge">{p.badge}</span>}<h2>{money(p.price)}</h2>{p.description&&<p className="pkgdesc">{p.description}</p>}<div className="commission"><div><b>{money(p.directCommission)}</b><small>Direct referral</small></div><div><b>{money(p.level2Commission)}</b><small>Level 2 referral</small></div></div><ul className="pkgfeatures">{(p.features||[]).map((x,j)=><li key={j}><Check size={14}/>{x}</li>)}</ul>{current&&isUpgrade&&<div className="upgradecost">Upgrade cost: <strong>{money(difference)}</strong></div>}<button className="primary" disabled={isCurrent} onClick={()=>purchase(p)}>{isCurrent?<><CheckCircle2 size={16}/> Current plan</>:isUpgrade?"Upgrade plan":"Activate plan"}</button></div>})}</div>
+ {current&&upgradeOnly.length>0&&<div className="upgradebanner"><div><span className="pill">UPGRADE AVAILABLE</span><h3>Unlock more NEXORA benefits</h3><p className="muted">You already have {current.name}. Upgrading charges the difference between your current plan and the higher plan.</p></div><button className="primary" onClick={()=>buy(upgradeOnly[0])}>See upgrade options</button></div>}
+ {sorted.length?<><div className="packages">{sorted.map((p,i)=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>currentPrice;const difference=isUpgrade?Number(p.price)-currentPrice:Number(p.price);return <div className={`pkg ${p.popular||(!p.popular&&i===2) ?"featured":""}`} key={p.id}>{(p.popular||(!p.popular&&i===2))&&<div className="popular">{p.badge||"POPULAR"}</div>}<span className="pkgname">{p.name}</span>{p.badge&&!(p.popular||(!p.popular&&i===2))&&<span className="packagebadge">{p.badge}</span>}<h2>{money(p.price)}</h2>{p.description&&<p className="pkgdesc">{p.description}</p>}<div className="commission"><div><b>{money(p.directCommission)}</b><small>Direct referral</small></div><div><b>{money(p.level2Commission)}</b><small>Level 2 referral</small></div></div><ul className="pkgfeatures">{(Array.isArray(p.features)?p.features:(typeof p.features==="string"?[p.features]:[])).map((x,j)=><li key={j}><Check size={14}/>{String(x)}</li>)}</ul>{current&&isUpgrade&&<div className="upgradecost">Upgrade cost: <strong>{money(difference)}</strong></div>}<button className="primary" disabled={isCurrent} onClick={()=>buy(p)}>{isCurrent?<><CheckCircle2 size={16}/> Current plan</>:isUpgrade?"Upgrade plan":"Activate plan"}</button></div>})}</div>
  <div className="comparison"><h2>Why upgrade?</h2><p className="muted">See what each plan unlocks compared to where you are now.</p>
  <div className="planmatrixwrap"><table className="planmatrix"><thead><tr><th>Benefit</th>{sorted.map(p=><th key={p.id} className={current?.id===p.id?"iscurrent":""}>{p.name}{current?.id===p.id&&<small> · you</small>}</th>)}</tr></thead><tbody>
  <tr><td>Price</td>{sorted.map(p=><td key={p.id}>{money(p.price)}</td>)}</tr>
@@ -495,9 +1527,9 @@ function Packages({packages,current,purchase,reload}){
  <tr><td>Level 2 referral</td>{sorted.map(p=><td key={p.id}>{money(p.level2Commission)}</td>)}</tr>
  <tr><td>Earn from plans</td>{sorted.map((p,i)=><td key={p.id}>{sorted.slice(0,i+1).map(x=>x.name).join(", ")}</td>)}</tr>
  <tr><td>Advertising</td>{sorted.map(p=><td key={p.id}>{p.name==="Premium"?<b className="yes">Yes</b>:<span className="no">—</span>}</td>)}</tr>
- <tr><td>Your move</td>{sorted.map(p=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>Number(current?.price||0);const diff=isUpgrade?Number(p.price)-Number(current.price):Number(p.price);return <td key={p.id}>{isCurrent?<span className="yes">Current</span>:<button type="button" className="secondary narrow" onClick={()=>purchase(p)}>{isUpgrade?`Upgrade ${money(diff)}`:`Activate`}</button>}</td>})}</tr>
+ <tr><td>Your move</td>{sorted.map(p=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>Number(current?.price||0);const diff=isUpgrade?Number(p.price)-Number(current.price):Number(p.price);return <td key={p.id}>{isCurrent?<span className="yes">Current</span>:<button type="button" className="secondary narrow" onClick={()=>buy(p)}>{isUpgrade?`Upgrade ${money(diff)}`:`Activate`}</button>}</td>})}</tr>
  </tbody></table></div>
- <div className="earningtiers">{sorted.map((p,i)=><div key={p.id}><strong>{p.name}</strong><span>Can earn from: {sorted.slice(0,i+1).map(x=>x.name).join(" + ")}</span></div>)}</div><h2>Compare plan benefits</h2><div className="comparisongrid">{sorted.map(p=><div key={p.id}><h3>{p.name}</h3>{p.description&&<p>{p.description}</p>}<ul>{(p.features||[]).map((x,j)=><li key={j}><Check size={14}/>{x}</li>)}</ul><strong>{money(p.directCommission)} direct · {money(p.level2Commission)} Level 2</strong></div>)}</div></div></>:<div className="panel empty"><PackageIcon size={32}/><h3>No plans available</h3><p className="muted">We couldn't load the plan list.</p><button className="primary narrow" onClick={reload}>Reload plans</button></div>}</section>}
+ <div className="earningtiers">{sorted.map((p,i)=><div key={p.id}><strong>{p.name}</strong><span>Can earn from: {sorted.slice(0,i+1).map(x=>x.name).join(" + ")}</span></div>)}</div><h2>Compare plan benefits</h2><div className="comparisongrid">{sorted.map(p=><div key={p.id}><h3>{p.name}</h3>{p.description&&<p>{p.description}</p>}<ul>{(Array.isArray(p.features)?p.features:(typeof p.features==="string"?[p.features]:[])).map((x,j)=><li key={j}><Check size={14}/>{String(x)}</li>)}</ul><strong>{money(p.directCommission)} direct · {money(p.level2Commission)} Level 2</strong></div>)}</div></div></>:<div className="panel empty"><PackageIcon size={32}/><h3>No plans available</h3><p className="muted">We couldn't load the plan list.</p><button className="primary narrow" onClick={reload}>Reload plans</button></div>}</section>}
 
 function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],purchase,reload,initialTab="network"}){
  const hasPackage=Boolean(me?.package);
@@ -600,8 +1632,12 @@ function Transactions({rows,onOpenPending,onOpenReceipt}){return <section><div c
 
 class NEXORAErrorBoundary extends React.Component {
  constructor(props){super(props);this.state={error:null};}
- static getDerivedStateFromError(error){return {error};}
- componentDidCatch(error,info){console.error("NEXORA UI error",error,info);}
- render(){if(!this.state.error)return this.props.children;return <div className="app-error-screen"><div className="app-error-card"><span className="pill">NEXORA</span><h1>Something went wrong</h1><p className="muted">This screen could not be displayed. Your account data is safe. Please try again.</p><div className="rowactions"><button className="secondary" onClick={()=>window.location.reload()}><RefreshCw size={16}/> Reload NEXORA</button><button className="primary" onClick={()=>this.setState({error:null})}>Try again</button></div></div></div>}}
-
+ static getDerivedStateFromError(error){return{error};}
+ componentDidCatch(error,info){try{console.error("NEXORA UI error",error,info);}catch{}}
+ render(){
+  if(!this.state.error)return this.props.children;
+  const msg=String(this.state.error?.message||this.state.error||"Unknown UI error");
+  return <div className="app-error-screen"><div className="app-error-card"><span className="pill">NEXORA</span><h1>Something went wrong</h1><p className="muted">This screen could not be displayed. Your account data is safe.</p><p className="error" style={{marginTop:12,textAlign:"left",fontSize:12,wordBreak:"break-word"}}>{msg}</p><div className="rowactions"><button className="secondary" onClick={()=>window.location.reload()}><RefreshCw size={16}/> Reload NEXORA</button><button className="primary" onClick={()=>this.setState({error:null})}>Try again</button></div></div></div>;
+ }
+}
 createRoot(document.getElementById("root")).render(<NEXORAErrorBoundary><App/></NEXORAErrorBoundary>);
