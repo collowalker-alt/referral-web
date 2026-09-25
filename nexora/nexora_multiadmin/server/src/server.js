@@ -1118,7 +1118,6 @@ app.get("/api/admin/users/:id/details",adminAuth,async(req,res)=>{
 // Admin payment repair: verifies a Paystack charge reference before activating the package.
 app.post("/api/admin/payments/repair",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
-    if(!paystackConfigured())return res.status(503).json({message:"Paystack is not configured"});
     const email=String(req.body?.email||"").trim().toLowerCase();
     const reference=String(req.body?.reference||"").trim();
     if(!email||!email.includes("@"))return res.status(400).json({message:"Enter the member email address"});
@@ -1128,17 +1127,35 @@ app.post("/api/admin/payments/repair",adminAuth,requireAdminRole("SUPER_ADMIN","
     const tx=await prisma.transaction.findUnique({where:{reference}});
     if(!tx)return res.status(404).json({message:"No NEXORA transaction exists for that reference"});
     if(tx.userId!==user.id)return res.status(409).json({message:"That payment reference belongs to a different member"});
+    if(tx.status==="SUCCESS")return res.json({message:"This payment is already successful; no repair was needed.",status:"success",reference});
+
+    const isPaybill=tx.type==="PACKAGE_PURCHASE" && (tx.metadata?.method==="PAYBILL" || String(tx.reference||"").startsWith("NX-PAYBILL-"));
+    if(isPaybill){
+      if(!tx.metadata?.mpesaCode)return res.status(400).json({message:"This Co-op Paybill payment has no M-Pesa confirmation code. Submit the code first, then repair it."});
+      const meta={...(tx.metadata||{}),verified:true,repaired:true,repairedAt:new Date().toISOString(),repairedBy:req.admin.email};
+      if(tx.status!=="PENDING"){
+        await prisma.transaction.update({where:{id:tx.id},data:{status:"PENDING",metadata:meta}});
+      }else{
+        await prisma.transaction.update({where:{id:tx.id},data:{metadata:meta}});
+      }
+      await activatePaidPackage(reference);
+      await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,provider:"COOP_PAYBILL",mpesaCode:tx.metadata.mpesaCode});
+      await createUserNotification(user.id,{title:"Payment repaired and plan updated",message:"An administrator verified your Co-op Bank Paybill payment and repaired the related NEXORA account record.",type:"PAYMENT",details:{reference,provider:"COOP_PAYBILL"}});
+      return res.json({message:"Co-op Paybill payment verified and member account repaired successfully",status:"success",reference});
+    }
+
+    // Legacy Paystack repair remains available for historical records while Paystack is not the active member payment method.
+    if(!paystackConfigured())return res.status(503).json({message:"This is a legacy Paystack payment, but Paystack is not configured on the server."});
     const result=await queryAndApplyPaystackStatus(reference);
     if(result.status==="success"){
       await logAdminAction(req,"PAYMENT_REPAIRED","TRANSACTION",tx.id,user.email,{reference,provider:"PAYSTACK",status:result.status});
-      await createUserNotification(user.id,{title:"Payment fixed and account updated",message:"An administrator verified your Paystack payment and repaired the related NEXORA account record.",type:"PAYMENT",details:{reference,provider:"PAYSTACK"}});
-      return res.json({message:"Paystack payment verified and member account repaired successfully",status:"success",reference});
+      await createUserNotification(user.id,{title:"Payment fixed and account updated",message:"An administrator verified your legacy Paystack payment and repaired the related NEXORA account record.",type:"PAYMENT",details:{reference,provider:"PAYSTACK"}});
+      return res.json({message:"Legacy Paystack payment verified and member account repaired successfully",status:"success",reference});
     }
     await logAdminAction(req,"PAYMENT_CHECKED","TRANSACTION",tx.id,user.email,{reference,provider:"PAYSTACK",status:result.status});
-    res.json({message:`Paystack reports this payment as ${result.status}. No package activation was performed.`,status:result.status,reference});
-  }catch(e){console.error("Admin Paystack payment repair error:",e);res.status(500).json({message:e.message||"Unable to repair payment"});}
+    res.json({message:`Legacy Paystack reports this payment as ${result.status}. No package activation was performed.`,status:result.status,reference});
+  }catch(e){console.error("Admin payment repair error:",e);res.status(500).json({message:e.message||"Unable to repair payment"});}
 });
-
 
 app.get("/api/admin/support/tickets",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
 app.patch("/api/admin/support/tickets/:id",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});if(response)await createUserNotification(t.userId,{title:"Support ticket updated",message:`An administrator replied to your support ticket: ${t.subject}`,type:"SUPPORT",details:{ticketId:t.id,status}});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
@@ -1311,7 +1328,7 @@ app.get("/api/admin/wallet/deposits",adminAuth,requireAdminRole("SUPER_ADMIN","A
   }catch(e){console.error("[ADMIN DEPOSITS]",e);res.status(500).json({message:"Unable to load pending deposits"});}
 });
 
-app.post("/api/admin/wallet/deposits/verify",adminAuth,async(req,res)=>{
+app.post("/api/admin/wallet/deposits/verify",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const reference=String(req.body?.reference||"").trim();
     const action=String(req.body?.action||"approve").toLowerCase();
@@ -1329,10 +1346,17 @@ app.post("/api/admin/wallet/deposits/verify",adminAuth,async(req,res)=>{
     const expected=Number(tx.amount);
     if(confirmedAmount!=null&&Number.isFinite(confirmedAmount)&&confirmedAmount!==expected)return res.status(400).json({message:`Amount mismatch. Expected KSh ${expected.toLocaleString()} but confirmed KSh ${confirmedAmount.toLocaleString()}.`});
     if(!tx.metadata?.mpesaCode)return res.status(400).json({message:"Member has not submitted an M-Pesa confirmation code yet."});
+    let credited=false;
     await prisma.$transaction(async db=>{
+      const claimed=await db.transaction.updateMany({
+        where:{id:tx.id,status:"PENDING"},
+        data:{status:"SUCCESS",metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}
+      });
+      if(claimed.count!==1) return;
       await db.wallet.upsert({where:{userId:tx.userId},create:{userId:tx.userId,balance:expected},update:{balance:{increment:expected}}});
-      await db.transaction.update({where:{id:tx.id},data:{status:"SUCCESS",metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}});
+      credited=true;
     });
+    if(!credited) return res.json({status:"success",message:"Deposit was already credited or is no longer pending."});
     await logAdminAction(req,"WALLET_DEPOSIT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
     await createUserNotification(tx.userId,{title:"Wallet deposit approved",message:`Your wallet deposit of KSh ${expected.toLocaleString()} was verified and credited by an administrator.`,type:"PAYMENT",details:{reference,amount:expected}});
     res.json({status:"success",message:`Deposit of KSh ${expected.toLocaleString()} credited to ${tx.user?.email||"member"}.`});

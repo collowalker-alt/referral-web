@@ -16,6 +16,7 @@ ADMIN CONSOLE
   Super Admin-only Admin Management
   Paybill verification
   Wallet deposit verification
+  Payment repair supports verified Co-op Paybill records; legacy Paystack repair remains only for historical records.
   Payment repair
   Package management
   Marketplace moderation
