@@ -3582,3 +3582,75 @@ body:has(textarea:focus) {
 .copyaccountbtn{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;border:1px solid #2b4865;background:#10243a;color:#cfe0f2;border-radius:8px;padding:7px 9px;font-size:11px;font-weight:900;cursor:pointer}
 .copyaccountbtn:hover{background:#17314d;border-color:#3b5f80}
 @media(max-width:520px){.paybilltitle{align-items:flex-start;flex-direction:column}.paybillrowcopy{align-items:flex-start}.paybillaccountvalue{flex-wrap:wrap;justify-content:flex-end}.copyaccountbtn{padding:6px 8px}}
+
+/* Payment / Lipa na M-Pesa modals — always on top, never hidden */
+.modalbackdrop.payment-layer{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:60000 !important;
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:max(12px, env(safe-area-inset-top)) 12px 28px !important;
+  background:rgba(2,8,16,.88) !important;
+  backdrop-filter:blur(10px) !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  pointer-events:auto !important;
+}
+.modalbackdrop.payment-layer .modal.phonemodal,
+.modalbackdrop.payment-layer .modal.paymentmodal{
+  position:relative !important;
+  z-index:60001 !important;
+  width:min(520px, calc(100vw - 24px)) !important;
+  max-width:100% !important;
+  max-height:none !important;
+  margin:12px auto 24px !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  background:linear-gradient(160deg,#0d1a2b,#0a1420) !important;
+  border:1px solid #2b4660 !important;
+  border-radius:18px !important;
+  box-shadow:0 28px 80px rgba(0,0,0,.55) !important;
+  color:#eaf0ff !important;
+  overflow:visible !important;
+}
+.modalbackdrop.payment-layer .paymentbody,
+.modalbackdrop.payment-layer .phonebody{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  padding:16px 18px !important;
+  overflow:visible !important;
+}
+.modalbackdrop.payment-layer .paybillbox,
+.modalbackdrop.payment-layer .paymethods,
+.modalbackdrop.payment-layer .phonepackage{
+  display:block !important;
+  visibility:visible !important;
+}
+.modalbackdrop.payment-layer .paymethods{
+  display:grid !important;
+  gap:10px !important;
+}
+.modalbackdrop.payment-layer .paymethod{
+  display:flex !important;
+  align-items:flex-start !important;
+  gap:12px !important;
+  width:100% !important;
+  text-align:left !important;
+  padding:12px 14px !important;
+  border-radius:14px !important;
+  border:1px solid #2a455f !important;
+  background:#0c1a28 !important;
+  color:#e8f1fa !important;
+  cursor:pointer !important;
+}
+.modalbackdrop.payment-layer .paymethod.active{
+  border-color:rgba(56,217,169,.55) !important;
+  background:rgba(56,217,169,.1) !important;
+}

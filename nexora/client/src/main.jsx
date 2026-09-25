@@ -1438,13 +1438,13 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
  const bal=Number(walletBalance||0);
  const canWallet=bal>=amount&&amount>0;
  const cfg=paymentConfig&&typeof paymentConfig==="object"?paymentConfig:{};
- const paybillNumber=cfg.paybillNumber||"400200";
- const paybillAccount=cfg.paybillAccount||"";
- const paybillName=cfg.paybillName||"NEXORA";
+ const paybillNumber=String(cfg.paybillNumber||"400200");
+ const paybillAccount=String(cfg.paybillAccount||"");
+ const paybillName=String(cfg.paybillName||"NEXORA");
  const copyAccount=async()=>{
   if(!paybillAccount)return;
-  try{await navigator.clipboard.writeText(String(paybillAccount));setCopied(true);setTimeout(()=>setCopied(false),2200);}
-  catch{try{window.prompt("Copy Co-op account number:",String(paybillAccount));}catch{}}
+  try{await navigator.clipboard.writeText(paybillAccount);setCopied(true);setTimeout(()=>setCopied(false),2200);}
+  catch{try{window.prompt("Copy Co-op account number:",paybillAccount);}catch{}}
  };
  const useWallet=()=>{
   if(!canWallet)return setErr("Insufficient wallet balance for this plan.");
@@ -1465,38 +1465,82 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
   try{await onContinue(null,pkg);}
   catch(ex){setErr(ex?.message||"Could not start Paybill payment");setBusy(false);}
  };
- if(!pkg){
-  return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><h2>Plan unavailable</h2><button type="button" className="iconbtn" onClick={onCancel}><X size={20}/></button></div><div className="paymentbody"><p className="muted">Please close and select a plan again.</p></div><div className="modalfoot"><button type="button" className="secondary" onClick={onCancel}>Close</button></div></div></div>;
- }
- return <div className="modalbackdrop" onClick={onCancel}><div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
-  <div className="modalhead"><div><span className="pill">CO-OP BANK · LIPA NA M-PESA</span><h2>Choose how to pay</h2></div><button type="button" className="iconbtn" onClick={onCancel} aria-label="Close"><X size={20}/></button></div>
-  <form className="phonemodalform" onSubmit={submit}><div className="paymentbody phonebody">
-   <div className="phonepackage"><div><span>Plan</span><strong>{pkg.name||"Plan"}</strong></div><div><span>Amount due</span><strong>{money(amount)}</strong></div><div><span>Wallet balance</span><strong>{money(bal)}</strong></div></div>
-   <div className="paymethods">
-    <button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={()=>{setMethod("paybill");setWalletConfirm(false);setErr("");}}><CreditCard size={18}/><div><b>Co-op Bank Lipa na M-Pesa Paybill</b><span>Pay with Paybill {paybillNumber}, then submit your M-Pesa confirmation code</span></div></button>
-    <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={useWallet} disabled={!canWallet||busy}><WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} instantly from your wallet`:`Need ${money(amount)} · you have ${money(bal)}`}</span></div></button>
+
+ const body=!pkg?(
+  <div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" onClick={onCancel}>
+   <div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
+    <div className="modalhead"><h2>Plan unavailable</h2><button type="button" className="iconbtn" onClick={onCancel}><X size={20}/></button></div>
+    <div className="paymentbody"><p className="muted">Close and select a plan again.</p></div>
+    <div className="modalfoot"><button type="button" className="secondary" onClick={onCancel}>Close</button></div>
    </div>
-   {method==="paybill"&&<div className="paybillbox">
-    <div className="paybilltitle"><div><b>{paybillName}</b><span>Manual M-Pesa payment</span></div><span className="paybillsecure">LIPA NA M-PESA</span></div>
-    <div className="paybilldetails">
-     <div><span>Paybill</span><strong>{paybillNumber}</strong></div>
-     <div className="paybillrowcopy"><span>Account number</span><div className="paybillaccountvalue"><strong>{paybillAccount||"Set on server"}</strong>{paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy</>}</button>}</div></div>
-     <div><span>Amount</span><strong>{money(amount)}</strong></div>
+  </div>
+ ):(
+  <div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" aria-label="Pay for plan" onClick={onCancel}>
+   <div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
+    <div className="modalhead">
+     <div><span className="pill">CO-OP BANK · LIPA NA M-PESA</span><h2>Lipa na M-Pesa Paybill</h2><p className="muted small">Paybill {paybillNumber} · then submit your confirmation code</p></div>
+     <button type="button" className="iconbtn" onClick={onCancel} aria-label="Close"><X size={20}/></button>
     </div>
-    <ol className="paybillsteps">
-     <li>Open <b>M-Pesa → Lipa na M-Pesa → PayBill</b>.</li>
-     <li>Enter Paybill number <b>{paybillNumber}</b>.</li>
-     <li>Enter account number <b>{paybillAccount||"shown above"}</b>.</li>
-     <li>Enter exactly <b>{money(amount)}</b> and complete with your M-Pesa PIN.</li>
-     <li>Return here and continue, then submit the M-Pesa confirmation code.</li>
-    </ol>
-    <div className="notice"><Info size={15}/> Your payment is verified before the plan is activated. Never share your M-Pesa PIN.</div>
-   </div>}
-   {method==="wallet"&&walletConfirm&&!busy&&<div className="walletconfirmbox"><div className="walletconfirmicon"><WalletCards size={22}/></div><div><h3>Confirm wallet payment</h3><p className="muted small">Use <strong>{money(amount)}</strong> from your wallet for <strong>{pkg.name}</strong>? Available: <strong>{money(bal)}</strong>.</p></div><div className="walletconfirmactions"><button type="button" className="dangeroutline" onClick={()=>{setWalletConfirm(false);setMethod("paybill");setErr("");}} disabled={busy}>Cancel</button><button type="button" className="primary" onClick={confirmWallet} disabled={busy}>Yes, use my balance</button></div></div>}
-   {method==="wallet"&&busy&&<div className="walletconfirmbox"><p className="muted small"><strong>Processing wallet payment…</strong></p></div>}
-   {err&&<div className="error">{err}</div>}
-  </div><div className="modalfoot paymentfoot"><button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button>{method==="paybill"&&<button type="submit" className="primary" disabled={busy}>{busy?"Starting…":"Continue to Paybill"}</button>}</div></form>
- </div></div>;
+    <form className="phonemodalform" onSubmit={submit}>
+     <div className="paymentbody phonebody">
+      <div className="phonepackage">
+       <div><span>Plan</span><strong>{pkg.name||"Plan"}</strong></div>
+       <div><span>Amount due</span><strong>{money(amount)}</strong></div>
+       <div><span>Wallet balance</span><strong>{money(bal)}</strong></div>
+      </div>
+      <div className="paymethods">
+       <button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={()=>{setMethod("paybill");setWalletConfirm(false);setErr("");}}>
+        <CreditCard size={18}/><div><b>Lipa na M-Pesa Paybill</b><span>Co-op Bank · Paybill {paybillNumber}</span></div>
+       </button>
+       <button type="button" className={`paymethod ${method==="wallet"?"active":""} ${!canWallet?"disabled":""}`} onClick={useWallet} disabled={!canWallet||busy}>
+        <WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} from wallet`:`Need ${money(amount)} · you have ${money(bal)}`}</span></div>
+       </button>
+      </div>
+      {method==="paybill"&&(
+       <div className="paybillbox">
+        <div className="paybilltitle"><div><b>{paybillName}</b><span>Co-op Bank</span></div><span className="paybillsecure">LIPA NA M-PESA</span></div>
+        <div className="paybilldetails">
+         <div><span>1. Business number (Paybill)</span><strong>{paybillNumber}</strong></div>
+         <div className="paybillrowcopy"><span>2. Account number</span><div className="paybillaccountvalue"><strong>{paybillAccount||"Configured on server"}</strong>{!!paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy</>}</button>}</div></div>
+         <div><span>3. Amount</span><strong>{money(amount)}</strong></div>
+        </div>
+        <ol className="paybillsteps">
+         <li>On your phone open <b>M-Pesa</b></li>
+         <li>Choose <b>Lipa na M-Pesa</b> → <b>Paybill</b></li>
+         <li>Enter business number <b>{paybillNumber}</b></li>
+         <li>Enter account number <b>{paybillAccount||"(from server)"}</b></li>
+         <li>Enter amount <b>{money(amount)}</b> and your M-Pesa PIN</li>
+         <li>Tap Continue below, then enter the SMS confirmation code</li>
+        </ol>
+        <div className="notice"><Info size={15}/> Never share your M-Pesa PIN. Admin verifies the payment before the plan activates.</div>
+       </div>
+      )}
+      {method==="wallet"&&walletConfirm&&!busy&&(
+       <div className="walletconfirmbox">
+        <div className="walletconfirmicon"><WalletCards size={22}/></div>
+        <div><h3>Confirm wallet payment</h3><p className="muted small">Pay <strong>{money(amount)}</strong> for <strong>{pkg.name}</strong> from your wallet?</p></div>
+        <div className="walletconfirmactions">
+         <button type="button" className="dangeroutline" onClick={()=>{setWalletConfirm(false);setMethod("paybill");}} disabled={busy}>Cancel</button>
+         <button type="button" className="primary" onClick={confirmWallet} disabled={busy}>Yes, use wallet</button>
+        </div>
+       </div>
+      )}
+      {method==="wallet"&&busy&&<div className="walletconfirmbox"><p className="muted small"><strong>Processing…</strong></p></div>}
+      {err&&<div className="error">{err}</div>}
+     </div>
+     <div className="modalfoot paymentfoot">
+      <button type="button" className="secondary" onClick={onCancel} disabled={busy}>Cancel</button>
+      {method==="paybill"&&<button type="submit" className="primary" disabled={busy}>{busy?"Starting…":"Continue to Paybill"}</button>}
+     </div>
+    </form>
+   </div>
+  </div>
+ );
+
+ if(typeof document!=="undefined" && document.body && typeof createPortal==="function"){
+  return createPortal(body, document.body);
+ }
+ return body;
 }
 function PaymentModal({payment,onClose,onReceipt,onSuccess}){
  const [code,setCode]=useState(""),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[status,setStatus]=useState(payment.status||"pending"),[copied,setCopied]=useState(false);
@@ -1505,9 +1549,10 @@ function PaymentModal({payment,onClose,onReceipt,onSuccess}){
  const submitCode=async e=>{e.preventDefault();const c=String(code||"").trim().toUpperCase().replace(/\s+/g,"");if(c.length<8||c.length>15)return setMsg("Enter the M-Pesa confirmation code from your SMS.");setBusy(true);setMsg("");try{const d=await api("/payments/paybill/submit-code",{method:"POST",body:JSON.stringify({reference:payment.reference,mpesaCode:c})});setStatus(d.status||"pending_verification");setMsg(d.message||"Confirmation code received.")}catch(e){setMsg(e.message)}finally{setBusy(false)}};
  useEffect(()=>{if(status!=="pending_verification")return;let tries=0,timer;const check=async()=>{if(tries++>=36)return;try{const v=await api(`/payments/paybill/status/${payment.reference}`);if(v.status==="success"){setStatus("success");onSuccess?.();return}if(v.status==="failed"){setStatus("failed");setMsg(v.message||"Payment was rejected.");return}}catch{}timer=setTimeout(check,10000)};timer=setTimeout(check,10000);return()=>clearTimeout(timer)},[status,payment.reference]);
  const isSuccess=status==="success",isFailed=status==="failed";
- return <div className="modalbackdrop" onClick={onClose}><div className="modal paymentmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className={`pill ${isSuccess?"payment-success":isFailed?"payment-failed":"payment-pending"}`}>{isSuccess?"COMPLETED":isFailed?"FAILED":"PAYMENT VERIFICATION"}</span><h2>{isSuccess?"Payment confirmed":isFailed?"Payment could not be confirmed":"Complete your M-Pesa payment"}</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="paymentbody">
+ const body=<div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" onClick={onClose}><div className="modal paymentmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className={`pill ${isSuccess?"payment-success":isFailed?"payment-failed":"payment-pending"}`}>{isSuccess?"COMPLETED":isFailed?"FAILED":"PAYMENT VERIFICATION"}</span><h2>{isSuccess?"Payment confirmed":isFailed?"Payment could not be confirmed":"Complete your M-Pesa payment"}</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="paymentbody">
  {isSuccess?<div className="successbox"><CheckCircle2 size={34}/><h3>Payment verified</h3><p className="muted">Your {payment.package?.name||"plan"} payment has been verified and your account has been updated.</p><button className="secondary" onClick={()=>onReceipt?.({...payment,status:"PAID",amount:Number(payment.chargeAmount||payment.package?.price||0),method:"M-Pesa Paybill"})}><ReceiptText size={16}/> View receipt</button></div>:isFailed?<div className="error"><b>Payment was not confirmed.</b><p>{msg||"The payment was rejected or could not be verified. You can close this window and start again."}</p></div>:<><div className="paymentstatus"><div className="paymenticon pending"><CreditCard size={28}/></div><div><b>Pay KSh {Number(payment.chargeAmount||0).toLocaleString()} to Co-op Bank</b><p className="muted">Use <strong>Lipa na M-Pesa → PayBill</strong> · Paybill <strong>{payment.paybillNumber||"400200"}</strong></p></div></div><div className="paymentdetails"><div><span>Plan</span><strong>{payment.package?.name}</strong></div><div><span>Amount</span><strong>{money(payment.chargeAmount||payment.package?.price)}</strong></div><div><span>Paybill</span><strong>{payment.paybillNumber||"400200"}</strong></div><div className="paybillrowcopy"><span>Account</span><div className="paybillaccountvalue"><strong>{payment.paybillAccount||"—"}</strong>{payment.paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy account</>}</button>}</div></div><div><span>Reference</span><strong>{payment.reference}</strong></div></div>{!submitted?<form onSubmit={submitCode} className="paybillcodeform"><label className="fieldlabel">M-Pesa confirmation code<input required value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. QH12XXXXXX" autoComplete="one-time-code"/></label><p className="muted small">Enter the confirmation code from the M-Pesa SMS after paying the exact amount.</p><button className="primary" disabled={busy}>{busy?"Submitting code…":"Submit confirmation code"}</button></form>:<div className="notice"><LoaderCircle size={15} className="spin"/><strong>Awaiting administrator verification.</strong><p className="muted small">Your code has been received. The payment will be confirmed after the M-Pesa payment is checked.</p></div>}{msg&&<div className="notice">{msg}</div>}</>}
  </div><div className="modalfoot paymentfoot"><button className="secondary" onClick={onClose}>{isSuccess?"Done":"Close"}</button></div></div></div>;
+ if(typeof document!=="undefined"&&document.body&&typeof createPortal==="function"){return createPortal(body,document.body);} return body;
 }
 
 function Packages({packages,current,purchase,reload}){
