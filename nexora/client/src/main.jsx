@@ -16,7 +16,7 @@ async function api(path,opts={}){const token=localStorage.getItem("token");const
 
 const markCopied=(btn,ms=2200)=>{
   if(!btn)return;
-  btn.classList.add("is-copied");
+  btn.classList.add("is-copied");try{nxHaptic(12)}catch{};
   const prev=btn.innerHTML;
   btn.dataset.prevHtml=prev;
   btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="nx-tick"><polyline points="20 6 9 17 4 12"/></svg> Copied';
@@ -28,6 +28,60 @@ const copyWithFeedback=async(text,btn)=>{
   catch{try{window.prompt("Copy:",String(text||""));}catch{}}
 };
 
+const nxHaptic=(ms=12)=>{try{if(navigator.vibrate)navigator.vibrate(ms)}catch{}};
+const compressImageFile=(file,maxW=1200,quality=0.72)=>new Promise((resolve,reject)=>{
+  if(!file||!String(file.type||"").startsWith("image/")){resolve(file);return;}
+  const img=new Image();
+  const url=URL.createObjectURL(file);
+  img.onload=()=>{
+    try{
+      const scale=Math.min(1,maxW/Math.max(img.width,1));
+      const w=Math.max(1,Math.round(img.width*scale));
+      const h=Math.max(1,Math.round(img.height*scale));
+      const canvas=document.createElement("canvas");
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(img,0,0,w,h);
+      canvas.toBlob((blob)=>{
+        URL.revokeObjectURL(url);
+        if(!blob){resolve(file);return;}
+        resolve(new File([blob],file.name.replace(/\.\w+$/,".jpg"),{type:"image/jpeg"}));
+      },"image/jpeg",quality);
+    }catch(e){URL.revokeObjectURL(url);resolve(file);}
+  };
+  img.onerror=()=>{URL.revokeObjectURL(url);resolve(file)};
+  img.src=url;
+});
+const fileToDataUrl=(file)=>new Promise((resolve,reject)=>{
+  const r=new FileReader();r.onload=()=>resolve(String(r.result||""));r.onerror=reject;r.readAsDataURL(file);
+});
+
+
+function usePullToRefresh(onRefresh){
+  const ref=React.useRef(null);
+  React.useEffect(()=>{
+    const el=ref.current;if(!el||typeof onRefresh!=="function")return;
+    let startY=0,pulling=false;
+    const onStart=e=>{if(window.scrollY<=0)startY=e.touches?.[0]?.clientY||0};
+    const onMove=e=>{
+      if(startY<=0)return;
+      const y=e.touches?.[0]?.clientY||0;
+      const dy=y-startY;
+      if(dy>40&&window.scrollY<=0){pulling=true;el.classList.add("pulling")}
+    };
+    const onEnd=async()=>{
+      if(!pulling){el.classList.remove("pulling");startY=0;return;}
+      pulling=false;el.classList.remove("pulling");el.classList.add("refreshing");
+      try{nxHaptic(10);await onRefresh()}catch{}
+      el.classList.remove("refreshing");startY=0;
+    };
+    el.addEventListener("touchstart",onStart,{passive:true});
+    el.addEventListener("touchmove",onMove,{passive:true});
+    el.addEventListener("touchend",onEnd,{passive:true});
+    return()=>{el.removeEventListener("touchstart",onStart);el.removeEventListener("touchmove",onMove);el.removeEventListener("touchend",onEnd)};
+  },[onRefresh]);
+  return ref;
+}
 function NexoraSplash({label="Loading your workspace…"}){
  const [showRefresh,setShowRefresh]=useState(false);
  const [refreshing,setRefreshing]=useState(false);
@@ -976,6 +1030,10 @@ function Products({me,packages=[],purchase,goPlans}){
   </section>;
 }
  return <section><div className="sectionhead"><div><span className="pill">PREMIUM ADVERTISING</span><h1>Products & Advertising</h1><p className="muted">Choose an approved product, publish the supplied creative, share the public post link and upload the exact post you published.</p></div><div className="sectionactions"><span className="packagebadge">Premium</span></div></div>
+ <div className="how-row">
+  <button type="button" className="how-chip" onClick={e=>{const p=e.currentTarget.nextElementSibling;if(p){p.classList.toggle("open");e.currentTarget.classList.toggle("open")}}}>How advertising works</button>
+  <div className="how-panel" style={{width:"100%"}}>1) Pick an approved campaign 2) Publish the creative on an allowed platform 3) Submit the public link + exact post upload + views/engagements 4) Admin reviews 5) Approved payouts process on Friday.</div>
+ </div>
  <div className="adtruststrip"><ShieldCheck size={16}/><span>Verified post + Friday review · Performance-based — results vary by campaign.</span></div>
  {products[0]&&<div className="panel campaignweek"><div className="campaignweekhead"><span className="pill">CAMPAIGN OF THE WEEK</span><h3>{products[0].title}</h3><p className="muted">{products[0].description||"Featured advertising product."}</p></div><div className="campaignweekmeta"><span>{money(products[0].viewRatePer1000)} / 1,000 views</span><span>{money(products[0].engagementRate)} / engagement</span></div><button type="button" className="primary" onClick={()=>openSubmit(products[0])}><Link2 size={16}/> Promote this campaign</button></div>}
  <div className="adpolicygrid"><div className="panel"><Store size={22}/><h3>How it works</h3><p className="muted">1. Select a campaign. 2. Publish the campaign creative on an approved platform. 3. Submit the public post link and the exact image/video you posted. 4. Enter the platform's current views and engagements. 5. NEXORA reviews the evidence and schedules approved earnings for Friday processing.</p></div><div className="panel"><CalendarCheck2 size={22}/><h3>Friday payout cycle</h3><p className="muted">Rates are configured per campaign. Final payout uses verified performance, not unverified screenshots or self-reported figures alone.</p></div></div>
@@ -1003,7 +1061,19 @@ function Marketplace({me}){
  const total=cart.reduce((a,x)=>a+x.price*x.quantity,0);
  const displayedProducts=[...products].filter(p=>(!minPrice||Number(p.price)>=Number(minPrice))&&(!maxPrice||Number(p.price)<=Number(maxPrice))).sort((a,b)=>sort==="priceLow"?Number(a.price)-Number(b.price):sort==="priceHigh"?Number(b.price)-Number(a.price):sort==="popular"?Number(b._count?.orderItems||0)-Number(a._count?.orderItems||0):new Date(b.createdAt)-new Date(a.createdAt));
  const submitProduct=async e=>{e.preventDefault();setBusy(true);setError("");try{const r=await api("/marketplace/products",{method:"POST",body:JSON.stringify(form)});setNotice("Product published successfully.");setMine([r,...mine]);setForm({title:"",description:"",price:"",stock:"1",category:"Other",location:"",phone:me.user.phone||"",images:[]});}catch(e){setError(e.message)}finally{setBusy(false)}};
- const readImages=e=>{const files=[...e.target.files].slice(0,6);Promise.all(files.map(f=>new Promise((resolve,reject)=>{if(f.size>1800000)return reject(new Error("Each product image must be under 1.8 MB."));const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(f)}))).then(images=>setForm({...form,images})).catch(e=>setError(e.message))};
+ const readImages=async e=>{
+  const files=[...e.target.files].slice(0,6);
+  try{
+    const images=[];
+    for(const f of files){
+      const compressed=await compressImageFile(f,1200,0.72);
+      if(compressed.size>1800000) throw new Error("Each product image must be under 1.8 MB after compression.");
+      images.push(await fileToDataUrl(compressed));
+    }
+    setForm({...form,images});
+  }catch(err){setError(err.message||"Could not process images")}
+  finally{e.target.value="";}
+};
  const checkoutNow=async e=>{e.preventDefault();if(!cart.length)return setError("Your cart is empty.");setBusy(true);setError("");try{const r=await api("/marketplace/orders",{method:"POST",body:JSON.stringify({...checkout,items:cart.map(x=>({productId:x.productId,quantity:x.quantity}))})});setNotice(r.message);saveCart([]);setTab("orders");await loadOrders();}catch(e){setError(e.message)}finally{setBusy(false)}};
  const updateOrder=async(id,status)=>{try{await api(`/marketplace/orders/${id}/status`,{method:"PATCH",body:JSON.stringify({status})});await loadOrders();setNotice("Order status updated.")}catch(e){setError(e.message)}};
  const disputeOrder=async(id)=>{const reason=window.prompt("What is the issue with this order?","Order issue");if(!reason)return;try{await api(`/marketplace/orders/${id}/disputes`,{method:"POST",body:JSON.stringify({reason,details:"Submitted from NEXORA Marketplace"})});setNotice("Order issue submitted to NEXORA support.")}catch(e){setError(e.message)}};
@@ -1115,6 +1185,7 @@ function App(){
   setError("");
   setCopiedKind(kind);
   setMsg(msg);
+  nxHaptic(15);
   clearTimeout(window.__nexoraCopyTimer);
   window.__nexoraCopyTimer=setTimeout(()=>setCopiedKind(""),2500);
  };
@@ -1281,6 +1352,7 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
  return <div className="panel gamification"><div className="paneltitle"><div><span className="pill">MEMBER MILESTONES</span><h3><Trophy size={17}/> Your progress</h3></div><strong>{done}/{milestones.length}</strong></div><div className="levelrow"><div className="levelbadge"><Crown size={18}/></div><div><b>{done>=4?"NEXORA Champion":done>=2?"NEXORA Builder":"NEXORA Starter"}</b><small>Complete useful actions to unlock milestones.</small></div><span>{pct}%</span></div><div className="progress"><i style={{width:`${pct}%`}}/></div><div className="milestonerow">{milestones.map((m,i)=><button key={i} className={`milestone ${m.value?"done":""}`} onClick={m.action}><span>{m.value?<CheckCircle2 size={15}/>:<Target size={15}/>}</span><b>{m.label}</b><ArrowUpRight size={12}/></button>)}</div></div>
 }
 function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load}){
+ const ptrRef=usePullToRefresh(()=>load&&load(false));
  const [depositOpen,setDepositOpen]=useState(false);
  const [typedGreeting,setTypedGreeting]=useState("");
  const firstName=me?.user?.name?.split(" ")[0]||"there";
@@ -1311,7 +1383,7 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
   ? {title:"Complete your shopper profile",text:"Keep your contact and delivery details up to date for smoother orders.",button:"Update profile",action:goSecurity,icon:UserCog}
   : {title:"Explore the marketplace",text:"Discover products from NEXORA sellers and find something useful for you.",button:"Start shopping",action:()=>goPage("marketplace"),icon:Store};
  const NextIcon=nextAction.icon;
- return <>
+ return <div className="nx-ptr" ref={ptrRef}><div className="nx-ptr-indicator"><LoaderCircle size={14} className="spin"/> Refreshing…</div>
   <section className="hero dashboardhero ecommerce-dashboard-hero home-hero-compact">
    <div className="dashboardhero-copy">
     <div className="dashboard-greeting" aria-live="polite"><span>{typedGreeting}</span></div>
@@ -1378,7 +1450,7 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
   <div className="panel seller-cta-panel"><div><span className="pill">SELL ON NEXORA</span><h3>Have something to sell?</h3><p className="muted">Create a product listing with photos, pricing, stock and delivery information, then manage customer orders from your seller dashboard.</p></div><button className="primary" onClick={()=>goPage("marketplace")}><Plus size={16}/> List a product</button></div>
   <Notifications me={me} analytics={null} tickets={tickets}/>
   {depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>} 
- </>
+ </div>
 }
 function Analytics({data,earnings,referrals}){if(!data)return <section><div className="panel"><p>Loading analytics…</p></div></section>;return <section><div className="sectionhead"><div><span className="pill">PERFORMANCE CENTER</span><h1>Referral analytics</h1><p className="muted">Understand your network activity and the history of recorded commissions.</p></div><RefreshCw size={18}/></div><div className="cards three"><Card title="Direct members" value={data.directCount}/><Card title="Level 2 members" value={data.level2Count}/><Card title="Members with plans" value={data.paidReferrals}/></div><div className="analyticsgrid"><div className="panel"><h3>Network conversion</h3><div className="bigmetric">{data.conversion}%</div><p className="muted">Percentage of direct referrals with an active plan.</p><div className="progress"><i style={{width:`${data.conversion}%`}}/></div></div><div className="panel"><h3>Commission mix</h3><div className="analyticbars"><div><span>Direct</span><b>{money(data.directCommission)}</b><i style={{width:`${data.totalCommission?data.directCommission/data.totalCommission*100:0}%`}}/></div><div><span>Level 2</span><b>{money(data.level2Commission)}</b><i style={{width:`${data.totalCommission?data.level2Commission/data.totalCommission*100:0}%`}}/></div></div></div></div><div className="panel"><h3>Network snapshot</h3><div className="networkcards"><div><span>New this month</span><strong>{data.month.directReferrals}</strong></div><div><span>Commissions this month</span><strong>{money(data.month.commissions)}</strong></div><div><span>All-time commissions</span><strong>{money(data.totalCommission)}</strong></div></div></div></section>}
 function Marketing({me,copy,copyCode,copiedKind,share}){
@@ -1616,7 +1688,7 @@ function PaymentModal({payment,onClose,onReceipt,onSuccess}){
   try{
    const d=await api("/payments/paybill/submit-code",{method:"POST",body:JSON.stringify({reference:payment.reference,mpesaCode:c})});
    setStatus(d.status||"pending_verification");
-   setMsg(d.message||"Confirmation code received.");
+   setMsg(d.message||"Confirmation code received.");try{nxHaptic(20)}catch{};
   }catch(err){setMsg(err.message||"Could not submit code");}
   finally{setBusy(false);}
  };
@@ -1663,6 +1735,14 @@ function PaymentModal({payment,onClose,onReceipt,onSuccess}){
         <div className={`step ${submitted&&!isSuccess?"active":isSuccess?"done":""}`}><span className="dot">3</span><span>Waiting</span></div>
       </div>
      )}
+     {!isSuccess&&!isFailed&&(
+      <ul className="pay-timeline" aria-label="Payment status">
+        <li className={!submitted?"active":"done"}><span className="tl-dot">1</span><div className="tl-body"><b>Pay via M-Pesa</b><span>Lipa na M-Pesa → Paybill</span></div></li>
+        <li className={!submitted&&!isSuccess?"active":(submitted||isSuccess)?"done":""}><span className="tl-dot">2</span><div className="tl-body"><b>Submit SMS code</b><span>Paste the confirmation code from M-Pesa</span></div></li>
+        <li className={submitted&&!isSuccess?"active":isSuccess?"done":""}><span className="tl-dot">3</span><div className="tl-body"><b>Verification</b><span>Plan activates after confirmation</span></div></li>
+      </ul>
+     )}
+
 
      {isSuccess?(
       <div className="successbox">
@@ -1784,10 +1864,11 @@ function Packages({packages,current,purchase,reload}){
  <div className="earningtiers">{sorted.map((p,i)=><div key={p.id}><strong>{p.name}</strong><span>Can earn from: {sorted.slice(0,i+1).map(x=>x.name).join(" + ")}</span></div>)}</div><h2>Compare plan benefits</h2><div className="comparisongrid">{sorted.map(p=><div key={p.id}><h3>{p.name}</h3>{p.description&&<p>{p.description}</p>}<ul>{(Array.isArray(p.features)?p.features:(typeof p.features==="string"?[p.features]:[])).map((x,j)=><li key={j}><Check size={14}/>{String(x)}</li>)}</ul><strong>{money(p.directCommission)} direct · {money(p.level2Commission)} Level 2</strong></div>)}</div></div></>:<div className="panel empty"><PackageIcon size={32}/><h3>No plans available</h3><p className="muted">We couldn't load the plan list.</p><button className="primary narrow" onClick={reload}>Reload plans</button></div>}</section>}
 
 function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],purchase,reload,initialTab="network"}){
+ const ptrRef=usePullToRefresh(()=>reload&&reload());
  const hasPackage=Boolean(me?.package);
  const [tab,setTab]=useState(initialTab==="plans"?"plans":"network");
  const [earnInfo,setEarnInfo]=useState(false);
- return <section className="earnsection">
+ return <div className="nx-ptr" ref={ptrRef}><div className="nx-ptr-indicator"><LoaderCircle size={14} className="spin"/> Refreshing…</div><section className="earnsection">
   <div className="sectionhead"><div><span className="pill">EARN CENTER</span><h1>Earn with NEXORA</h1><p className="muted">Plans unlock your referral tools. No guaranteed income.</p></div>
    {hasPackage&&tab==="network"&&<div className="heroactions compact"><button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review the plans first. Results follow the work you put in: ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="primary" onClick={share}><Share2 size={15}/> Share</button></div>}
   </div>
@@ -1844,8 +1925,8 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
       <div className="panel"><h3>Level 2 referrals</h3>{data.level2.length?data.level2.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>):<p className="muted">No Level 2 referrals yet.</p>}</div>
     </div>
     <div className="panel"><h3>Recent commissions</h3>{earnings.length?earnings.map(x=><div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser?.name||"Member"}</small></div><strong className="green">+{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No commissions yet.</p>{!hasPackage&&<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Purchase a plan to earn</button>}</div>}</div>
-  </>}
- </section>}
+  </>
+ </section></div>}
 
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}
 function DepositModal({onClose,load}){
@@ -1883,8 +1964,15 @@ function DepositModal({onClose,load}){
 function Wallet({me,load}){
  const [tab,setTab]=useState("balance"),[depositOpen,setDepositOpen]=useState(false);const [amount,setAmount]=useState(""),[phone,setPhone]=useState(me.user.phone||""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false);
  const withdraw=async()=>{setMsg("");const n=Number(amount);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole amount of at least KSh 100.");if(n>Number(me.wallet?.balance||0))return setMsg("The withdrawal amount exceeds your available balance.");if(!validPhone(phone))return setMsg("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541…. ");setBusy(true);try{const d=await api("/withdrawals",{method:"POST",body:JSON.stringify({amount:n,phone:cleanPhone(phone)})});setMsg(`${d.message}. Reference: ${d.reference}`);setAmount("");await load()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
- return <section><div className="sectionhead"><div><span className="pill">WALLET</span><h1>Balance & funds</h1><p className="muted">Manage your available balance, add funds and request withdrawals.</p></div></div><div className="walletbig"><span>Available balance</span><strong>{money(me.wallet?.balance)}</strong><p>Total earned {money(me.wallet?.totalEarned)} · Pending {money(me.wallet?.pendingBalance)} · Withdrawn {money(me.wallet?.totalWithdrawn)}</p></div><div className="wallettabs"><button className={tab==="balance"?"active":""} onClick={()=>setTab("balance")}>Balance</button><button className={tab==="deposit"?"active":""} onClick={()=>setTab("deposit")}>Deposit</button><button className={tab==="withdraw"?"active":""} onClick={()=>setTab("withdraw")}>Withdraw</button></div>{tab==="balance"&&<div className="walletsummarygrid"><div className="panel"><h3>Available</h3><strong className="walletmetric">{money(me.wallet?.balance)}</strong><p className="muted">Funds currently available for eligible wallet purchases or withdrawals.</p></div><div className="panel"><h3>Pending</h3><strong className="walletmetric">{money(me.wallet?.pendingBalance)}</strong><p className="muted">Funds currently reserved for withdrawal processing.</p></div><div className="panel"><h3>Total earned</h3><strong className="walletmetric">{money(me.wallet?.totalEarned)}</strong><p className="muted">Recorded earnings credited to your wallet over time.</p></div></div>}{tab==="deposit"&&<div className="panel formpanel"><h3>Deposit to wallet</h3><p className="muted">Add money through Co-op Bank Paybill. You pay manually in M-Pesa and NEXORA verifies the confirmation code before crediting your wallet.</p><button className="primary" onClick={()=>setDepositOpen(true)}><WalletCards size={16}/> Deposit via Co-op Paybill</button><p className="muted small">Minimum deposit: KSh 100. Never share your M-Pesa PIN with anyone.</p></div>}{tab==="withdraw"&&<div className="panel formpanel"><h3>Request withdrawal</h3>{msg&&<div className="notice">{msg}</div>}<input type="number" min="100" step="1" placeholder="Amount (KSh)" value={amount} onChange={e=>setAmount(e.target.value)}/><input inputMode="tel" maxLength="13" placeholder="M-Pesa phone: 07…, 01…, 2547… or 2541…" value={phone} onChange={e=>setPhone(e.target.value)}/><p className="muted small phonehint">Accepted: 07xxxxxxxx · 01xxxxxxxx · 2547xxxxxxxx · 2541xxxxxxxx</p><button disabled={busy} className="primary" onClick={withdraw}>{busy?"Submitting…":"Request withdrawal"}</button><p className="muted small">Minimum withdrawal: KSh 100. Withdrawals are reviewed/processed by the administrator.</p></div>}{depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>}</section>}
-function ReceiptModal({receipt,onClose}){return <div className="modalbackdrop" onClick={onClose}><div className="modal receiptmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill payment-success">PAYMENT RECEIPT</span><h2>Payment successful</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="receiptbody"><div className="receiptcheck"><CheckCircle2 size={34}/><div><strong>Payment confirmed</strong><span>Your transaction was recorded successfully.</span></div></div><div className="receiptgrid"><div><span>Item</span><strong>{receipt.package?.name||receipt.type||"NEXORA payment"}</strong></div><div><span>Amount paid</span><strong>{money(receipt.amount)}</strong></div><div><span>Payment method</span><strong>{receipt.method||"NEXORA Wallet"}</strong></div><div><span>Status</span><strong className="receiptpaid">{receipt.status||"PAID"}</strong></div><div><span>Reference</span><strong>{receipt.reference}</strong></div><div><span>Date</span><strong>{new Date(receipt.createdAt||Date.now()).toLocaleString()}</strong></div>{receipt.previousBalance!==undefined&&<div><span>Previous balance</span><strong>{money(receipt.previousBalance)}</strong></div>}{receipt.remainingBalance!==undefined&&<div><span>Remaining balance</span><strong>{money(receipt.remainingBalance)}</strong></div>}</div><div className="notice"><ShieldCheck size={16}/> Keep this reference if you ever need help with this payment.</div></div><div className="modalfoot"><button className="secondary" onClick={onClose}>Close</button><button className="primary" onClick={()=>window.print()}><ReceiptText size={16}/> Print / Save receipt</button></div></div></div>}
+ return <section className="nx-one-primary"><div className="sectionhead"><div><span className="pill">WALLET</span><h1>Balance & funds</h1><p className="muted">Manage your available balance, add funds and request withdrawals.</p></div></div>
+ <div className="how-row">
+  <button type="button" className="how-chip" onClick={e=>{const p=e.currentTarget.parentElement.nextElementSibling;p.classList.toggle("open");e.currentTarget.classList.toggle("open")}}>How deposits work</button>
+  <button type="button" className="how-chip" onClick={e=>{const p=e.currentTarget.parentElement.nextElementSibling;const n=p?.nextElementSibling;n?.classList.toggle("open");e.currentTarget.classList.toggle("open")}}>How withdrawals work</button>
+ </div>
+ <div className="how-panel">Pay via M-Pesa Paybill, submit the SMS confirmation code, then wait for verification before the balance is credited.</div>
+ <div className="how-panel">Request a withdrawal to your M-Pesa number. Admin reviews it, then funds are released when approved.</div>
+<div className="walletbig"><span>Available balance</span><strong>{money(me.wallet?.balance)}</strong><p>Total earned {money(me.wallet?.totalEarned)} · Pending {money(me.wallet?.pendingBalance)} · Withdrawn {money(me.wallet?.totalWithdrawn)}</p></div><div className="wallettabs"><button className={tab==="balance"?"active":""} onClick={()=>setTab("balance")}>Balance</button><button className={tab==="deposit"?"active":""} onClick={()=>setTab("deposit")}>Deposit</button><button className={tab==="withdraw"?"active":""} onClick={()=>setTab("withdraw")}>Withdraw</button></div>{tab==="balance"&&<div className="walletsummarygrid"><div className="panel"><h3>Available</h3><strong className="walletmetric">{money(me.wallet?.balance)}</strong><p className="muted">Funds currently available for eligible wallet purchases or withdrawals.</p></div><div className="panel"><h3>Pending</h3><strong className="walletmetric">{money(me.wallet?.pendingBalance)}</strong><p className="muted">Funds currently reserved for withdrawal processing.</p></div><div className="panel"><h3>Total earned</h3><strong className="walletmetric">{money(me.wallet?.totalEarned)}</strong><p className="muted">Recorded earnings credited to your wallet over time.</p></div></div>}{tab==="deposit"&&<div className="panel formpanel"><h3>Deposit to wallet</h3><p className="muted">Add money through Co-op Bank Paybill. You pay manually in M-Pesa and NEXORA verifies the confirmation code before crediting your wallet.</p><button className="primary" onClick={()=>setDepositOpen(true)}><WalletCards size={16}/> Deposit via Co-op Paybill</button><p className="muted small">Minimum deposit: KSh 100. Never share your M-Pesa PIN with anyone.</p></div>}{tab==="withdraw"&&<div className="panel formpanel"><h3>Request withdrawal</h3>{msg&&<div className="notice">{msg}</div>}<input type="number" min="100" step="1" placeholder="Amount (KSh)" value={amount} onChange={e=>setAmount(e.target.value)}/><input inputMode="tel" maxLength="13" placeholder="M-Pesa phone: 07…, 01…, 2547… or 2541…" value={phone} onChange={e=>setPhone(e.target.value)}/><p className="muted small phonehint">Accepted: 07xxxxxxxx · 01xxxxxxxx · 2547xxxxxxxx · 2541xxxxxxxx</p><button disabled={busy} className="primary" onClick={withdraw}>{busy?"Submitting…":"Request withdrawal"}</button><p className="muted small">Minimum withdrawal: KSh 100. Withdrawals are reviewed/processed by the administrator.</p></div>}{depositOpen&&<DepositModal onClose={()=>setDepositOpen(false)} load={load} defaultPhone={me.user.phone||""}/>}</section>}
+function ReceiptModal({receipt,onClose}){return <div className="modalbackdrop" onClick={onClose}><div className="modal receiptmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill payment-success">PAYMENT RECEIPT</span><h2>Payment successful</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="receiptbody nx-receipt"><div className="receiptcheck"><CheckCircle2 size={34}/><div><strong>Payment confirmed</strong><span>Your transaction was recorded successfully.</span></div></div><div className="receiptgrid"><div><span>Item</span><strong>{receipt.package?.name||receipt.type||"NEXORA payment"}</strong></div><div><span>Amount paid</span><strong>{money(receipt.amount)}</strong></div><div><span>Payment method</span><strong>{receipt.method||"NEXORA Wallet"}</strong></div><div><span>Status</span><strong className="receiptpaid">{receipt.status||"PAID"}</strong></div><div><span>Reference</span><strong>{receipt.reference}</strong></div><div><span>Date</span><strong>{new Date(receipt.createdAt||Date.now()).toLocaleString()}</strong></div>{receipt.previousBalance!==undefined&&<div><span>Previous balance</span><strong>{money(receipt.previousBalance)}</strong></div>}{receipt.remainingBalance!==undefined&&<div><span>Remaining balance</span><strong>{money(receipt.remainingBalance)}</strong></div>}</div><div className="notice"><ShieldCheck size={16}/> Keep this reference if you ever need help with this payment.</div></div><div className="modalfoot"><button className="secondary" onClick={onClose}>Close</button><button className="primary" onClick={()=>window.print()}><ReceiptText size={16}/> Print / Save receipt</button></div></div></div>}
 
 function Transactions({rows,onOpenPending,onOpenReceipt}){return <section><div className="sectionhead"><div><span className="pill">ACCOUNT RECORDS</span><h1>Orders & Transactions</h1><p className="muted">Review payments, references and account activity. Open a completed payment for its receipt.</p></div></div><div className="panel">{rows.length?rows.map(x=><div className="row simple" key={x.id}><div><b>{x.type.replaceAll("_"," ")}</b><small>{new Date(x.createdAt).toLocaleString()} · {x.reference}</small></div><div className="transactionright"><strong>{money(x.amount)}</strong><small className={`txstatus ${String(x.status||"").toLowerCase()}`}>{x.status}</small>{String(x.status||"").toUpperCase()==="PENDING"&&x.type==="PACKAGE_PURCHASE"&&<button className="txcheck" onClick={()=>onOpenPending(x)}><RefreshCw size={13}/> Check payment</button>}{String(x.status||"").toUpperCase()==="SUCCESS"&&<button className="txcheck" onClick={()=>onOpenReceipt(x)}><ReceiptText size={13}/> View receipt</button>}</div></div>):<div className="smartempty"><p>No transactions yet.</p></div>}</div></section>}
 

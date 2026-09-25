@@ -4490,3 +4490,170 @@ input.nx-error, .field.nx-error input{
     animation:none!important;
   }
 }
+
+
+/* =========================================================
+   NEXORA NEXT PACK — code-split ready, skeletons, PTR,
+   receipt, timeline, orders, how-it-works, light theme, haptic
+   ========================================================= */
+
+/* Pull-to-refresh indicator */
+.nx-ptr{
+  position:relative;
+  overscroll-behavior-y:contain;
+}
+.nx-ptr-indicator{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  height:0;overflow:hidden;opacity:0;
+  transition:height .2s ease,opacity .2s ease;
+  color:#7fe8c9;font-size:12px;font-weight:700;
+}
+.nx-ptr.pulling .nx-ptr-indicator{height:42px;opacity:1}
+.nx-ptr.refreshing .nx-ptr-indicator{height:42px;opacity:1}
+.nx-ptr-indicator .spin{animation:nxSpin .8s linear infinite}
+@keyframes nxSpin{to{transform:rotate(360deg)}}
+
+/* Payment status timeline */
+.pay-timeline{
+  display:flex;flex-direction:column;gap:0;margin:12px 0 16px;
+  padding:0;list-style:none;
+}
+.pay-timeline li{
+  display:grid;grid-template-columns:24px 1fr;gap:10px;
+  position:relative;padding-bottom:14px;
+}
+.pay-timeline li:last-child{padding-bottom:0}
+.pay-timeline li:not(:last-child)::before{
+  content:"";position:absolute;left:11px;top:22px;bottom:0;width:2px;
+  background:rgba(255,255,255,.1);
+}
+.pay-timeline li.done:not(:last-child)::before{background:rgba(56,217,169,.4)}
+.pay-timeline .tl-dot{
+  width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  border:1.5px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);
+  font-size:10px;font-weight:800;color:#9eb2c6;z-index:1;
+}
+.pay-timeline li.done .tl-dot{background:#1fb890;border-color:#1fb890;color:#04201a}
+.pay-timeline li.active .tl-dot{
+  border-color:#38d9a9;background:rgba(56,217,169,.18);color:#dffcf3;
+  box-shadow:0 0 0 4px rgba(56,217,169,.12);
+}
+.pay-timeline .tl-body b{display:block;font-size:13px;color:#eaf4ff}
+.pay-timeline .tl-body span{font-size:11px;color:#8fa3b8}
+
+/* Screenshot-friendly receipt */
+.receiptmodal .receiptbody, .nx-receipt{
+  background:linear-gradient(160deg,#0d1f2a,#0a1520);
+  border:1px solid rgba(56,217,169,.28);
+  border-radius:16px;
+  padding:20px;
+}
+.receiptgrid{
+  display:grid;gap:0;margin:14px 0;
+}
+.receiptgrid > div{
+  display:flex;justify-content:space-between;gap:12px;
+  padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07);
+  font-size:13px;
+}
+.receiptgrid > div:last-child{border-bottom:0}
+.receiptgrid span{color:#8fa3b8}
+.receiptgrid strong{color:#f2fbf8;text-align:right}
+.receiptcheck{
+  display:flex;align-items:center;gap:12px;margin-bottom:8px;
+}
+.receiptcheck svg{color:#38d9a9}
+@media print{
+  body *{visibility:hidden}
+  .receiptmodal, .receiptmodal *{visibility:visible}
+  .receiptmodal{position:fixed;inset:0;background:#fff;color:#000}
+  .modalbackdrop{background:#fff}
+  .modalfoot, .iconbtn{display:none!important}
+}
+
+/* Order status clarity */
+.orderstatus, .txstatus{
+  font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  font-size:10px;padding:4px 8px;border-radius:999px;
+}
+.orderstatus.pending, .txstatus.pending{background:rgba(251,191,36,.12);color:#fbbf24}
+.orderstatus.confirmed, .orderstatus.processing, .txstatus.processing{background:rgba(96,165,250,.14);color:#93c5fd}
+.orderstatus.shipped{background:rgba(167,139,250,.14);color:#c4b5fd}
+.orderstatus.delivered, .txstatus.success, .txstatus.paid{background:rgba(52,211,153,.14);color:#6ee7b7}
+.orderstatus.cancelled, .txstatus.failed{background:rgba(248,113,113,.12);color:#fca5a5}
+.ordercard .next-step{
+  grid-column:1/-1;font-size:12px;color:#9eb2c6;
+  padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+/* How it works chips */
+.how-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+.how-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 11px;border-radius:999px;font-size:11px;font-weight:700;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);
+  color:#9eb2c6;cursor:pointer;transition:.15s ease;
+}
+.how-chip:hover, .how-chip.open{
+  border-color:rgba(56,217,169,.4);color:#dffcf3;background:rgba(56,217,169,.08);
+}
+.how-panel{
+  display:none;margin:0 0 14px;padding:12px 14px;border-radius:12px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);
+  font-size:13px;color:#b8c8d8;line-height:1.5;
+}
+.how-panel.open{display:block}
+
+/* Plan matrix polish */
+.planmatrixwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0}
+.planmatrix{width:100%;border-collapse:collapse;min-width:520px;font-size:12px}
+.planmatrix th, .planmatrix td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.07);text-align:left}
+.planmatrix th{color:#9eb2c6;font-weight:700;font-size:11px;letter-spacing:.04em}
+.planmatrix th.iscurrent{color:#38d9a9}
+.planmatrix .yes{color:#6ee7b7}.planmatrix .no{color:#6b7c8f}
+.planmatrix tr:hover td{background:rgba(255,255,255,.02)}
+
+/* Home primary CTA hierarchy */
+.dashboardhero .heroactions .primary{box-shadow:0 8px 22px rgba(69,224,189,.22)}
+.dashboardhero .heroactions .secondary{opacity:.92}
+
+/* Wallet / loading skeletons */
+.wallet-loading .nx-skel-card{height:100px;margin-bottom:12px}
+
+/* Light theme polish for numbers */
+html.nexora-light{
+  color-scheme:light;
+}
+html.nexora-light body{
+  background:#eef4f7;color:#0f172a;
+}
+html.nexora-light .panel,
+html.nexora-light .stat,
+html.nexora-light .walletbig,
+html.nexora-light .dashboardstat,
+html.nexora-light .quickaction,
+html.nexora-light .marketcard{
+  background:#fff;border-color:#d7e3ea;color:#0f172a;
+}
+html.nexora-light .muted{color:#64748b}
+html.nexora-light .walletbig strong,
+html.nexora-light .walletmetric{color:#0f766e}
+html.nexora-light input, html.nexora-light textarea, html.nexora-light select{
+  background:#f8fafc;border-color:#cbd5e1;color:#0f172a;caret-color:#0d9488!important;
+}
+html.nexora-light .mobile-bottom-nav{
+  background:rgba(255,255,255,.94);border-color:#e2e8f0;
+}
+html.nexora-light aside{
+  background:#f8fafc;border-color:#e2e8f0;
+}
+html.nexora-light aside button{color:#475569}
+html.nexora-light aside button.active{background:#ecfdf5;color:#0f766e}
+
+/* Primary-only emphasis helpers */
+.nx-one-primary .secondary{opacity:.88}
+
+@media(prefers-reduced-motion:reduce){
+  .nx-ptr-indicator, .pay-timeline, .nx-ptr{transition:none!important}
+}
