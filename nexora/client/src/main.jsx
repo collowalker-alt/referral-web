@@ -1925,6 +1925,7 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
       <div className="panel"><h3>Level 2 referrals</h3>{data.level2.length?data.level2.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>):<p className="muted">No Level 2 referrals yet.</p>}</div>
     </div>
     <div className="panel"><h3>Recent commissions</h3>{earnings.length?earnings.map(x=><div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser?.name||"Member"}</small></div><strong className="green">+{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No commissions yet.</p>{!hasPackage&&<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Purchase a plan to earn</button>}</div>}</div>
+  </>
  </section></div>}
 
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}
