@@ -1112,7 +1112,7 @@ function App(){
  return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Orders · Wallet · Seller tools</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} notifications={notifications} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
  <div className="nx-page-stage" key={page}>
  {page==="dashboard"&&<Dashboard goPage={setPage} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load}/>} 
- {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><div className="earnnotice panel"><PackageIcon size={20}/><div><h3>Plan required to earn</h3><p className="muted">Activate a membership plan to unlock your referral link. Commissions follow plan rules only; NEXORA does not guarantee income. See <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>.</p></div></div><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
+ {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><button type="button" className="info-chip" onClick={()=>window.open("/membership","_blank","noopener")}>Plan required · view rules</button><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
  {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="notifications"&&<NotificationsCenter me={me} analytics={analytics} tickets={tickets}/>} 
@@ -1549,16 +1549,139 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
  return body;
 }
 function PaymentModal({payment,onClose,onReceipt,onSuccess}){
- const [code,setCode]=useState(""),[busy,setBusy]=useState(false),[msg,setMsg]=useState(""),[status,setStatus]=useState(payment.status||"pending"),[copied,setCopied]=useState(false);
- const copyAccount=async()=>{const a=String(payment.paybillAccount||"");if(!a)return;try{await navigator.clipboard.writeText(a);setCopied(true);setTimeout(()=>setCopied(false),2200)}catch{window.prompt("Copy Co-op account number:",a)}};
+ const [code,setCode]=useState("");
+ const [busy,setBusy]=useState(false);
+ const [msg,setMsg]=useState("");
+ const [status,setStatus]=useState(payment?.status||"pending");
+ const [copied,setCopied]=useState(false);
+ const [showSteps,setShowSteps]=useState(false);
+ const copyAccount=async()=>{
+  const a=String(payment?.paybillAccount||"");
+  if(!a)return;
+  try{await navigator.clipboard.writeText(a);setCopied(true);setTimeout(()=>setCopied(false),2200);}
+  catch{try{window.prompt("Copy account:",a);}catch{}}
+ };
  const submitted=status==="pending_verification";
- const submitCode=async e=>{e.preventDefault();const c=String(code||"").trim().toUpperCase().replace(/\s+/g,"");if(c.length<8||c.length>15)return setMsg("Enter the M-Pesa confirmation code from your SMS.");setBusy(true);setMsg("");try{const d=await api("/payments/paybill/submit-code",{method:"POST",body:JSON.stringify({reference:payment.reference,mpesaCode:c})});setStatus(d.status||"pending_verification");setMsg(d.message||"Confirmation code received.")}catch(e){setMsg(e.message)}finally{setBusy(false)}};
- useEffect(()=>{if(status!=="pending_verification")return;let tries=0,timer;const check=async()=>{if(tries++>=36)return;try{const v=await api(`/payments/paybill/status/${payment.reference}`);if(v.status==="success"){setStatus("success");onSuccess?.();return}if(v.status==="failed"){setStatus("failed");setMsg(v.message||"Payment was rejected.");return}}catch{}timer=setTimeout(check,10000)};timer=setTimeout(check,10000);return()=>clearTimeout(timer)},[status,payment.reference]);
- const isSuccess=status==="success",isFailed=status==="failed";
- const body=<div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" onClick={onClose}><div className="modal paymentmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className={`pill ${isSuccess?"payment-success":isFailed?"payment-failed":"payment-pending"}`}>{isSuccess?"COMPLETED":isFailed?"FAILED":"PAYMENT VERIFICATION"}</span><h2>{isSuccess?"Payment confirmed":isFailed?"Payment could not be confirmed":"Complete your M-Pesa payment"}</h2></div><button className="iconbtn" onClick={onClose}><X size={20}/></button></div><div className="paymentbody">
- {isSuccess?<div className="successbox"><CheckCircle2 size={34}/><h3>Payment verified</h3><p className="muted">Your {payment.package?.name||"plan"} payment has been verified and your account has been updated.</p><button className="secondary" onClick={()=>onReceipt?.({...payment,status:"PAID",amount:Number(payment.chargeAmount||payment.package?.price||0),method:"M-Pesa Paybill"})}><ReceiptText size={16}/> View receipt</button></div>:isFailed?<div className="error"><b>Payment was not confirmed.</b><p>{msg||"The payment was rejected or could not be verified. You can close this window and start again."}</p></div>:<><div className="paymentstatus"><div className="paymenticon pending"><CreditCard size={28}/></div><div><b>Pay KSh {Number(payment.chargeAmount||0).toLocaleString()} to Co-op Bank</b><p className="muted">Use <strong>Lipa na M-Pesa → PayBill</strong> · Paybill <strong>{payment.paybillNumber||"400200"}</strong></p></div></div><div className="paymentdetails"><div><span>Plan</span><strong>{payment.package?.name}</strong></div><div><span>Amount</span><strong>{money(payment.chargeAmount||payment.package?.price)}</strong></div><div><span>Paybill</span><strong>{payment.paybillNumber||"400200"}</strong></div><div className="paybillrowcopy"><span>Account</span><div className="paybillaccountvalue"><strong>{payment.paybillAccount||"—"}</strong>{payment.paybillAccount&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={14}/> Copied</>:<><Copy size={14}/> Copy account</>}</button>}</div></div><div><span>Reference</span><strong>{payment.reference}</strong></div></div>{!submitted?<form onSubmit={submitCode} className="paybillcodeform"><label className="fieldlabel">M-Pesa confirmation code<input required value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. QH12XXXXXX" autoComplete="one-time-code"/></label><p className="muted small">Enter the confirmation code from the M-Pesa SMS after paying the exact amount.</p><button className="primary" disabled={busy}>{busy?"Submitting code…":"Submit confirmation code"}</button></form>:<div className="notice"><LoaderCircle size={15} className="spin"/><strong>Awaiting administrator verification.</strong><p className="muted small">Your code has been received. The payment will be confirmed after the M-Pesa payment is checked.</p></div>}{msg&&<div className="notice">{msg}</div>}</>}
- </div><div className="modalfoot paymentfoot"><button className="secondary" onClick={onClose}>{isSuccess?"Done":"Close"}</button></div></div></div>;
- if(typeof document!=="undefined"&&document.body&&typeof createPortal==="function"){return createPortal(body,document.body);} return body;
+ const submitCode=async e=>{
+  e.preventDefault();
+  const c=String(code||"").trim().toUpperCase().replace(/\s+/g,"");
+  if(c.length<8||c.length>15)return setMsg("Enter the M-Pesa confirmation code from your SMS.");
+  setBusy(true);setMsg("");
+  try{
+   const d=await api("/payments/paybill/submit-code",{method:"POST",body:JSON.stringify({reference:payment.reference,mpesaCode:c})});
+   setStatus(d.status||"pending_verification");
+   setMsg(d.message||"Confirmation code received.");
+  }catch(err){setMsg(err.message||"Could not submit code");}
+  finally{setBusy(false);}
+ };
+ useEffect(()=>{
+  if(status!=="pending_verification")return;
+  let tries=0,timer;
+  const check=async()=>{
+   if(tries++>=36)return;
+   try{
+    const v=await api(`/payments/paybill/status/${payment.reference}`);
+    if(v.status==="success"){setStatus("success");onSuccess?.();return;}
+    if(v.status==="failed"){setStatus("failed");setMsg(v.message||"Payment was rejected.");return;}
+   }catch{}
+   timer=setTimeout(check,10000);
+  };
+  timer=setTimeout(check,10000);
+  return()=>clearTimeout(timer);
+ },[status,payment?.reference]);
+ const isSuccess=status==="success", isFailed=status==="failed";
+ const amount=Number(payment?.chargeAmount||payment?.package?.price||0);
+ const paybill=payment?.paybillNumber||"400200";
+ const account=payment?.paybillAccount||"";
+
+ const body=(
+  <div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" onClick={onClose}>
+   <div className="modal paymentmodal paybill-compact" onClick={e=>e.stopPropagation()}>
+    <div className="modalhead paybill-head">
+     <div>
+      <span className={`pill ${isSuccess?"payment-success":isFailed?"payment-failed":"payment-pending"}`}>
+       {isSuccess?"COMPLETED":isFailed?"FAILED":"LIPA NA M-PESA"}
+      </span>
+      <h2>{isSuccess?"Payment confirmed":isFailed?"Not confirmed":"Pay with Paybill"}</h2>
+     </div>
+     <button type="button" className="iconbtn" onClick={onClose} aria-label="Close"><X size={20}/></button>
+    </div>
+
+    <div className="paymentbody paybill-body">
+     {isSuccess?(
+      <div className="successbox">
+       <CheckCircle2 size={28}/><h3>Payment verified</h3>
+       <p className="muted small">Your {payment.package?.name||"plan"} is active.</p>
+       <button type="button" className="secondary narrow" onClick={()=>onReceipt?.({...payment,status:"PAID",amount,method:"M-Pesa Paybill"})}><ReceiptText size={15}/> Receipt</button>
+      </div>
+     ):isFailed?(
+      <div className="error"><b>Payment was not confirmed.</b><p>{msg||"Try again or contact support."}</p></div>
+     ):(
+      <>
+       <div className="paybill-summary">
+        <div><span>Plan</span><strong>{payment.package?.name||"—"}</strong></div>
+        <div><span>Amount</span><strong>{money(amount)}</strong></div>
+        <div><span>Paybill</span><strong>{paybill}</strong></div>
+        <div className="paybill-account-row">
+         <span>Account</span>
+         <strong>{account||"—"}</strong>
+         {!!account&&<button type="button" className="copyaccountbtn" onClick={copyAccount}>{copied?<><Check size={13}/> Copied</>:<><Copy size={13}/> Copy</>}</button>}
+        </div>
+       </div>
+
+       <button type="button" className="info-chip" onClick={()=>setShowSteps(s=>!s)}>
+        {showSteps?"Hide":"How to pay"} on M-Pesa
+       </button>
+       {showSteps&&(
+        <ol className="paybillsteps compact-steps">
+         <li>M-Pesa → <b>Lipa na M-Pesa</b> → <b>Paybill</b></li>
+         <li>Business no. <b>{paybill}</b></li>
+         <li>Account <b>{account||"—"}</b></li>
+         <li>Amount <b>{money(amount)}</b> → enter PIN</li>
+         <li>Paste the SMS code below</li>
+        </ol>
+       )}
+
+       {!submitted?(
+        <form onSubmit={submitCode} className="paybillcodeform compact-code">
+         <label className="fieldlabel">M-Pesa confirmation code
+          <input
+            required
+            value={code}
+            onChange={e=>setCode(e.target.value)}
+            placeholder="e.g. QH12XXXXXX"
+            autoComplete="off"
+            inputMode="text"
+            spellCheck={false}
+          />
+         </label>
+         <p className="muted small code-hint">From the M-Pesa SMS after paying exactly {money(amount)}.</p>
+         {msg&&<div className="notice">{msg}</div>}
+         <button type="submit" className="primary paybill-submit" disabled={busy}>{busy?"Submitting…":"Submit confirmation code"}</button>
+        </form>
+       ):(
+        <div className="notice">
+         <LoaderCircle size={15} className="spin"/>
+         <strong>Awaiting verification</strong>
+         <p className="muted small">Code received. Plan activates after admin confirms the payment.</p>
+         {msg&&<p className="muted small">{msg}</p>}
+        </div>
+       )}
+      </>
+     )}
+    </div>
+
+    <div className="modalfoot paymentfoot">
+     <button type="button" className="secondary" onClick={onClose}>{isSuccess?"Done":"Close"}</button>
+    </div>
+   </div>
+  </div>
+ );
+
+ if(typeof document!=="undefined"&&document.body&&typeof createPortal==="function"){
+  return createPortal(body, document.body);
+ }
+ return body;
 }
 
 function Packages({packages,current,purchase,reload}){
@@ -1567,8 +1690,30 @@ function Packages({packages,current,purchase,reload}){
  const sorted=[...list].sort((a,b)=>Number(a.tier||999)-Number(b.tier||999)||Number(a.price)-Number(b.price));
  const currentPrice=Number(current?.price||0);
  const upgradeOnly=sorted.filter(p=>Number(p.price)>currentPrice);
- return <section><div className="sectionhead"><div><h1>Choose your plan</h1><p className="muted">Compare transparent membership plan benefits and understand exactly which plan levels you can earn from.</p></div><button className="secondary" onClick={reload}><RefreshCw size={16}/> Refresh</button></div>
- <div className="earningsnotice"><div><strong>How plan earnings work</strong><p>Starter, Growth, Pro and Elite earn through qualifying referrals. Premium can earn through qualifying referrals across all five plan levels and also unlocks the Products & Advertising area for approved campaigns.</p><p>Your plan unlocks the plan levels you can earn from. Starter can earn from Starter purchases; Growth can earn from Starter + Growth; Pro can earn from Starter + Growth + Pro; Elite can earn from Starter + Growth + Pro + Elite; Premium can earn from all five. When an eligible referral purchases a plan, the commission shown for that purchased plan applies.</p></div></div>
+ const [info,setInfo]=useState(null);
+ return <section className="plans-compact"><div className="sectionhead"><div><h1>Choose your plan</h1><p className="muted">Pick a plan to unlock referral tools. No guaranteed income.</p></div><button className="secondary" onClick={reload}><RefreshCw size={16}/> Refresh</button></div>
+ <div className="info-chip-row">
+  <button type="button" className="info-chip" onClick={()=>setInfo("earnings")}>How earnings work</button>
+  <button type="button" className="info-chip" onClick={()=>setInfo("rules")}>Plan rules</button>
+ </div>
+ {info&&createPortal(
+  <div className="modalbackdrop payment-layer" onClick={()=>setInfo(null)}>
+   <div className="modal info-mini-modal" onClick={e=>e.stopPropagation()}>
+    <div className="modalhead"><div><span className="pill">INFO</span><h2>{info==="earnings"?"How plan earnings work":"Plan rules"}</h2></div><button type="button" className="iconbtn" onClick={()=>setInfo(null)}><X size={18}/></button></div>
+    <div className="paymentbody">
+     {info==="earnings"?(
+      <><p className="muted">Starter, Growth, Pro and Elite earn through qualifying referrals. Premium can earn across all plan levels and unlocks Advertise.</p>
+      <p className="muted">Your plan sets which plan purchases you may earn from: Starter → Starter only; Growth → Starter+Growth; and so on. Premium can earn from all five.</p>
+      <p className="muted">Commissions are recorded only when a qualifying referral purchase completes. No income is guaranteed.</p></>
+     ):(
+      <><p className="muted">Activate a plan to unlock your referral link. Upgrades charge only the price difference.</p>
+      <p className="muted">Share honestly. Review membership rules before paying.</p></>
+     )}
+    </div>
+    <div className="modalfoot"><button type="button" className="primary" onClick={()=>setInfo(null)}>Got it</button></div>
+   </div>
+  </div>, document.body
+ )}
  {current&&upgradeOnly.length>0&&<div className="upgradebanner"><div><span className="pill">UPGRADE AVAILABLE</span><h3>Unlock more NEXORA benefits</h3><p className="muted">You already have {current.name}. Upgrading charges the difference between your current plan and the higher plan.</p></div><button className="primary" onClick={()=>buy(upgradeOnly[0])}>See upgrade options</button></div>}
  {sorted.length?<><div className="packages">{sorted.map((p,i)=>{const isCurrent=current?.id===p.id;const isUpgrade=current&&Number(p.price)>currentPrice;const difference=isUpgrade?Number(p.price)-currentPrice:Number(p.price);return <div className={`pkg ${p.popular||(!p.popular&&i===2) ?"featured":""}`} key={p.id}>{(p.popular||(!p.popular&&i===2))&&<div className="popular">{p.badge||"POPULAR"}</div>}<span className="pkgname">{p.name}</span>{p.badge&&!(p.popular||(!p.popular&&i===2))&&<span className="packagebadge">{p.badge}</span>}<h2>{money(p.price)}</h2>{p.description&&<p className="pkgdesc">{p.description}</p>}<div className="commission"><div><b>{money(p.directCommission)}</b><small>Direct referral</small></div><div><b>{money(p.level2Commission)}</b><small>Level 2 referral</small></div></div><ul className="pkgfeatures">{(Array.isArray(p.features)?p.features:(typeof p.features==="string"?[p.features]:[])).map((x,j)=><li key={j}><Check size={14}/>{String(x)}</li>)}</ul>{current&&isUpgrade&&<div className="upgradecost">Upgrade cost: <strong>{money(difference)}</strong></div>}<button className="primary" disabled={isCurrent} onClick={()=>buy(p)}>{isCurrent?<><CheckCircle2 size={16}/> Current plan</>:isUpgrade?"Upgrade plan":"Activate plan"}</button></div>})}</div>
  <div className="comparison"><h2>Why upgrade?</h2><p className="muted">See what each plan unlocks compared to where you are now.</p>
@@ -1585,8 +1730,9 @@ function Packages({packages,current,purchase,reload}){
 function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],purchase,reload,initialTab="network"}){
  const hasPackage=Boolean(me?.package);
  const [tab,setTab]=useState(initialTab==="plans"?"plans":"network");
+ const [earnInfo,setEarnInfo]=useState(false);
  return <section className="earnsection">
-  <div className="sectionhead"><div><span className="pill">EARN CENTER</span><h1>Earn with NEXORA</h1><p className="muted">Activate a membership plan to unlock your referral link and earn from qualifying referrals under the plan rules.</p></div>
+  <div className="sectionhead"><div><span className="pill">EARN CENTER</span><h1>Earn with NEXORA</h1><p className="muted">Plans unlock your referral tools. No guaranteed income.</p></div>
    {hasPackage&&tab==="network"&&<div className="heroactions compact"><button className="secondary" onClick={copy}><Copy size={15}/> Copy link</button><button className="secondary" onClick={()=>waShare(`Hi! Join me on NEXORA — review plans first (no guaranteed income): ${location.origin}/?ref=${me.user.referralCode}`)}><MessageCircle size={15}/> WhatsApp</button><button className="primary" onClick={share}><Share2 size={15}/> Share</button></div>}
   </div>
   <div className="earntabs">
@@ -1596,20 +1742,25 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
 
   {tab==="plans"&&(
     <div className="earnplans">
-      <div className="earnnotice panel">
-        <PackageIcon size={22}/>
-        <div>
-          <h3>Purchase a plan to start earning</h3>
-          <p className="muted">Referral commissions are only recorded when you have an active membership plan and a referred member completes a qualifying plan purchase under the rules below. NEXORA does not guarantee income.</p>
-          <ul className="earnterms">
-            <li>You must activate a plan before your personal referral link unlocks for earning.</li>
-            <li>Commissions apply only to eligible referral purchases for the plan levels your membership can earn from.</li>
-            <li>Upgrades charge only the price difference from your current plan.</li>
-            <li>Review the <a href="/membership" target="_blank" rel="noreferrer">Membership rules</a>, <a href="/terms" target="_blank" rel="noreferrer">Terms</a> and <a href="/privacy" target="_blank" rel="noreferrer">Privacy Policy</a> before paying.</li>
-            <li>Nothing on NEXORA should be read as a promise of fixed or guaranteed earnings.</li>
-          </ul>
-        </div>
+      <div className="info-chip-row">
+        <button type="button" className="info-chip" onClick={()=>setEarnInfo(true)}>Why a plan is required</button>
       </div>
+      {earnInfo&&createPortal(
+        <div className="modalbackdrop payment-layer" onClick={()=>setEarnInfo(false)}>
+          <div className="modal info-mini-modal" onClick={e=>e.stopPropagation()}>
+            <div className="modalhead"><div><span className="pill">EARN RULES</span><h2>Purchase a plan to start earning</h2></div><button type="button" className="iconbtn" onClick={()=>setEarnInfo(false)}><X size={18}/></button></div>
+            <div className="paymentbody">
+              <p className="muted">Commissions are only recorded with an active plan and a qualifying referral purchase. NEXORA does not guarantee income.</p>
+              <ul className="earnterms">
+                <li>Activate a plan to unlock your referral link for earning.</li>
+                <li>Commissions follow the plan levels your membership can earn from.</li>
+                <li>Upgrades charge only the price difference.</li>
+                <li>Review Membership rules, Terms and Privacy before paying.</li>
+              </ul>
+            </div>
+            <div className="modalfoot"><button type="button" className="primary" onClick={()=>setEarnInfo(false)}>Got it</button></div>
+          </div>
+        </div>, document.body)}
       <Packages packages={packages} current={me.package} purchase={purchase} reload={reload||(()=>{})}/>
     </div>
   )}

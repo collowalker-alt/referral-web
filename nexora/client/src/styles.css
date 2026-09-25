@@ -3753,3 +3753,131 @@ textarea::placeholder{
   text-transform:uppercase;
   padding:14px 12px !important;
 }
+
+/* Compact paybill modal — everything visible on phone */
+.modalbackdrop.payment-layer .modal.paybill-compact{
+  width:min(400px, calc(100vw - 20px)) !important;
+  max-height:min(88dvh, 640px) !important;
+  margin:8px auto 16px !important;
+  border-radius:16px !important;
+  overflow:hidden !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+.paybill-compact .paybill-head{
+  padding:12px 14px 8px !important;
+  flex:0 0 auto !important;
+}
+.paybill-compact .paybill-head h2{
+  font-size:17px !important;
+  margin:4px 0 0 !important;
+}
+.paybill-compact .paybill-body{
+  padding:8px 14px 12px !important;
+  overflow-y:auto !important;
+  flex:1 1 auto !important;
+  min-height:0 !important;
+}
+.paybill-summary{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:10px;
+}
+.paybill-summary>div{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  padding:8px 10px;
+}
+.paybill-summary span{
+  display:block;
+  font-size:10px;
+  color:#8094a9;
+  margin-bottom:2px;
+}
+.paybill-summary strong{
+  font-size:13px;
+  color:#eef5ff;
+}
+.paybill-account-row{
+  grid-column:1 / -1;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+}
+.paybill-account-row strong{flex:1;min-width:0;word-break:break-all}
+.compact-code{
+  margin-top:8px;
+  display:grid;
+  gap:8px;
+}
+.compact-code input{
+  width:100% !important;
+  box-sizing:border-box !important;
+  background:#0a1522 !important;
+  color:#eaf2fb !important;
+  border:1px solid #2a455f !important;
+  border-radius:12px !important;
+  padding:12px !important;
+  font-size:16px !important;
+}
+.compact-code .code-hint{margin:0;font-size:11px}
+.paybill-submit{width:100% !important;margin-top:4px}
+.compact-steps{
+  margin:8px 0 10px !important;
+  padding-left:18px !important;
+  font-size:12px !important;
+  color:#b7c9db;
+  line-height:1.45;
+}
+.paybill-compact .modalfoot{
+  flex:0 0 auto !important;
+  padding:8px 14px 12px !important;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.paybill-compact .modalfoot .secondary{width:100%}
+
+/* Info chips instead of long paragraphs */
+.info-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 12px;
+}
+.info-chip{
+  border:1px solid rgba(56,217,169,.28) !important;
+  background:rgba(56,217,169,.08) !important;
+  color:#9aecd4 !important;
+  border-radius:999px !important;
+  padding:7px 12px !important;
+  font-size:11px !important;
+  font-weight:700 !important;
+  cursor:pointer !important;
+}
+.info-mini-modal{
+  width:min(420px, calc(100vw - 24px)) !important;
+  max-height:min(80dvh, 520px) !important;
+  overflow-y:auto !important;
+}
+.info-mini-modal .paymentbody{
+  padding:12px 16px !important;
+  font-size:13px;
+  line-height:1.5;
+}
+.plans-compact .sectionhead p{font-size:13px;max-width:42ch}
+.earnsection .sectionhead p{font-size:13px}
+@media(max-width:600px){
+  .modalbackdrop.payment-layer .modal.paybill-compact{
+    width:calc(100vw - 16px) !important;
+    max-height:90dvh !important;
+    margin:6px auto 12px !important;
+  }
+  .paybill-summary{gap:6px}
+  .paybill-summary>div{padding:7px 9px}
+  .packages{gap:10px}
+  .pkg{padding:14px !important}
+  .comparison,.planmatrixwrap{display:none !important} /* hide huge tables on phone */
+  .earningtiers{font-size:12px}
+}
