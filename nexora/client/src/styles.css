@@ -3654,3 +3654,102 @@ body:has(textarea:focus) {
   border-color:rgba(56,217,169,.55) !important;
   background:rgba(56,217,169,.1) !important;
 }
+
+/* Scrollable payment modals */
+.modalbackdrop.payment-layer{
+  overflow-y:auto !important;
+  align-items:flex-start !important;
+}
+.modalbackdrop.payment-layer .modal.phonemodal,
+.modalbackdrop.payment-layer .modal.paymentmodal{
+  max-height:min(92dvh, 900px) !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  display:flex !important;
+  flex-direction:column !important;
+}
+.modalbackdrop.payment-layer .paymentbody,
+.modalbackdrop.payment-layer .phonebody{
+  flex:1 1 auto !important;
+  overflow-y:auto !important;
+  min-height:0 !important;
+  max-height:none !important;
+}
+.modalbackdrop.payment-layer .modalfoot{
+  flex:0 0 auto !important;
+  position:sticky !important;
+  bottom:0 !important;
+  background:linear-gradient(180deg,transparent,#0a1420 30%) !important;
+}
+
+/* Admin modals — fixed to viewport (no scroll-to-top hunt) */
+.modalbackdrop.admin-modal-layer,
+.modalbackdrop.adminplanmodalbackdrop{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:60000 !important;
+  display:flex !important;
+  align-items:flex-start !important;
+  justify-content:center !important;
+  overflow-y:auto !important;
+  -webkit-overflow-scrolling:touch !important;
+  padding:max(16px, env(safe-area-inset-top)) 12px 32px !important;
+  background:rgba(2,8,16,.88) !important;
+  backdrop-filter:blur(10px) !important;
+}
+.modalbackdrop.admin-modal-layer .modal,
+.modalbackdrop.adminplanmodalbackdrop .modal{
+  margin:12px auto !important;
+  max-height:min(90dvh, 920px) !important;
+  overflow-y:auto !important;
+  width:min(640px, calc(100vw - 24px)) !important;
+}
+
+/* Dark inputs — never stark white (incl. browser autofill) */
+.app input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]),
+.app textarea,
+.app select,
+.modal input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.modal textarea,
+.modal select,
+.adminapp input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.adminapp textarea,
+.adminapp select,
+.paybillcodeform input,
+.phonemodal input,
+.paymentmodal input,
+.adminbalanceform input,
+.adminbalanceform select,
+.adminmemberdetail input{
+  background:#0a1522 !important;
+  background-color:#0a1522 !important;
+  color:#eaf2fb !important;
+  border:1px solid #2a455f !important;
+  border-radius:12px !important;
+  caret-color:#7fe8c9 !important;
+}
+.app input::placeholder,
+.modal input::placeholder,
+.adminapp input::placeholder,
+textarea::placeholder{
+  color:#6f829a !important;
+  opacity:1 !important;
+}
+/* Chrome/Safari autofill white fix */
+.app input:-webkit-autofill,
+.app input:-webkit-autofill:hover,
+.app input:-webkit-autofill:focus,
+.modal input:-webkit-autofill,
+.adminapp input:-webkit-autofill{
+  -webkit-text-fill-color:#eaf2fb !important;
+  -webkit-box-shadow:0 0 0 1000px #0a1522 inset !important;
+  box-shadow:0 0 0 1000px #0a1522 inset !important;
+  transition:background-color 99999s ease-out;
+}
+.paybillcodeform input{
+  font-size:16px !important; /* reduces iOS zoom */
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  padding:14px 12px !important;
+}
