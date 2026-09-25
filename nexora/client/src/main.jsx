@@ -1147,7 +1147,9 @@ function App(){
  const primaryNavIds=new Set(["dashboard","marketplace","wallet","transactions"]);
  const startPayment=async(_ignored,pkg)=>{
   if(!pkg?.id){setError("Select a plan first.");return;}
-  setPhoneModal(null);setMsg("");setError("");
+  setPhoneModal(null);setMsg("Opening Paybill payment window…");setError("");
+  // Give the user visible feedback before the Paybill modal opens.
+  await new Promise(resolve=>setTimeout(resolve,550));
   try{
    const d=await api("/payments/paybill/initiate",{method:"POST",body:JSON.stringify({packageId:pkg.id})});
    if(!d?.reference){setError(d?.message||"Could not start Paybill payment.");return;}
@@ -1163,6 +1165,7 @@ function App(){
      instructions:Array.isArray(d.instructions)?d.instructions:[],
      message:d.message||""
    });
+   setMsg("");
   }catch(e){setError(e?.message||"Could not start Paybill payment.");}
  };
  const purchase=p=>{
@@ -1354,6 +1357,7 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
 function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load}){
  const ptrRef=usePullToRefresh(()=>load&&load(false));
  const [depositOpen,setDepositOpen]=useState(false);
+ const [categoryOpen,setCategoryOpen]=useState(false);
  const [typedGreeting,setTypedGreeting]=useState("");
  const firstName=me?.user?.name?.split(" ")[0]||"there";
  useEffect(()=>{
@@ -1419,9 +1423,9 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
    </div>
   </section>
 
-  <div className="shopcategorybar panel">
-   <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
-   <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
+  <div className={`shopcategorybar panel ${categoryOpen?"category-open":""}`}>
+   <div className="shopcategorybar-head"><div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div><button type="button" className="category-toggle" aria-expanded={categoryOpen} onClick={()=>setCategoryOpen(v=>!v)}><Filter size={16}/>{categoryOpen?"Hide categories":"Browse categories"}<ChevronDown size={15}/></button></div>
+   {categoryOpen&&<div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>}
   </div>
 
   <div className="dashboardquick">
@@ -1475,7 +1479,7 @@ function Marketing({me,copy,copyCode,copiedKind,share}){
   {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after plan activation</h3><p className="muted">Activate a membership plan first (Earn → Membership plans). Your personal referral link, QR code and share messages become available once a plan is active.</p></div></div>}
   {hasPackage&&<>
    <div className="marketinggrid">
-    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button className={(copiedKind==="link"||localCopied==="link")?"is-copied":""} onClick={copy}>{(copiedKind==="link"||localCopied==="link")?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review plans first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{(copiedKind==="code"||localCopied==="code")?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code"||localCopied)&&<p className="muted small copyhint">{copiedKind==="code"||localCopied==="code"?"Referral code copied — friends paste it when registering.":copiedKind==="link"||localCopied==="link"?"Referral link copied — paste it in chat or social media.":"Message copied."}</p>}</div>
+    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button className={(copiedKind==="link"||localCopied==="link")?"is-copied":""} onClick={copy}>{(copiedKind==="link"||localCopied==="link")?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review plans first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{(copiedKind==="code"||localCopied==="code")?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code"||localCopied)&&<p className="muted small copyhint" role="status" aria-live="polite">{copiedKind==="code"||localCopied==="code"?"Referral code copied — friends paste it when registering.":copiedKind==="link"||localCopied==="link"?"Referral link copied — paste it in chat or social media.":"Message copied."}</p>}</div>
     <div className="panel qrcodepanel"><QrCode size={24}/><h3>QR referral card</h3><p className="muted">Let people scan your referral link from your screen.</p><img className="qrcode" alt="Referral QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`}/><small className="muted">Scan to open your NEXORA referral page.</small></div>
     <div className="panel"><Sparkles size={24}/><h3>Ready-to-share messages</h3>
      <div className="template"><b>Short</b><p>Join me on NEXORA — member tools, learning and network in one place: {link}</p><button className="secondary" onClick={()=>copyText(`Join me on NEXORA — member tools, learning and network in one place: ${link}`)}>Copy</button></div>
