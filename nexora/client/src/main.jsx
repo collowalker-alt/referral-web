@@ -23,9 +23,24 @@ const markCopied=(btn,ms=2200)=>{
   clearTimeout(btn._copyT);
   btn._copyT=setTimeout(()=>{btn.classList.remove("is-copied");if(btn.dataset.prevHtml)btn.innerHTML=btn.dataset.prevHtml},ms);
 };
+const copyTextRobust=async(text)=>{
+  const value=String(text||"");
+  try{
+    if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(value);return true;}
+  }catch{}
+  try{
+    const ta=document.createElement("textarea");
+    ta.value=value;ta.setAttribute("readonly","");ta.style.position="fixed";ta.style.opacity="0";ta.style.pointerEvents="none";
+    document.body.appendChild(ta);ta.select();ta.setSelectionRange(0,value.length);
+    const ok=document.execCommand("copy");ta.remove();if(ok)return true;
+  }catch{}
+  return false;
+};
 const copyWithFeedback=async(text,btn)=>{
-  try{await navigator.clipboard.writeText(String(text||""));markCopied(btn);}
-  catch{try{window.prompt("Copy:",String(text||""));}catch{}}
+  const ok=await copyTextRobust(text);
+  if(ok)markCopied(btn);
+  else try{window.prompt("Copy:",String(text||""));}catch{}
+  return ok;
 };
 
 const nxHaptic=(ms=12)=>{try{if(navigator.vibrate)navigator.vibrate(ms)}catch{}};
@@ -1119,6 +1134,7 @@ function App(){
   try{
    const m=await api("/me");
    setMe(m);
+   try{localStorage.setItem("nexora-cached-me",JSON.stringify(m))}catch{}
    setLoading(false);
    const results=await Promise.allSettled([api("/payments/methods"),api("/packages"),api("/referrals"),api("/earnings"),api("/transactions"),api("/member/analytics"),api("/member/leaderboard"),api("/announcements"),api("/support/tickets"),api("/notifications")]);
    if(results[0].status==="fulfilled")setPayMethods(results[0].value);
@@ -1138,7 +1154,14 @@ function App(){
    const failed=results.find(x=>x.status==="rejected");if(failed)setError(failed.reason?.message||"Some account data could not be loaded");
   }catch(e){if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");setMe(null)}else setError(e.message);setLoading(false)}
  };
- useEffect(()=>{if(localStorage.getItem("token"))load();else setLoading(false)},[]);
+ useEffect(()=>{
+  if(!localStorage.getItem("token")){setLoading(false);return;}
+  try{
+   const cached=JSON.parse(localStorage.getItem("nexora-cached-me")||"null");
+   if(cached?.user){setMe(cached);setLoading(false);}
+  }catch{}
+  load(false);
+ },[]);
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
  if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
  const nav=[
@@ -1147,9 +1170,7 @@ function App(){
  const primaryNavIds=new Set(["dashboard","marketplace","wallet","transactions"]);
  const startPayment=async(_ignored,pkg)=>{
   if(!pkg?.id){setError("Select a plan first.");return;}
-  setPhoneModal(null);setMsg("Opening Paybill payment window…");setError("");
-  // Give the user visible feedback before the Paybill modal opens.
-  await new Promise(resolve=>setTimeout(resolve,550));
+  setPhoneModal(null);setMsg("");setError("");
   try{
    const d=await api("/payments/paybill/initiate",{method:"POST",body:JSON.stringify({packageId:pkg.id})});
    if(!d?.reference){setError(d?.message||"Could not start Paybill payment.");return;}
@@ -1165,7 +1186,6 @@ function App(){
      instructions:Array.isArray(d.instructions)?d.instructions:[],
      message:d.message||""
    });
-   setMsg("");
   }catch(e){setError(e?.message||"Could not start Paybill payment.");}
  };
  const purchase=p=>{
@@ -1190,26 +1210,37 @@ function App(){
   setMsg(msg);
   nxHaptic(15);
   clearTimeout(window.__nexoraCopyTimer);
-  window.__nexoraCopyTimer=setTimeout(()=>setCopiedKind(""),2500);
+  window.__nexoraCopyTimer=setTimeout(()=>{setCopiedKind("");setMsg("")},2600);
  };
  const copy=async()=>{
   if(!hasPackage){setError("Purchase a plan first to unlock your referral link.");return;}
-  const link=`${location.origin}/?ref=${me.user.referralCode}`;
-  try{await navigator.clipboard.writeText(link)}catch{window.prompt("Copy your referral link:",link)}
-  flashCopied("link","Referral link copied. Share it so people can join under you.");
+  const link=`${location.origin}/?ref=${encodeURIComponent(me.user.referralCode)}`;
+  const ok=await copyTextRobust(link);
+  if(ok)flashCopied("link","Referral link copied successfully.");
+  else{setError("Could not copy automatically. Please copy the referral link manually.");try{window.prompt("Copy your referral link:",link)}catch{}}
  };
  const copyCode=async()=>{
   if(!hasPackage){setError("Purchase a plan first to unlock your referral code.");return;}
-  const code=me.user.referralCode;
-  try{await navigator.clipboard.writeText(code)}catch{window.prompt("Copy your referral code:",code)}
-  flashCopied("code","Referral code copied. Friends can paste it when they register.");
+  const code=String(me.user.referralCode||"");
+  const ok=await copyTextRobust(code);
+  if(ok)flashCopied("code","Referral code copied successfully.");
+  else{setError("Could not copy automatically. Please copy the referral code manually.");try{window.prompt("Copy your referral code:",code)}catch{}}
  };
  const share=async()=>{
   if(!hasPackage){setError("Purchase a plan first to unlock your referral link.");return;}
-  const link=`${location.origin}/?ref=${me.user.referralCode}`;
-  if(navigator.share){try{await navigator.share({title:"Join NEXORA",text:"Join me on NEXORA.",url:link})}catch{}}else copy()
+  const link=`${location.origin}/?ref=${encodeURIComponent(me.user.referralCode)}`;
+  const shareData={title:"Join NEXORA",text:"Join me on NEXORA. Review the plans and learn how it works:",url:link};
+  if(navigator.share){
+   try{await navigator.share(shareData);setMsg("Share sheet opened.");return;}catch(e){if(e?.name==="AbortError")return;}
+  }
+  const whatsapp=`https://wa.me/?text=${encodeURIComponent(`${shareData.text} ${link}`)}`;
+  const opened=window.open(whatsapp,"_blank","noopener,noreferrer");
+  if(opened){setMsg("Opening WhatsApp to share your referral link…");return;}
+  const ok=await copyTextRobust(link);
+  if(ok)flashCopied("link","Referral link copied. Paste it into the app you want to share with.");
+  else{setError("Sharing is blocked by your browser. Please copy the referral link manually.");try{window.prompt("Copy your referral link:",link)}catch{}}
  };
- const logout=()=>{localStorage.removeItem("token");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
+ const logout=()=>{localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
  const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
  return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/>{t}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Orders · Wallet · Seller tools</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} notifications={notifications} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
  <div className="nx-page-stage" key={page}>
@@ -1357,7 +1388,6 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
 function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load}){
  const ptrRef=usePullToRefresh(()=>load&&load(false));
  const [depositOpen,setDepositOpen]=useState(false);
- const [categoryOpen,setCategoryOpen]=useState(false);
  const [typedGreeting,setTypedGreeting]=useState("");
  const firstName=me?.user?.name?.split(" ")[0]||"there";
  useEffect(()=>{
@@ -1423,9 +1453,9 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
    </div>
   </section>
 
-  <div className={`shopcategorybar panel ${categoryOpen?"category-open":""}`}>
-   <div className="shopcategorybar-head"><div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div><button type="button" className="category-toggle" aria-expanded={categoryOpen} onClick={()=>setCategoryOpen(v=>!v)}><Filter size={16}/>{categoryOpen?"Hide categories":"Browse categories"}<ChevronDown size={15}/></button></div>
-   {categoryOpen&&<div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>}
+  <div className="shopcategorybar panel">
+   <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
+   <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
   </div>
 
   <div className="dashboardquick">
@@ -1479,7 +1509,7 @@ function Marketing({me,copy,copyCode,copiedKind,share}){
   {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after plan activation</h3><p className="muted">Activate a membership plan first (Earn → Membership plans). Your personal referral link, QR code and share messages become available once a plan is active.</p></div></div>}
   {hasPackage&&<>
    <div className="marketinggrid">
-    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button className={(copiedKind==="link"||localCopied==="link")?"is-copied":""} onClick={copy}>{(copiedKind==="link"||localCopied==="link")?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review plans first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{(copiedKind==="code"||localCopied==="code")?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code"||localCopied)&&<p className="muted small copyhint" role="status" aria-live="polite">{copiedKind==="code"||localCopied==="code"?"Referral code copied — friends paste it when registering.":copiedKind==="link"||localCopied==="link"?"Referral link copied — paste it in chat or social media.":"Message copied."}</p>}</div>
+    <div className="panel"><Megaphone size={24}/><h3>Share link</h3><p className="muted">Your personal referral link.</p><div className="copybox"><span>{link}</span><button className={(copiedKind==="link"||localCopied==="link")?"is-copied":""} onClick={copy}>{(copiedKind==="link"||localCopied==="link")?<><Check size={16} className="nx-tick"/> Copied</>:<><Copy size={16}/> Copy</>}</button></div><div className="heroactions compact" style={{marginTop:12}}><button className="primary" onClick={share}><Share2 size={16}/> Share link</button><button className="secondary" onClick={()=>waShare(`Hi! I use NEXORA for membership + referrals. Review plans first (no guaranteed income): ${link}`)}><MessageCircle size={16}/> WhatsApp</button><button className="secondary" onClick={copyCode}>{(copiedKind==="code"||localCopied==="code")?<><Check size={15}/> Copied</>:<><CopyCheck size={15}/> Copy code</>}</button></div>{(copiedKind==="link"||copiedKind==="code"||localCopied)&&<p className="muted small copyhint">{copiedKind==="code"||localCopied==="code"?"Referral code copied — friends paste it when registering.":copiedKind==="link"||localCopied==="link"?"Referral link copied — paste it in chat or social media.":"Message copied."}</p>}</div>
     <div className="panel qrcodepanel"><QrCode size={24}/><h3>QR referral card</h3><p className="muted">Let people scan your referral link from your screen.</p><img className="qrcode" alt="Referral QR code" src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(link)}`}/><small className="muted">Scan to open your NEXORA referral page.</small></div>
     <div className="panel"><Sparkles size={24}/><h3>Ready-to-share messages</h3>
      <div className="template"><b>Short</b><p>Join me on NEXORA — member tools, learning and network in one place: {link}</p><button className="secondary" onClick={()=>copyText(`Join me on NEXORA — member tools, learning and network in one place: ${link}`)}>Copy</button></div>
@@ -1583,8 +1613,8 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
   setErr("");
   if(method==="wallet")return useWallet();
   if(!pkg?.id)return setErr("Plan not found. Close and try again.");
-  setBusy(true);
-  try{await onContinue(null,pkg);}
+  setBusy(true);setErr("Opening Paybill payment window…");
+  try{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));await onContinue(null,pkg);}
   catch(ex){setErr(ex?.message||"Could not start Paybill payment");setBusy(false);}
  };
 
@@ -1614,8 +1644,8 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
        <button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={async()=>{
         setMethod("paybill");setWalletConfirm(false);setErr("");
         if(!pkg?.id)return setErr("Plan not found.");
-        setBusy(true);
-        try{await onContinue(null,pkg);}
+        setBusy(true);setErr("Opening Paybill payment window…");
+        try{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));await onContinue(null,pkg);}
         catch(ex){setErr(ex?.message||"Could not start Paybill payment");setBusy(false);}
        }}>
         <CreditCard size={18}/><div><b>Lipa na M-Pesa Paybill</b><span>Co-op Bank · Paybill {paybillNumber} · tap to continue</span></div>
