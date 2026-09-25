@@ -326,37 +326,50 @@ function NexBot({goPage,goPackages,me}){
  const fabStyle=pos?{position:"fixed",left:pos.x,top:pos.y,right:"auto",bottom:"auto"}:undefined;
  const lastBot=[...msgs].reverse().find(m=>m.role==="bot");
  const panel=(
-  <div className="nexbot-panel" role="dialog" aria-label="NexBot intelligent assistant">
+  <div className="nexbot-panel" role="dialog" aria-label="NexBot">
+   <div className="nexbot-sheet-handle" aria-hidden="true"><span/></div>
    <div className="nexbot-head">
-    <div className="nexbot-avatar"><Face size={30}/></div><div><b>NexBot</b><small>NEXORA intelligent assistant</small></div>
-    <div className="nexbot-head-actions"><button type="button" className="iconbtn" onClick={speakLast} aria-label="Read latest reply"><Volume2 size={16}/></button><button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button></div>
+    <div className="nexbot-avatar"><Face size={26}/></div>
+    <div className="nexbot-head-text"><b>NexBot</b><small>Here to help</small></div>
+    <div className="nexbot-head-actions">
+     <button type="button" className={`iconbtn ${speakReplies?"is-on":""}`} onClick={()=>setSpeakReplies(v=>!v)} aria-label="Toggle read replies" title="Read replies">{speakReplies?<Volume2 size={16}/>:<VolumeX size={16}/>}</button>
+     <button type="button" className="iconbtn" onClick={()=>setOpen(false)} aria-label="Close"><X size={18}/></button>
+    </div>
    </div>
-   <div className="nexbot-welcome"><Sparkles size={15}/><span>Ask naturally. I understand NEXORA features, your account context, shopping, orders and common follow-up questions.</span></div>
    <div className="nexbot-msgs">
     {msgs.map((m,i)=><div key={i} className={`nexbot-msg ${m.role}`}><span>{m.text}</span>{m.action&&actionInfo[m.action]&&<button className="nexbot-action" type="button" onClick={()=>{setOpen(false);actionInfo[m.action][1]()}}>{actionInfo[m.action][0]} <ArrowRight size={13}/></button>}</div>)}
-    {loading&&<div className="nexbot-msg bot typing"><LoaderCircle size={15}/><span>NexBot is thinking…</span></div>}
-    {products.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><ShoppingBag size={14}/> Product matches</div>{products.slice(0,4).map(p=><button key={p.id} type="button" className="nexbot-product" onClick={()=>{setOpen(false);goPage?.("marketplace")}}>{p.image?<img src={p.image} alt=""/>:<span className="nexbot-product-placeholder"><PackageSearch size={17}/></span>}<span><b>{p.title}</b><small>{money(p.price)} · {p.stock>0?`${p.stock} in stock`:"Sold out"}</small><em>{p.verified?"✓ Verified seller · ":""}{p.location||p.category||"NEXORA Marketplace"}</em></span><ArrowRight size={14}/></button>)}</div>}
-    {orders.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><Truck size={14}/> Recent orders</div>{orders.slice(0,3).map(o=><button key={o.id} type="button" className="nexbot-order" onClick={()=>{setOpen(false);goPage?.("marketplace")}}><span><b>{o.reference||o.id}</b><small>{o.items?.map(x=>`${x.title} ×${x.quantity}`).join(", ")||"Marketplace order"}</small></span><strong>{String(o.status||"PENDING").replaceAll("_"," ")}</strong></button>)}</div>}
-    {wallet&&<div className="nexbot-wallet"><WalletMinimal size={16}/><div><small>Available wallet</small><b>{money(wallet.balance)}</b></div><button type="button" onClick={()=>{setOpen(false);goPage?.("wallet")}}>Open</button></div>}
+    {loading&&<div className="nexbot-msg bot typing"><LoaderCircle size={15}/><span>Thinking…</span></div>}
+    {products.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><ShoppingBag size={14}/> Products</div>{products.slice(0,4).map(p=><button key={p.id} type="button" className="nexbot-product" onClick={()=>{setOpen(false);goPage?.("marketplace")}}>{p.image?<img src={p.image} alt=""/>:<span className="nexbot-product-placeholder"><PackageSearch size={17}/></span>}<span><b>{p.title}</b><small>{money(p.price)}</small></span><ArrowRight size={14}/></button>)}</div>}
+    {orders.length>0&&<div className="nexbot-results"><div className="nexbot-results-title"><Truck size={14}/> Orders</div>{orders.slice(0,3).map(o=><button key={o.id} type="button" className="nexbot-order" onClick={()=>{setOpen(false);goPage?.("marketplace")}}><span><b>{o.reference||o.id}</b><small>{o.items?.map(x=>`${x.title} ×${x.quantity}`).join(", ")||"Order"}</small></span><strong>{String(o.status||"PENDING").replaceAll("_"," ")}</strong></button>)}</div>}
+    {wallet&&<div className="nexbot-wallet"><WalletMinimal size={16}/><div><small>Wallet</small><b>{money(wallet.balance)}</b></div><button type="button" onClick={()=>{setOpen(false);goPage?.("wallet")}}>Open</button></div>}
    </div>
    <div className="nexbot-quick">{quick.map(([l,q])=><button type="button" key={l} onClick={()=>send(q)}>{l}</button>)}</div>
    {suggestions.length>0&&<div className="nexbot-suggestions">{suggestions.slice(0,3).map(q=><button key={q} type="button" onClick={()=>send(q)}>{q}</button>)}</div>}
-   <form className="nexbot-form" onSubmit={e=>{e.preventDefault();send()}}>
-    <button type="button" className={`nexbot-mic ${listening?"active":""}`} onClick={startVoice} aria-label={listening?"Stop voice input":"Use voice input"}><Mic size={17}/></button>
-    <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask anything about NEXORA…" autoComplete="off"/>
-    <button type="submit" className="primary narrow" disabled={loading||!input.trim()} aria-label="Send"><SendHorizontal size={16}/></button>
+   <form className="nexbot-compose" onSubmit={e=>{e.preventDefault();send()}}>
+    <button type="button" className={`nexbot-mic ${listening?"on":""}`} onClick={startVoice} aria-label="Voice">{listening?<Mic size={18}/>:<Mic size={18}/>}</button>
+    <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Ask about NEXORA…" autoComplete="off"/>
+    <button type="submit" className="nexbot-send" disabled={loading||!String(input).trim()} aria-label="Send"><SendHorizontal size={18}/></button>
    </form>
-   <div className="nexbot-footer"><button type="button" onClick={()=>setSpeakReplies(v=>!v)}>{speakReplies?<Volume2 size={13}/>:<VolumeX size={13}/>} {speakReplies?"Read replies on":"Read replies off"}</button><span>Never share your PIN or password.</span></div>
+   <p className="nexbot-privacy">Never share your PIN or password</p>
   </div>
  );
+
  return <>
-  {open&&createPortal(<div className="nexbot-overlay"><div ref={sheetRef} className="nexbot-sheet" onClick={e=>e.stopPropagation()} style={panelPos?{left:panelPos.left,top:panelPos.top,visibility:"visible"}:{left:0,top:0,visibility:"hidden"}}>{panel}</div></div>,document.body)}
+  {open&&createPortal(
+   <div className="nexbot-overlay" onClick={()=>setOpen(false)}>
+    <div className="nexbot-sheet" ref={sheetRef} onClick={e=>e.stopPropagation()}>
+     {panel}
+    </div>
+   </div>,
+   document.body
+  )}
   <div className={`nexbot-root ${open?"is-open":""}`} style={fabStyle}>
-   {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Ask me anything about NEXORA.</span></div>}
-   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot — drag to move, tap to chat" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><Face size={34}/><span className="nexbot-fab-dot"/></button>
+   {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Tap to ask anything</span></div>}
+   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><Face size={34}/><span className="nexbot-fab-dot"/></button>
   </div>
  </>;
 }
+
 function SupportButton(){return <a className="supportfloat" href="https://wa.me/254703265774" target="_blank" rel="noreferrer" aria-label="Contact NEXORA support on WhatsApp"><MessageCircle size={20}/><span>Support</span></a>}
 function PublicLanding({onLogin}){
  const [mode,setMode]=useState(null);

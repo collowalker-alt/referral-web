@@ -3881,3 +3881,199 @@ textarea::placeholder{
   .comparison,.planmatrixwrap{display:none !important} /* hide huge tables on phone */
   .earningtiers{font-size:12px}
 }
+
+/* ========== NexBot bottom-sheet redesign ========== */
+.nexbot-overlay{
+  position:fixed !important;
+  inset:0 !important;
+  z-index:55000 !important;
+  background:rgba(2,8,16,.55) !important;
+  backdrop-filter:blur(6px) !important;
+  display:flex !important;
+  align-items:flex-end !important;
+  justify-content:center !important;
+  padding:0 !important;
+  animation:nexbotFade .2s ease;
+}
+@keyframes nexbotFade{from{opacity:0}to{opacity:1}}
+.nexbot-sheet{
+  width:100% !important;
+  max-width:480px !important;
+  max-height:min(78dvh, 640px) !important;
+  margin:0 auto !important;
+  border-radius:20px 20px 0 0 !important;
+  overflow:hidden !important;
+  animation:nexbotSlide .28s cubic-bezier(.2,.8,.2,1);
+  box-shadow:0 -12px 48px rgba(0,0,0,.45) !important;
+  position:relative !important;
+  left:auto !important;
+  top:auto !important;
+  visibility:visible !important;
+}
+@keyframes nexbotSlide{from{transform:translateY(110%)}to{transform:translateY(0)}}
+.nexbot-panel{
+  display:flex !important;
+  flex-direction:column !important;
+  height:min(78dvh, 640px) !important;
+  max-height:min(78dvh, 640px) !important;
+  background:linear-gradient(180deg,#0e1c2c 0%,#0a1520 100%) !important;
+  border:1px solid rgba(56,217,169,.18) !important;
+  border-bottom:none !important;
+  color:#e8f2fb !important;
+  overflow:hidden !important;
+}
+.nexbot-sheet-handle{
+  display:flex;
+  justify-content:center;
+  padding:8px 0 2px;
+  flex:0 0 auto;
+}
+.nexbot-sheet-handle span{
+  width:40px;height:4px;border-radius:99px;
+  background:rgba(255,255,255,.22);
+}
+.nexbot-head{
+  display:flex !important;
+  align-items:center !important;
+  gap:10px !important;
+  padding:4px 12px 10px !important;
+  flex:0 0 auto !important;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+.nexbot-head-text{flex:1;min-width:0}
+.nexbot-head-text b{display:block;font-size:14px}
+.nexbot-head-text small{color:#7e93a9;font-size:11px}
+.nexbot-avatar{
+  width:36px;height:36px;border-radius:50%;
+  display:grid;place-items:center;
+  background:rgba(56,217,169,.12);
+  border:1px solid rgba(56,217,169,.3);
+  flex:none;
+}
+.nexbot-head-actions{display:flex;gap:4px;flex:none}
+.nexbot-head-actions .iconbtn.is-on{color:#7fe8c9}
+.nexbot-welcome{display:none !important} /* less clutter */
+.nexbot-msgs{
+  flex:1 1 auto !important;
+  overflow-y:auto !important;
+  padding:10px 12px !important;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-height:0 !important;
+  -webkit-overflow-scrolling:touch;
+}
+.nexbot-msg{
+  max-width:92%;
+  padding:10px 12px;
+  border-radius:14px;
+  font-size:13px;
+  line-height:1.45;
+}
+.nexbot-msg.bot{
+  align-self:flex-start;
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.08);
+  border-bottom-left-radius:4px;
+}
+.nexbot-msg.user{
+  align-self:flex-end;
+  background:rgba(56,217,169,.18);
+  border:1px solid rgba(56,217,169,.28);
+  border-bottom-right-radius:4px;
+}
+.nexbot-quick{
+  display:flex !important;
+  gap:6px !important;
+  overflow-x:auto !important;
+  padding:6px 12px 4px !important;
+  flex:0 0 auto !important;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.nexbot-quick::-webkit-scrollbar{display:none}
+.nexbot-quick button{
+  flex:0 0 auto !important;
+  white-space:nowrap !important;
+  border-radius:999px !important;
+  border:1px solid rgba(255,255,255,.1) !important;
+  background:rgba(255,255,255,.05) !important;
+  color:#c5d6e6 !important;
+  font-size:11px !important;
+  padding:6px 10px !important;
+  font-weight:700 !important;
+}
+.nexbot-compose{
+  display:flex !important;
+  align-items:center !important;
+  gap:8px !important;
+  padding:8px 12px 6px !important;
+  flex:0 0 auto !important;
+  border-top:1px solid rgba(255,255,255,.06);
+  background:#0a1520;
+}
+.nexbot-compose input{
+  flex:1 !important;
+  min-width:0 !important;
+  background:#0d1a28 !important;
+  border:1px solid #2a455f !important;
+  color:#eaf2fb !important;
+  border-radius:999px !important;
+  padding:10px 14px !important;
+  font-size:15px !important;
+}
+.nexbot-mic,.nexbot-send{
+  width:40px;height:40px;border-radius:50%;
+  display:grid;place-items:center;
+  border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.06);
+  color:#cfe0ef;
+  flex:none;
+}
+.nexbot-send{
+  background:linear-gradient(135deg,#2ecf9e,#1fa87e) !important;
+  border:none !important;
+  color:#04140f !important;
+}
+.nexbot-mic.on{background:rgba(214,91,104,.25);color:#ffb4bc;border-color:rgba(214,91,104,.4)}
+.nexbot-privacy{
+  text-align:center;
+  font-size:10px;
+  color:#5d7186;
+  margin:0;
+  padding:0 12px 10px;
+  flex:0 0 auto;
+}
+.nexbot-results{display:grid;gap:6px;margin-top:4px}
+.nexbot-results-title{font-size:11px;color:#7fe8c9;font-weight:800;display:flex;align-items:center;gap:6px}
+.nexbot-product,.nexbot-order{
+  display:flex;align-items:center;gap:8px;width:100%;
+  text-align:left;padding:8px;border-radius:12px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+  color:inherit;
+}
+.nexbot-wallet{
+  display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;
+  background:rgba(56,217,169,.08);border:1px solid rgba(56,217,169,.2);
+}
+/* FAB stays above bottom nav, sheet covers it when open */
+.nexbot-root.is-open{opacity:0;pointer-events:none}
+@media(min-width:900px){
+  .nexbot-overlay{
+    align-items:flex-end !important;
+    justify-content:flex-end !important;
+    padding:0 20px 20px 0 !important;
+    background:rgba(2,8,16,.35) !important;
+  }
+  .nexbot-sheet{
+    max-width:400px !important;
+    border-radius:18px !important;
+    margin-bottom:8px !important;
+  }
+  .nexbot-panel{
+    height:min(70dvh, 560px) !important;
+    max-height:min(70dvh, 560px) !important;
+    border-radius:18px !important;
+    border-bottom:1px solid rgba(56,217,169,.18) !important;
+  }
+}
