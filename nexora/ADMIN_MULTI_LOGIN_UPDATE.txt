@@ -1,0 +1,29 @@
+NEXORA MULTI-ADMIN UPDATE
+
+Added multiple administrator accounts to the current Co-op Paybill build.
+
+Roles:
+- SUPER_ADMIN: full control, including administrator management.
+- ADMIN: member and platform management, plans, marketplace, advertising, announcements and support.
+- FINANCE_ADMIN: transactions, payment repair, Co-op Paybill verification, wallet deposits and withdrawals.
+- SUPPORT_ADMIN: member lookup/account assistance, announcements and support tickets.
+
+Admin Management is visible only to Super Admins.
+
+Super Admin can:
+- Create administrator accounts with separate emails/passwords.
+- Assign roles.
+- Edit names/roles.
+- Change passwords.
+- Suspend/activate administrator accounts.
+- Remove administrator accounts.
+- Cannot suspend/remove their own account or remove their own Super Admin role.
+
+All administrator-management actions are written to the Admin Activity Log.
+
+DATABASE:
+The Prisma Admin model now has AdminRole. Run:
+  npx prisma generate --schema prisma/schema.prisma
+  npx prisma db push --schema prisma/schema.prisma
+
+The existing admin account becomes SUPER_ADMIN through the new schema default. Additional admins should be created from Admin Management instead of sharing the primary credentials.

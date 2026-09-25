@@ -148,22 +148,21 @@ After deployment run:
 For production, configure object storage for product media before scaling large catalogs, and add an order-specific M-Pesa payment/verification flow before enabling direct mobile-money checkout for marketplace orders.
 
 
-## Paystack M-Pesa STK Push configuration
+## Co-op Bank M-Pesa Paybill configuration
 
-NEXORA now uses Paystack for M-Pesa STK Push package payments and wallet deposits. Paystack's Kenya integration supports M-Pesa charges using the `mobile_money` channel and sends the customer an authorization prompt on their phone. Successful payments are confirmed through the Paystack webhook and can also be verified from the server.
+The current member payment flow uses **Co-op Bank Lipa na M-Pesa → PayBill** with manual M-Pesa confirmation-code verification. The NEXORA UI no longer starts an STK prompt for package purchases or wallet deposits.
 
-Set this secret environment variable on the NEXORA Render API service:
+Configure these variables on the NEXORA Render API service:
 
-- `PAYSTACK_SECRET_KEY=sk_test_...` while testing
-- `PAYSTACK_SECRET_KEY=sk_live_...` after Paystack activates the business for live payments
+- `MPESA_PAYBILL_NUMBER=400200`
+- `MPESA_PAYBILL_ACCOUNT=YOUR_ACTUAL_COOP_ACCOUNT_NUMBER`
+- `MPESA_PAYBILL_NAME=NEXORA`
 
-In Paystack Dashboard → Developers → API Keys & Webhooks, configure the webhook URL as:
+The member is shown the Paybill and account number in the payment window. The account number has a **Copy** button. The member pays the exact amount in M-Pesa, copies the confirmation code from the M-Pesa SMS, and submits it in NEXORA. The payment remains pending until an authorized administrator verifies it.
 
-`https://nexora-api-shxf.onrender.com/api/paystack/webhook`
+Keep the Co-op account configuration on the server only. Do not put payment credentials or admin credentials in the frontend.
 
-Use the Test Mode webhook URL while testing and the Live Mode webhook URL after activation. Keep the secret key only in Render environment variables; never commit it or put it in the frontend.
-
-Paystack's current documentation recommends webhooks for asynchronous M-Pesa payment completion, with transaction verification available as a fallback.
+Paystack-related server code is retained only for compatibility with earlier deployments; it is not the active member payment path in this build.
 
 ## NexBot intelligent assistant
 
@@ -189,3 +188,8 @@ For the full AI conversation layer, set `NEXBOT_AI_API_KEY` on the NEXORA backen
 
 ## Admin plan controls
 Admin plan management now distinguishes ACTIVE, SUSPENDED and DEACTIVATED states. Suspend temporarily pauses a plan without removing its assignment; Deactivate ends the plan while preserving the assignment for later reactivation; Remove permanently clears the assignment while retaining historical transactions. After pulling/deploying schema changes, run `npx prisma generate --schema prisma/schema.prisma` and `npx prisma db push --schema prisma/schema.prisma` as appropriate for the environment.
+
+
+## Co-op Bank Paybill fallback
+
+The active manual payment mode uses Co-operative Bank Paybill 400200 while Paystack live verification is pending. Set `MPESA_PAYBILL_ACCOUNT` to the actual NEXORA Co-op account number in the server/Render environment. Members pay the exact amount, submit the M-Pesa confirmation code, and an administrator verifies the payment before activation/crediting.

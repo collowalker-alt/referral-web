@@ -45,6 +45,13 @@ enum AdminStatus {
   SUSPENDED
 }
 
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE_ADMIN
+  SUPPORT_ADMIN
+}
+
 model User {
   id                String   @id @default(cuid())
   name              String
@@ -165,6 +172,7 @@ model Admin {
   email        String      @unique
   passwordHash String
   status       AdminStatus @default(ACTIVE)
+  role         AdminRole   @default(SUPER_ADMIN)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 }

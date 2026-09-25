@@ -65,9 +65,9 @@ const NEXBOT_AI_API_KEY = String(process.env.NEXBOT_AI_API_KEY || process.env.OP
 const NEXBOT_AI_MODEL = String(process.env.NEXBOT_AI_MODEL || "gpt-5.6-luna").trim();
 const NEXBOT_AI_URL = String(process.env.NEXBOT_AI_URL || "https://api.openai.com/v1/responses").trim();
 const PAYSTACK_API_URL = "https://api.paystack.co";
-const MPESA_PAYBILL_NUMBER = "";
-const MPESA_PAYBILL_ACCOUNT = "";
-const MPESA_PAYBILL_NAME = "NEXORA";
+const MPESA_PAYBILL_NUMBER = String(process.env.MPESA_PAYBILL_NUMBER || "400200").trim();
+const MPESA_PAYBILL_ACCOUNT = String(process.env.MPESA_PAYBILL_ACCOUNT || "").trim();
+const MPESA_PAYBILL_NAME = String(process.env.MPESA_PAYBILL_NAME || "NEXORA").trim();
 
 const paystackConfigured=()=>Boolean(PAYSTACK_SECRET_KEY);
 
@@ -210,7 +210,8 @@ const auth = async (req,res,next) => {
     req.user=u; next();
   } catch { res.status(401).json({message:"Invalid or expired session"}); }
 };
-const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin" }, JWT_SECRET, { expiresIn:"12h" });
+const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin", role:admin.role }, JWT_SECRET, { expiresIn:"12h" });
+const requireAdminRole = (...roles) => (req,res,next) => { if(!req.admin || !roles.includes(req.admin.role)) return res.status(403).json({message:"You do not have permission to perform this admin action"}); next(); };
 const adminAuth = async (req,res,next) => {
   try {
     const token=(req.headers.authorization||"").replace("Bearer ","");
@@ -288,7 +289,7 @@ app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 
 app.get("/api/payments/methods",(req,res)=>{
-  res.json({wallet:true,paybill:false,paybillNumber:null,paybillAccount:null,paybillName:"NEXORA",stkPush:paystackConfigured(),provider:paystackConfigured()?"paystack":"unconfigured"});
+  res.json({wallet:true,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paybillNumber:MPESA_PAYBILL_NUMBER||null,paybillAccount:MPESA_PAYBILL_ACCOUNT||null,paybillName:MPESA_PAYBILL_NAME,stkPush:false,provider:(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT)?"coopbank_paybill":"unconfigured",paymentMode:"lipa_na_mpesa_paybill",instructions:"Lipa na M-Pesa → Paybill → enter Paybill number and Co-op account number"});
 });
 
 
@@ -391,8 +392,8 @@ async function ensureAdmin(){
   const passwordHash=await bcrypt.hash(password,12);
   await prisma.admin.upsert({
     where:{email},
-    update:{name,passwordHash,status:"ACTIVE"},
-    create:{name,email,passwordHash,status:"ACTIVE"}
+    update:{name,passwordHash,status:"ACTIVE",role:"SUPER_ADMIN"},
+    create:{name,email,passwordHash,status:"ACTIVE",role:"SUPER_ADMIN"}
   });
   console.log(`[ADMIN] Admin account ready: ${email}`);
 }
@@ -609,44 +610,12 @@ app.get("/api/transactions",auth,async(req,res)=>{
 });
 
 app.post("/api/payments/initialize",auth,async(req,res)=>{
-  const startedAt=Date.now();
-  try{
-    if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
-    const {packageId,phone}=req.body;
-    const normalizedPhone=cleanPhone(phone||req.user.phone);
-    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
-    const pkg=await prisma.package.findUnique({where:{id:packageId}});
-    if(!pkg||!pkg.active)return res.status(404).json({message:"Package not found"});
-    const existingUser=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}});
-    const currentPackage=existingUser?.packageId?await prisma.package.findUnique({where:{id:existingUser.packageId}}):null;
-    if(currentPackage&&currentPackage.id===pkg.id)return res.status(400).json({message:"You already have this package"});
-    if(currentPackage&&pkg.price<=currentPackage.price)return res.status(400).json({message:"You can only upgrade to a higher package"});
-    const chargeAmount=currentPackage?pkg.price-currentPackage.price:pkg.price;
-    if(chargeAmount<=0)return res.status(400).json({message:"Invalid charge amount"});
-
-    const reference=`NX-PS-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:chargeAmount,reference,status:"PENDING",metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:"initializing",initializedAt:new Date().toISOString()}}}});
-
-    const charge=await createPaystackMpesaCharge({
-      email:req.user.email,phone:normalizedPhone,amount:chargeAmount,reference,
-      metadata:{source:"NEXORA_PACKAGE",userId:req.user.id,packageId:pkg.id,transactionReference:reference}
-    });
-    const data=charge.data||{};
-    await prisma.transaction.update({where:{reference},data:{metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:String(data.status||"pending").toLowerCase(),reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt:new Date().toISOString()},diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}}});
-
-    if(!charge.ok){
-      await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference,paystack_message:charge.data?.message||null});
-    }
-
-    if(String(data.status||"").toLowerCase()==="success") await finalizeSuccessfulPaystack(reference,data);
-    const tx=await prisma.transaction.findUnique({where:{reference}});
-    const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.json({reference,status,display_text:data.display_text||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":"Paystack STK prompt sent. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",chargeAmount});
-  }catch(e){
-    console.error("[PAYSTACK STK INIT EXCEPTION]",e);
-    res.status(500).json({message:e.message||"Payment initialization failed"});
-  }
+  // STK Push disabled — members pay via Co-op Bank Lipa na M-Pesa Paybill only
+  return res.status(410).json({
+    message:"STK Push is not used on NEXORA. Open the payment window and pay via Lipa na M-Pesa → Paybill (Co-op Bank).",
+    provider:"coopbank_paybill",
+    usePaybill:true
+  });
 });
 
 // Purchase / upgrade a package using wallet balance (no M-Pesa)
@@ -807,7 +776,7 @@ app.post("/api/payments/paybill/submit-code",auth,async(req,res)=>{
 });
 
 // Admin: list Paybill payments awaiting verification
-app.get("/api/admin/payments/pending-paybill",adminAuth,async(req,res)=>{
+app.get("/api/admin/payments/pending-paybill",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const rows=await prisma.transaction.findMany({
       where:{type:"PACKAGE_PURCHASE",status:"PENDING"},
@@ -836,7 +805,7 @@ app.get("/api/admin/payments/pending-paybill",adminAuth,async(req,res)=>{
 });
 
 // Admin verifies paybill payment: checks claimed amount matches, then activates package
-app.post("/api/admin/payments/verify-paybill",adminAuth,async(req,res)=>{
+app.post("/api/admin/payments/verify-paybill",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const reference=String(req.body?.reference||"").trim();
     const action=String(req.body?.action||"approve").toLowerCase();
@@ -872,6 +841,7 @@ app.post("/api/admin/payments/verify-paybill",adminAuth,async(req,res)=>{
       data:{metadata:{...(tx.metadata||{}),verified:true,verifiedAt:new Date().toISOString(),verifiedBy:req.admin.email,adminNote:note||null,confirmedAmount:confirmedAmount??expected}}
     });
     await activatePaidPackage(reference);
+    await createUserNotification(tx.userId,{title:"Payment verified and plan activated",message:`Your M-Pesa Paybill payment of KSh ${expected.toLocaleString()} was verified by an administrator. Your ${tx.metadata?.packageId?"membership plan":"account"} has been updated.`,type:"PAYMENT",details:{reference,amount:expected,method:"PAYBILL"}});
     await logAdminAction(req,"PAYBILL_PAYMENT_APPROVED","TRANSACTION",tx.id,tx.user?.email,{reference,amount:expected,mpesaCode:tx.metadata?.mpesaCode});
     res.json({status:"success",message:`Payment verified. Package activated for ${tx.user?.email||"member"}.`});
   }catch(e){
@@ -938,10 +908,47 @@ app.post("/api/admin/auth/login", rateLimit({windowMs:15*60*1000,max:20}), async
     const password=String(req.body?.password||"");
     const admin=await prisma.admin.findUnique({where:{email}});
     if(!admin || admin.status!=="ACTIVE" || !(await bcrypt.compare(password,admin.passwordHash))) return res.status(401).json({message:"Invalid admin login details"});
-    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email}});
+    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role}});
   }catch(e){console.error("Admin login error:",e);res.status(500).json({message:"Admin login failed"});}
 });
-app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email}}));
+app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email,role:req.admin.role}}));
+// -------------------- ADMIN MANAGEMENT --------------------
+app.get("/api/admin/admins",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
+  try{const rows=await prisma.admin.findMany({select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true},orderBy:{createdAt:"desc"}});res.json(rows);}
+  catch(e){console.error("Admin list error:",e);res.status(500).json({message:"Unable to load administrator accounts"});}
+});
+app.post("/api/admin/admins",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
+  try{
+    const name=String(req.body?.name||"").trim(); const email=String(req.body?.email||"").trim().toLowerCase(); const password=String(req.body?.password||""); const role=String(req.body?.role||"ADMIN").toUpperCase();
+    if(!name) return res.status(400).json({message:"Administrator name is required"});
+    if(!email || !email.includes("@")) return res.status(400).json({message:"Enter a valid administrator email"});
+    if(password.length<10) return res.status(400).json({message:"Password must be at least 10 characters"});
+    if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"].includes(role)) return res.status(400).json({message:"Invalid administrator role"});
+    const passwordHash=await bcrypt.hash(password,12);
+    const a=await prisma.admin.create({data:{name,email,passwordHash,role,status:"ACTIVE"},select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true}});
+    await logAdminAction(req,"ADMIN_CREATED","ADMIN",a.id,a.email,{role:a.role});
+    res.status(201).json(a);
+  }catch(e){if(e.code==="P2002")return res.status(409).json({message:"An administrator with that email already exists"});console.error("Admin create error:",e);res.status(500).json({message:"Unable to create administrator"});}
+});
+app.patch("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
+  try{
+    const current=await prisma.admin.findUnique({where:{id:req.params.id}}); if(!current)return res.status(404).json({message:"Administrator not found"});
+    const data={};
+    if(req.body?.name!==undefined){const name=String(req.body.name).trim();if(!name)return res.status(400).json({message:"Name cannot be empty"});data.name=name;}
+    if(req.body?.role!==undefined){const role=String(req.body.role).toUpperCase();if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"].includes(role))return res.status(400).json({message:"Invalid administrator role"});data.role=role;}
+    if(req.body?.status!==undefined){const status=String(req.body.status).toUpperCase();if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid administrator status"});if(current.id===req.admin.id&&status==="SUSPENDED")return res.status(400).json({message:"You cannot suspend your own administrator account"});data.status=status;}
+    if(req.body?.password!==undefined){const password=String(req.body.password);if(password.length<10)return res.status(400).json({message:"Password must be at least 10 characters"});data.passwordHash=await bcrypt.hash(password,12);}
+    if(current.id===req.admin.id && data.role && data.role!=="SUPER_ADMIN") return res.status(400).json({message:"You cannot remove your own Super Admin role"});
+    const a=await prisma.admin.update({where:{id:current.id},data,select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true}});
+    await logAdminAction(req,"ADMIN_UPDATED","ADMIN",a.id,a.email,{changes:Object.keys(data).filter(k=>k!=="passwordHash"),passwordChanged:Boolean(data.passwordHash)});
+    res.json(a);
+  }catch(e){console.error("Admin update error:",e);res.status(500).json({message:"Unable to update administrator"});}
+});
+app.delete("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
+  try{if(req.params.id===req.admin.id)return res.status(400).json({message:"You cannot remove your own administrator account"});const current=await prisma.admin.findUnique({where:{id:req.params.id}});if(!current)return res.status(404).json({message:"Administrator not found"});await prisma.admin.delete({where:{id:current.id}});await logAdminAction(req,"ADMIN_REMOVED","ADMIN",current.id,current.email,{role:current.role});res.json({message:"Administrator removed"});}
+  catch(e){console.error("Admin remove error:",e);res.status(500).json({message:"Unable to remove administrator"});}
+});
+
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
   try{
     const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned]=await Promise.all([
@@ -959,14 +966,14 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
     res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured"});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
-app.get("/api/admin/users",adminAuth,async(req,res)=>{
+app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{
     const q=String(req.query.q||"").trim();
     const rows=await prisma.user.findMany({where:q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}}]}:undefined,include:{package:true,wallet:true,referredBy:{select:{name:true,email:true}}},orderBy:{createdAt:"desc"},take:200});
     res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
-app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
+app.post("/api/admin/users/balance",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{
     const email=String(req.body?.email||"").trim().toLowerCase();
     const mode=String(req.body?.mode||"add").toLowerCase();
@@ -1004,11 +1011,11 @@ app.post("/api/admin/users/balance",adminAuth,async(req,res)=>{
     res.status(500).json({message:"Unable to update member balance"});
   }
 });
-app.patch("/api/admin/users/:id/status",adminAuth,async(req,res)=>{
+app.patch("/api/admin/users/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});await createUserNotification(u.id,{title:status==="ACTIVE"?"Your account was reactivated":"Your account was suspended",message:status==="ACTIVE"?"An administrator reactivated your NEXORA account. You can continue using the platform.":"An administrator suspended your NEXORA account. Please contact support if you need clarification.",type:"ACCOUNT",details:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to update user"});}
 });
-app.patch("/api/admin/users/:id/plan",adminAuth,async(req,res)=>{
+app.patch("/api/admin/users/:id/plan",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{
     const action=String(req.body?.action||"").toUpperCase();
     if(!["SUSPEND","REACTIVATE","DEACTIVATE","REMOVE"].includes(action)) return res.status(400).json({message:"Invalid plan action"});
@@ -1029,13 +1036,13 @@ app.patch("/api/admin/users/:id/plan",adminAuth,async(req,res)=>{
     res.json({message:`${previousPackage?.name||"Plan"} ${action.toLowerCase()}d for ${current.email}`,user:{id:updated.id,package:updated.package,planStatus:updated.planStatus},previousPackage:previousPackage?{id:previousPackage.id,name:previousPackage.name}:null});
   }catch(e){console.error("Admin user plan action error:",e);res.status(500).json({message:"Unable to update the member plan"});}
 });
-app.get("/api/admin/transactions",adminAuth,async(req,res)=>{
+app.get("/api/admin/transactions",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.transaction.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
 });
-app.get("/api/admin/withdrawals",adminAuth,async(req,res)=>{
+app.get("/api/admin/withdrawals",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
 });
-app.patch("/api/admin/withdrawals/:id/status",adminAuth,async(req,res)=>{
+app.patch("/api/admin/withdrawals/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const status=req.body?.status;
     if(!["PENDING","PROCESSING","PAID","FAILED"].includes(status))return res.status(400).json({message:"Invalid withdrawal status"});
@@ -1059,11 +1066,11 @@ app.patch("/api/admin/withdrawals/:id/status",adminAuth,async(req,res)=>{
     res.json({message:"Withdrawal status updated"});
   }catch(e){console.error("Admin withdrawal status error:",e);res.status(500).json({message:"Unable to update withdrawal"});}
 });
-app.get("/api/admin/packages",adminAuth,async(req,res)=>{try{res.json(await prisma.package.findMany({include:{_count:{select:{users:true}}},orderBy:{tier:"asc"}}));}catch(e){res.status(500).json({message:"Unable to load packages"});}});
-app.patch("/api/admin/packages/:id",adminAuth,async(req,res)=>{
+app.get("/api/admin/packages",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{res.json(await prisma.package.findMany({include:{_count:{select:{users:true}}},orderBy:{tier:"asc"}}));}catch(e){res.status(500).json({message:"Unable to load packages"});}});
+app.patch("/api/admin/packages/:id",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),active=Boolean(req.body?.active),description=String(req.body?.description||""),badge=String(req.body?.badge||""),popular=Boolean(req.body?.popular),withdrawalLimit=Number(req.body?.withdrawalLimit||0),features=Array.isArray(req.body?.features)?req.body.features.map(x=>String(x).trim()).filter(Boolean):[];if(!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0||!Number.isInteger(withdrawalLimit)||withdrawalLimit<0)return res.status(400).json({message:"Package values must be whole non-negative amounts"});const p=await prisma.package.update({where:{id:req.params.id},data:{price,directCommission,level2Commission,active,description,badge,popular,withdrawalLimit,features}});await logAdminAction(req,"PACKAGE_UPDATED","PACKAGE",p.id,null,{name:p.name,price,directCommission,level2Commission,active,description,badge,popular,withdrawalLimit,features});res.json(p);}catch(e){console.error(e);res.status(500).json({message:"Unable to update package"});}
 });
-app.post("/api/admin/packages",adminAuth,async(req,res)=>{
+app.post("/api/admin/packages",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{const name=String(req.body?.name||"").trim();const price=Number(req.body?.price),directCommission=Number(req.body?.directCommission),level2Commission=Number(req.body?.level2Commission),description=String(req.body?.description||""),badge=String(req.body?.badge||""),popular=Boolean(req.body?.popular),withdrawalLimit=Number(req.body?.withdrawalLimit||0),features=Array.isArray(req.body?.features)?req.body.features.map(x=>String(x).trim()).filter(Boolean):[];if(!name||!Number.isInteger(price)||price<0||!Number.isInteger(directCommission)||directCommission<0||!Number.isInteger(level2Commission)||level2Commission<0||!Number.isInteger(withdrawalLimit)||withdrawalLimit<0)return res.status(400).json({message:"Enter valid package values"});const maxTier=await prisma.package.aggregate({_max:{tier:true}}); const tier=Number(maxTier._max.tier||0)+1; const p=await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true,description,badge,popular,withdrawalLimit,features}});await logAdminAction(req,"PACKAGE_CREATED","PACKAGE",p.id,null,{name,price,directCommission,level2Commission,description,badge,popular,withdrawalLimit,features});res.status(201).json(p);}catch(e){console.error(e);res.status(500).json({message:e.code==="P2002"?"A package with that name already exists":"Unable to create package"});}
 });
 
@@ -1077,7 +1084,7 @@ app.get("/api/admin/users/:id/details",adminAuth,async(req,res)=>{
 });
 
 // Admin payment repair: verifies a Paystack charge reference before activating the package.
-app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
+app.post("/api/admin/payments/repair",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack is not configured"});
     const email=String(req.body?.email||"").trim().toLowerCase();
@@ -1101,10 +1108,10 @@ app.post("/api/admin/payments/repair",adminAuth,async(req,res)=>{
 });
 
 
-app.get("/api/admin/support/tickets",adminAuth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
-app.patch("/api/admin/support/tickets/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});if(response)await createUserNotification(t.userId,{title:"Support ticket updated",message:`An administrator replied to your support ticket: ${t.subject}`,type:"SUPPORT",details:{ticketId:t.id,status}});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
+app.get("/api/admin/support/tickets",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({include:{user:{select:{id:true,name:true,email:true}}},orderBy:{createdAt:"desc"},take:300}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
+app.patch("/api/admin/support/tickets/:id",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{const status=String(req.body?.status||"OPEN").toUpperCase();const response=String(req.body?.response||"").trim().slice(0,3000);if(!["OPEN","IN_PROGRESS","CLOSED"].includes(status))return res.status(400).json({message:"Invalid ticket status"});const t=await prisma.supportTicket.update({where:{id:req.params.id},data:{status,response:response||null}});await logAdminAction(req,"SUPPORT_TICKET_UPDATED","SUPPORT_TICKET",t.id,null,{status,hasResponse:Boolean(response)});if(response)await createUserNotification(t.userId,{title:"Support ticket updated",message:`An administrator replied to your support ticket: ${t.subject}`,type:"SUPPORT",details:{ticketId:t.id,status}});res.json(t);}catch(e){console.error(e);res.status(500).json({message:"Unable to update support ticket"});}});
 
-app.get("/api/admin/activity",adminAuth,async(req,res)=>{
+app.get("/api/admin/activity",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{const rows=await prisma.adminActivityLog.findMany({orderBy:{createdAt:"desc"},take:500});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load admin activity"});}
 });
 
@@ -1128,7 +1135,7 @@ app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
 
 
 app.get("/api/announcements",async(req,res)=>{try{res.json(await prisma.announcement.findMany({where:{active:true},orderBy:{createdAt:"desc"},take:30}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load announcements"});}});
-app.get("/api/admin/announcements",adminAuth,async(req,res)=>{try{res.json(await prisma.announcement.findMany({orderBy:{createdAt:"desc"},take:100}));}catch(e){res.status(500).json({message:"Unable to load announcements"});}});
+app.get("/api/admin/announcements",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{res.json(await prisma.announcement.findMany({orderBy:{createdAt:"desc"},take:100}));}catch(e){res.status(500).json({message:"Unable to load announcements"});}});
 app.post("/api/admin/announcements",adminAuth,async(req,res)=>{try{const title=String(req.body?.title||"").trim().slice(0,120),body=String(req.body?.body||"").trim().slice(0,3000),category=String(req.body?.category||"UPDATE").trim().slice(0,30).toUpperCase();if(!title||!body)return res.status(400).json({message:"Title and body are required"});const a=await prisma.announcement.create({data:{title,body,category,active:req.body?.active!==false}});await logAdminAction(req,"ANNOUNCEMENT_CREATED","ANNOUNCEMENT",a.id,null,{title,category});res.status(201).json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to create announcement"});}});
 app.patch("/api/admin/announcements/:id",adminAuth,async(req,res)=>{try{const data={};if(req.body?.title!==undefined)data.title=String(req.body.title).trim().slice(0,120);if(req.body?.body!==undefined)data.body=String(req.body.body).trim().slice(0,3000);if(req.body?.category!==undefined)data.category=String(req.body.category).trim().slice(0,30).toUpperCase();if(req.body?.active!==undefined)data.active=Boolean(req.body.active);const a=await prisma.announcement.update({where:{id:req.params.id},data});await logAdminAction(req,"ANNOUNCEMENT_UPDATED","ANNOUNCEMENT",a.id,null,{active:a.active});res.json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to update announcement"});}});
 
@@ -1181,6 +1188,7 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
 
 // Wallet deposits via Paystack M-Pesa STK Push.
 app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
+  return res.status(410).json({message:"STK deposit is disabled. Use Wallet → Deposit via Co-op Bank Lipa na M-Pesa Paybill.",provider:"coopbank_paybill",usePaybill:true});
   const startedAt=Date.now();
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
@@ -1208,6 +1216,53 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
   }catch(e){console.error("[PAYSTACK WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
 });
 
+
+// Wallet deposits via Co-operative Bank Paybill (manual confirmation-code verification).
+app.post("/api/wallet/deposit/paybill/initiate",auth,async(req,res)=>{
+  try{
+    if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"Co-op Bank Paybill is not fully configured. Set MPESA_PAYBILL_ACCOUNT in the server environment."});
+    const amount=Number(req.body?.amount);
+    if(!Number.isInteger(amount)||amount<100)return res.status(400).json({message:"Minimum deposit is KSh 100"});
+    const reference=`NX-PAYBILL-DEP-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    await prisma.transaction.create({data:{userId:req.user.id,type:"DEPOSIT",amount,reference,status:"PENDING",metadata:{method:"PAYBILL",paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,mpesaCode:null,awaitingVerification:false}}});
+    res.status(201).json({reference,status:"pending",amount,paybillNumber:MPESA_PAYBILL_NUMBER,paybillAccount:MPESA_PAYBILL_ACCOUNT,paybillName:MPESA_PAYBILL_NAME,accountReference:reference,instructions:["Open M-Pesa on your phone","Choose Lipa na M-Pesa → Paybill",`Enter Paybill number: ${MPESA_PAYBILL_NUMBER}`,`Enter account number: ${MPESA_PAYBILL_ACCOUNT}`,`Enter amount: KSh ${amount.toLocaleString()}`,"Complete payment with your M-Pesa PIN","Copy the M-Pesa confirmation code and submit it below"],message:"Pay the exact amount to the Co-op Paybill, then submit your M-Pesa confirmation code. An administrator will verify the payment before your wallet is credited."});
+  }catch(e){console.error("[PAYBILL WALLET INITIATE]",e);res.status(500).json({message:"Unable to start Paybill wallet deposit"});}
+});
+
+app.post("/api/wallet/deposit/paybill/submit-code",auth,async(req,res)=>{
+  try{
+    const reference=String(req.body?.reference||"").trim();
+    const mpesaCode=String(req.body?.mpesaCode||"").trim().toUpperCase().replace(/\s+/g,"");
+    if(!reference||!mpesaCode)return res.status(400).json({message:"Payment reference and M-Pesa confirmation code are required"});
+    if(mpesaCode.length<8||mpesaCode.length>15)return res.status(400).json({message:"Enter a valid M-Pesa confirmation code"});
+    const tx=await prisma.transaction.findUnique({where:{reference}});
+    if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT")return res.status(404).json({message:"Deposit not found"});
+    if(tx.status==="SUCCESS")return res.json({status:"success",message:"This deposit is already confirmed and your wallet has been credited."});
+    if(tx.status==="FAILED")return res.status(400).json({message:"This deposit was rejected. Start a new deposit."});
+    const recent=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:{in:["SUCCESS","PENDING"]},createdAt:{gte:new Date(Date.now()-30*24*60*60*1000)}},select:{reference:true,metadata:true},take:500});
+    const duplicate=recent.some(t=>t.reference!==reference&&String(t.metadata?.mpesaCode||"").toUpperCase()===mpesaCode);
+    if(duplicate)return res.status(409).json({message:"This M-Pesa confirmation code was already used on another deposit."});
+    await prisma.transaction.update({where:{id:tx.id},data:{metadata:{...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true}}});
+    res.json({status:"pending_verification",reference,message:"M-Pesa code received. An administrator will verify the amount and confirmation before your wallet is credited."});
+  }catch(e){console.error("[PAYBILL WALLET SUBMIT CODE]",e);res.status(500).json({message:"Unable to submit M-Pesa code"});}
+});
+
+app.get("/api/payments/paybill/status/:reference",auth,async(req,res)=>{
+  try{
+    const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
+    if(!tx||tx.userId!==req.user.id||tx.type!=="PACKAGE_PURCHASE")return res.status(404).json({message:"Payment reference not found"});
+    res.json({status:tx.status.toLowerCase(),reference:tx.reference,message:tx.status==="SUCCESS"?"Payment verified and your plan is active.":tx.status==="FAILED"?String(tx.metadata?.rejectNote||"Payment was rejected."):tx.metadata?.awaitingVerification?"Payment is awaiting administrator verification.":"Complete the M-Pesa payment and submit the confirmation code."});
+  }catch(e){console.error("[PAYBILL STATUS]",e);res.status(500).json({message:"Unable to check Paybill payment status"});}
+});
+
+app.get("/api/wallet/deposit/paybill/status/:reference",auth,async(req,res)=>{
+  try{
+    const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
+    if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT")return res.status(404).json({message:"Deposit not found"});
+    res.json({status:tx.status.toLowerCase(),reference:tx.reference,message:tx.status==="SUCCESS"?"Deposit verified and your wallet has been credited.":tx.status==="FAILED"?String(tx.metadata?.rejectNote||"Deposit was rejected."):tx.metadata?.awaitingVerification?"Deposit is awaiting administrator verification.":"Complete the M-Pesa payment and submit the confirmation code."});
+  }catch(e){console.error("[PAYBILL WALLET STATUS]",e);res.status(500).json({message:"Unable to check Paybill deposit status"});}
+});
+
 app.get("/api/wallet/deposit/status/:reference",auth,async(req,res)=>{
   try{
     const reference=String(req.params.reference||"").trim();
@@ -1218,7 +1273,7 @@ app.get("/api/wallet/deposit/status/:reference",auth,async(req,res)=>{
   }catch(e){console.error("[PAYSTACK WALLET STATUS]",e);res.status(500).json({message:e.message||"Unable to check deposit status"});}
 });
 
-app.get("/api/admin/wallet/deposits",adminAuth,async(req,res)=>{
+app.get("/api/admin/wallet/deposits",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const rows=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:"PENDING"},orderBy:{createdAt:"desc"},take:200,include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
     res.json(rows.map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,paybillNumber:x.metadata?.paybillNumber||MPESA_PAYBILL_NUMBER,paybillAccount:x.metadata?.paybillAccount||MPESA_PAYBILL_ACCOUNT})));
