@@ -1204,6 +1204,7 @@ function App(){
   setReceipt({reference:d.reference,package:p,amount:Number(d.chargeAmount||0),method:"Wallet Balance",status:"PAID",previousBalance:Number(me?.wallet?.balance||0),remainingBalance:Number(d.wallet?.balance||0),createdAt:new Date().toISOString()});
   setMsg(d.message||"Plan activated using your wallet balance.");
  };
+ const hasPackage=Boolean(me?.package);
  const flashCopied=(kind,msg)=>{
   setError("");
   setCopiedKind(kind);
