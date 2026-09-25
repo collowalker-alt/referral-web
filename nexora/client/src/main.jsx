@@ -702,6 +702,12 @@ function AdminPlanModal({user,onClose,action}){
  const [confirm,setConfirm]=useState(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
+ useEffect(()=>{
+  if(!user)return;
+  const previousOverflow=document.body.style.overflow;
+  document.body.style.overflow="hidden";
+  return()=>{document.body.style.overflow=previousOverflow};
+ },[user]);
  if(!user) return null;
  const planName=user.package?.name||"Current plan";
  const planPrice=money(user.package?.price||0);
@@ -725,7 +731,7 @@ function AdminPlanModal({user,onClose,action}){
    }catch(e){setError(e.message||"Unable to update this plan.");}
    finally{setBusy(false);}
  };
- return <div className="modalbackdrop" onClick={()=>{if(!busy)onClose()}}>
+ return createPortal(<div className="modalbackdrop adminplanmodalbackdrop" onClick={()=>{if(!busy)onClose()}}>
    <div className="modal adminbalance adminplanmodal" onClick={e=>e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Manage member plan">
     <div className="modalhead"><div><span className="pill">PLAN CONTROL</span><h2>Manage member plan</h2><p className="muted">{user.name} · {user.email}</p></div><button className="iconbtn" disabled={busy} onClick={onClose}><X size={20}/></button></div>
     {error&&<div className="error" role="alert">{error}</div>}
@@ -748,7 +754,7 @@ function AdminPlanModal({user,onClose,action}){
       </div>}
     </div>
    </div>
- </div>;
+ </div>, document.body);
 }
 
 function AdminUsers({rows,search,setSearch,action}){
