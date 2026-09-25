@@ -1791,7 +1791,7 @@ function PaymentModal({payment,onClose,onReceipt,onSuccess}){
             spellCheck={false}
           />
          </label>
-         <p className="paybill-pin-hint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Never share your M-Pesa PIN. <span className="muted small code-hint">From the M-Pesa SMS after paying exactly {money(amount)}.</p>
+         <p className="paybill-pin-hint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Never share your M-Pesa PIN. <span className="muted small code-hint">From the M-Pesa SMS after paying exactly {money(amount)}.</span></p>
          {msg&&<div className="notice">{msg}</div>}
          <button type="submit" className="primary paybill-submit" disabled={busy}>{busy?"Submitting…":"Submit confirmation code"}</button>
         </form>
@@ -1925,7 +1925,6 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
       <div className="panel"><h3>Level 2 referrals</h3>{data.level2.length?data.level2.map(x=><div className="row simple" key={x.id}><div><b>{x.name}</b><small>{x.email}</small></div><span>{x.package?.name||"No plan"}</span></div>):<p className="muted">No Level 2 referrals yet.</p>}</div>
     </div>
     <div className="panel"><h3>Recent commissions</h3>{earnings.length?earnings.map(x=><div className="row simple" key={x.id}><div><b>{x.level===1?"Direct":"Level 2"} referral</b><small>{x.sourceUser?.name||"Member"}</small></div><strong className="green">+{money(x.amount)}</strong></div>):<div className="smartempty"><p className="muted">No commissions yet.</p>{!hasPackage&&<button type="button" className="secondary narrow" onClick={()=>setTab("plans")}>Purchase a plan to earn</button>}</div>}</div>
-  </>
  </section></div>}
 
 function Card({title,value}){return <div className="stat"><span>{title}</span><strong>{value}</strong><ArrowUpRight size={18}/></div>}
