@@ -4879,3 +4879,23 @@ html.nexora-light aside button.active{background:#ecfdf5;color:#0f766e}
   .home-hero-side{grid-template-columns:1fr !important}
   .dashboardquick-grid{grid-template-columns:repeat(4,1fr) !important}
 }
+
+/* NEXORA Africa country/payment readiness */
+.auth-country-card{margin:14px 0 16px;padding:12px;border:1px solid var(--line,#e5e7eb);border-radius:16px;background:var(--panel,#fff)}
+.auth-country-card .fieldlabel{margin:0}
+.auth-country-card select{width:100%;margin-top:7px}
+.country-payment-note{display:flex;gap:7px;flex-direction:column;margin-top:9px;padding:9px 11px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.18);font-size:12px}
+.country-payment-note.active{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.18)}
+.country-payment-note span{font-weight:800}
+.country-payment-note small{color:var(--muted,#64748b);line-height:1.4}
+.comingsoonmodal{max-width:460px}
+.comingsoonbody{text-align:center;padding:28px 24px 22px}
+.comingsoonicon{width:58px;height:58px;margin:0 auto 14px;border-radius:18px;display:grid;place-items:center;background:rgba(59,130,246,.1);color:#2563eb}
+.comingsoonbody h3{margin:0 0 8px}
+.comingsoonbody p{max-width:380px;margin-left:auto;margin-right:auto}
+.comingsoon-note{display:flex;gap:10px;text-align:left;margin:18px 0 8px;padding:12px;border-radius:14px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.16)}
+.comingsoon-note>svg{flex:0 0 auto;margin-top:1px}
+.comingsoon-note div{display:grid;gap:3px}
+.comingsoon-note span{font-size:12px;color:var(--muted,#64748b);line-height:1.4}
+.comingsoon-inline{border:1px solid rgba(59,130,246,.18);background:linear-gradient(180deg,rgba(59,130,246,.055),transparent)}
+.comingsoon-inline .pill{margin-bottom:8px}

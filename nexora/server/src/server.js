@@ -230,7 +230,13 @@ async function logAdminAction(req, action, targetType=null, targetId=null, targe
   }catch(e){ console.error("[ADMIN AUDIT]",e.message); }
 }
 
-const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
+const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/; 
+const normalizeCountry=code=>String(code||"KE").toUpperCase();
+const validRegistrationPhone=(v,country="KE")=>{
+  const n=cleanPhone(v);
+  if(country==="KE") return PHONE_RE.test(n);
+  return /^\d{9,15}$/.test(n);
+};
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
 const paystackPhone=v=>{
@@ -295,7 +301,8 @@ app.get("/api/payments/methods",(req,res)=>{
 
 app.post("/api/auth/register", registerLimiter, async (req,res)=>{
   try {
-    const {name,email,phone,password,referralCode,website}=req.body;
+    const {name,email,phone,password,referralCode,website,country}=req.body;
+     const selectedCountry=normalizeCountry(country);
     // Honeypot — bots often fill hidden fields
     if(website) return res.status(201).json({token:"",user:null,ok:true});
     const normalizedPhone=cleanPhone(phone);
@@ -303,7 +310,7 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
     if(!name||!normalizedEmail||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
     if(!EMAIL_RE.test(normalizedEmail)) return res.status(400).json({message:"Enter a valid email address"});
     if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
-    if(!PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
+    if(!validRegistrationPhone(normalizedPhone,selectedCountry)) return res.status(400).json({message:selectedCountry==="KE"?"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541….":"Enter a valid mobile number for the selected country."});
     const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
