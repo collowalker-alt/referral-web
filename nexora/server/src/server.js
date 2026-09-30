@@ -57,7 +57,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const AFRICAN_COUNTRIES = [
-  {code:"KE",name:"Kenya",dial:"254",payment:"COOP_PAYBILL"},{code:"GH",name:"Ghana",dial:"233",payment:"PAYSTACK_MOBILE_MONEY"},{code:"CI",name:"Côte d’Ivoire",dial:"225",payment:"PAYSTACK_MOBILE_MONEY"},{code:"NG",name:"Nigeria",dial:"234",payment:"COMING_SOON"},{code:"ZA",name:"South Africa",dial:"27",payment:"COMING_SOON"},{code:"EG",name:"Egypt",dial:"20",payment:"COMING_SOON"},{code:"RW",name:"Rwanda",dial:"250",payment:"COMING_SOON"},{code:"TZ",name:"Tanzania",dial:"255",payment:"COMING_SOON"},{code:"UG",name:"Uganda",dial:"256",payment:"COMING_SOON"},{code:"ZM",name:"Zambia",dial:"260",payment:"COMING_SOON"},{code:"BW",name:"Botswana",dial:"267",payment:"COMING_SOON"},{code:"MZ",name:"Mozambique",dial:"258",payment:"COMING_SOON"},{code:"ZW",name:"Zimbabwe",dial:"263",payment:"COMING_SOON"},{code:"SN",name:"Senegal",dial:"221",payment:"COMING_SOON"},{code:"CM",name:"Cameroon",dial:"237",payment:"COMING_SOON"},{code:"ET",name:"Ethiopia",dial:"251",payment:"COMING_SOON"},{code:"MA",name:"Morocco",dial:"212",payment:"COMING_SOON"},{code:"TN",name:"Tunisia",dial:"216",payment:"COMING_SOON"},{code:"MU",name:"Mauritius",dial:"230",payment:"COMING_SOON"}
+  {code:"KE",name:"Kenya",dial:"254",payment:"COOP_PAYBILL"},{code:"GH",name:"Ghana",dial:"233",payment:"COMING_SOON"},{code:"CI",name:"Côte d’Ivoire",dial:"225",payment:"COMING_SOON"},{code:"NG",name:"Nigeria",dial:"234",payment:"COMING_SOON"},{code:"ZA",name:"South Africa",dial:"27",payment:"COMING_SOON"},{code:"EG",name:"Egypt",dial:"20",payment:"COMING_SOON"},{code:"RW",name:"Rwanda",dial:"250",payment:"COMING_SOON"},{code:"TZ",name:"Tanzania",dial:"255",payment:"COMING_SOON"},{code:"UG",name:"Uganda",dial:"256",payment:"COMING_SOON"},{code:"ZM",name:"Zambia",dial:"260",payment:"COMING_SOON"},{code:"BW",name:"Botswana",dial:"267",payment:"COMING_SOON"},{code:"MZ",name:"Mozambique",dial:"258",payment:"COMING_SOON"},{code:"ZW",name:"Zimbabwe",dial:"263",payment:"COMING_SOON"},{code:"SN",name:"Senegal",dial:"221",payment:"COMING_SOON"},{code:"CM",name:"Cameroon",dial:"237",payment:"COMING_SOON"},{code:"ET",name:"Ethiopia",dial:"251",payment:"COMING_SOON"},{code:"MA",name:"Morocco",dial:"212",payment:"COMING_SOON"},{code:"TN",name:"Tunisia",dial:"216",payment:"COMING_SOON"},{code:"MU",name:"Mauritius",dial:"230",payment:"COMING_SOON"}
 ];
 const COUNTRY_BY_CODE = Object.fromEntries(AFRICAN_COUNTRIES.map(x=>[x.code,x]));
 function normalizeInternationalPhone(value){ return String(value||"").replace(/[^0-9+]/g,"").replace(/^00/,'+'); }
@@ -67,7 +67,7 @@ function detectCountryFromPhone(value){
   return AFRICAN_COUNTRIES.slice().sort((a,b)=>b.dial.length-a.dial.length).find(c=>n.startsWith(c.dial)) || null;
 }
 function countryForUser(u){ return COUNTRY_BY_CODE[u?.countryCode] || detectCountryFromPhone(u?.phone) || COUNTRY_BY_CODE.KE; }
-function paymentAvailabilityForCountry(code){ return code==='KE' ? 'COOP_PAYBILL' : (['GH','CI'].includes(code) ? 'PAYSTACK_MOBILE_MONEY' : 'COMING_SOON'); }
+function paymentAvailabilityForCountry(code){ return code==='KE' ? 'COOP_PAYBILL' : 'COMING_SOON'; }
 
 const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
 
@@ -319,6 +319,10 @@ function generateTotpSecret(){return base32Encode(crypto.randomBytes(20));}
 function totpCode(secret,at=Date.now()){const counter=Math.floor(at/1000/30);const msg=Buffer.alloc(8);msg.writeBigInt64BE(BigInt(counter));const hash=crypto.createHmac("sha1",base32Decode(secret)).update(msg).digest();const offset=hash[hash.length-1]&15;const num=((hash[offset]&127)<<24)|((hash[offset+1]&255)<<16)|((hash[offset+2]&255)<<8)|(hash[offset+3]&255);return String(num%1000000).padStart(6,"0");}
 function verifyTotp(secret,code){const c=String(code||"").replace(/\D/g,"");if(c.length!==6)return false;for(const drift of [-1,0,1])if(totpCode(secret,Date.now()+drift*30000)===c)return true;return false;}
 function adminTotpUri(admin,secret){return `otpauth://totp/NEXORA:${encodeURIComponent(admin.email)}?secret=${secret}&issuer=NEXORA&digits=6&period=30`;}
+function generateRecoveryCodes(count=10){return Array.from({length:count},()=>`${crypto.randomBytes(4).toString("hex").toUpperCase()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`);}
+function normalizeRecoveryCode(code){return String(code||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"");}
+async function hashRecoveryCodes(codes){return Promise.all(codes.map(code=>bcrypt.hash(normalizeRecoveryCode(code),12)));}
+async function consumeRecoveryCode(admin,code){const candidate=normalizeRecoveryCode(code);if(candidate.length<8||!Array.isArray(admin.recoveryCodes))return false;for(let i=0;i<admin.recoveryCodes.length;i++){const hash=admin.recoveryCodes[i];if(await bcrypt.compare(candidate,String(hash))){const remaining=admin.recoveryCodes.filter((_,idx)=>idx!==i);await prisma.admin.update({where:{id:admin.id},data:{recoveryCodes:remaining}});return true;}}return false;}
 
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
@@ -326,6 +330,24 @@ const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase(
 app.get("/", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
+
+const KES_CURRENCY_FALLBACK={KES:1,GHS:0.085,XOF:7.15,NGN:12.1,ZAR:0.125,EGP:0.39,RWF:9.8,TZS:20.3222,UGX:28.6,ZMW:0.205,BWP:0.105,MZN:0.49,ZWG:0.19,XAF:7.15,ETB:1.12,MAD:0.077,TND:0.023,MUR:0.36};
+let currencyCache={at:0,rates:KES_CURRENCY_FALLBACK};
+app.get("/api/currency/rates",async(req,res)=>{
+  const base=String(req.query?.base||"KES").toUpperCase();
+  if(base!=="KES") return res.status(400).json({message:"NEXORA currently uses KES as its accounting base currency."});
+  if(Date.now()-currencyCache.at<60*60*1000) return res.json({base:"KES",rates:currencyCache.rates,updatedAt:currencyCache.at,source:"cached"});
+  try{
+    const r=await fetch("https://open.er-api.com/v6/latest/KES",{headers:{Accept:"application/json"}});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d?.result==="success"&&d?.rates){
+      const rates={...KES_CURRENCY_FALLBACK};
+      for(const code of Object.keys(rates)){if(Number.isFinite(Number(d.rates[code])))rates[code]=Number(d.rates[code]);}
+      rates.KES=1;currencyCache={at:Date.now(),rates};
+    }
+  }catch(e){console.warn("[CURRENCY RATES] live rate fetch failed; using cached/fallback rates",e?.message||e);}
+  res.json({base:"KES",rates:currencyCache.rates,updatedAt:currencyCache.at,source:currencyCache.at?"live_or_cached":"fallback"});
+});
 
 app.get("/api/payments/methods",auth,async(req,res)=>{
   const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
@@ -992,7 +1014,7 @@ app.post("/api/admin/auth/login", adminLoginLimiter, async(req,res)=>{
     await prisma.adminActivityLog.create({data:{adminId:admin.id,adminEmail:admin.email,action:"ADMIN_LOGIN_SUCCESS",targetType:"ADMIN",targetId:admin.id,targetEmail:admin.email,details:{ip:req.ip}}}).catch(()=>{});
     if(admin.twoFactorEnabled){
       const challenge=jwt.sign({id:admin.id,type:"admin_2fa"},JWT_SECRET,{expiresIn:"5m"});
-      return res.json({requires2fa:true,challenge,admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role}});
+      return res.json({requires2fa:true,challenge,admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role},recoveryCodesAvailable:Array.isArray(admin.recoveryCodes)&&admin.recoveryCodes.length>0});
     }
     res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:Boolean(admin.twoFactorEnabled)}});
   }catch(e){console.error("Admin login error:",e);res.status(500).json({message:"Admin login failed"});}
@@ -1002,7 +1024,11 @@ app.post("/api/admin/auth/verify-2fa", adminLoginLimiter, async(req,res)=>{
     const challenge=String(req.body?.challenge||"");const code=String(req.body?.code||"");
     const p=jwt.verify(challenge,JWT_SECRET);if(p.type!=="admin_2fa")return res.status(401).json({message:"Invalid 2FA challenge"});
     const admin=await prisma.admin.findUnique({where:{id:p.id}});if(!admin||admin.status!=="ACTIVE"||!admin.twoFactorEnabled||!admin.twoFactorSecret)return res.status(401).json({message:"Administrator 2FA is unavailable"});
-    if(!verifyTotp(admin.twoFactorSecret,code))return res.status(401).json({message:"Invalid authenticator code"});
+    const recoveryAttempt=Boolean(req.body?.recoveryCode);
+    let verified=false;
+    if(recoveryAttempt) verified=await consumeRecoveryCode(admin,req.body?.recoveryCode);
+    else verified=verifyTotp(admin.twoFactorSecret,code);
+    if(!verified)return res.status(401).json({message:recoveryAttempt?"Invalid or already-used recovery code":"Invalid authenticator code"});
     await prisma.adminLoginEvent.create({data:{adminId:admin.id,email:admin.email,success:true,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(()=>{});
     res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:true}});
   }catch(e){res.status(401).json({message:"Invalid or expired 2FA challenge"});}
@@ -1011,9 +1037,10 @@ app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.
 app.post("/api/admin/auth/logout-all",adminAuth,async(req,res)=>{try{const updated=await prisma.admin.update({where:{id:req.admin.id},data:{tokenVersion:{increment:1}}});await logAdminAction(req,"ADMIN_LOGOUT_ALL_SESSIONS","ADMIN",req.admin.id,req.admin.email,{});res.json({message:"All other administrator sessions have been signed out.",token:signAdmin(updated)});}catch(e){res.status(500).json({message:"Unable to end administrator sessions"});}});
 app.get("/api/admin/system-health",adminAuth,async(req,res)=>{const started=Date.now();let db="online",dbMs=0;try{const t=Date.now();await prisma.$queryRaw`SELECT 1`;dbMs=Date.now()-t;}catch{db="offline";}res.json({ok:db==="online",version:"2.7.0",node:process.version,uptime:Math.floor(process.uptime()),database:db,databaseMs:dbMs,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paystack:paystackConfigured(),paystackMode:paystackMode(),resend:Boolean(resend),nexbot:Boolean(NEXBOT_AI_API_KEY),memoryMb:Math.round(process.memoryUsage().rss/1024/1024),responseMs:Date.now()-started,environment:process.env.NODE_ENV||"production",time:new Date().toISOString()});});
 app.get("/api/admin/login-events",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{res.json(await prisma.adminLoginEvent.findMany({orderBy:{createdAt:"desc"},take:100,select:{id:true,adminId:true,email:true,success:true,ip:true,userAgent:true,createdAt:true}}));}catch(e){res.status(500).json({message:"Unable to load login activity"});}});
-app.post("/api/admin/security/2fa/setup",adminAuth,async(req,res)=>{try{if(req.admin.twoFactorEnabled)return res.status(400).json({message:"Two-factor authentication is already enabled."});const secret=generateTotpSecret();await prisma.admin.update({where:{id:req.admin.id},data:{twoFactorSecret:secret}});res.json({secret,otpauth:adminTotpUri(req.admin,secret),message:"Scan or enter the secret in an authenticator app, then verify the code to enable 2FA."});}catch(e){res.status(500).json({message:"Unable to prepare 2FA"});}});
-app.post("/api/admin/security/2fa/verify",adminAuth,async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorSecret)return res.status(400).json({message:"Start 2FA setup first."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:true}});await logAdminAction(req,"ADMIN_2FA_ENABLED","ADMIN",a.id,a.email,{});res.json({message:"Two-factor authentication is now enabled."});}catch(e){res.status(500).json({message:"Unable to enable 2FA"});}});
-app.post("/api/admin/security/2fa/disable",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorEnabled)return res.json({message:"Two-factor authentication is already disabled."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:false,twoFactorSecret:null}});await logAdminAction(req,"ADMIN_2FA_DISABLED","ADMIN",a.id,a.email,{});res.json({message:"Two-factor authentication disabled."});}catch(e){res.status(500).json({message:"Unable to disable 2FA"});}});
+app.post("/api/admin/security/2fa/setup",adminAuth,async(req,res)=>{try{if(req.admin.twoFactorEnabled)return res.status(400).json({message:"Two-factor authentication is already enabled."});const secret=generateTotpSecret();await prisma.admin.update({where:{id:req.admin.id},data:{twoFactorSecret:secret,recoveryCodes:[]}});res.json({secret,otpauth:adminTotpUri(req.admin,secret),message:"Scan or enter the secret in an authenticator app, then verify the code to enable 2FA."});}catch(e){res.status(500).json({message:"Unable to prepare 2FA"});}});
+app.post("/api/admin/security/2fa/verify",adminAuth,async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorSecret)return res.status(400).json({message:"Start 2FA setup first."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});const recoveryCodes=generateRecoveryCodes(10);const recoveryHashes=await hashRecoveryCodes(recoveryCodes);await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:true,recoveryCodes:recoveryHashes}});await logAdminAction(req,"ADMIN_2FA_ENABLED","ADMIN",a.id,a.email,{recoveryCodesGenerated:10});res.json({message:"Two-factor authentication is now enabled. Save your recovery codes now; they are shown only once.",recoveryCodes});}catch(e){res.status(500).json({message:"Unable to enable 2FA"});}});
+app.post("/api/admin/security/2fa/recovery-codes/regenerate",adminAuth,async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorEnabled||!a?.twoFactorSecret)return res.status(400).json({message:"Enable 2FA before generating recovery codes."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});const recoveryCodes=generateRecoveryCodes(10);const recoveryHashes=await hashRecoveryCodes(recoveryCodes);await prisma.admin.update({where:{id:a.id},data:{recoveryCodes:recoveryHashes}});await logAdminAction(req,"ADMIN_2FA_RECOVERY_CODES_REGENERATED","ADMIN",a.id,a.email,{recoveryCodesGenerated:10});res.json({message:"New recovery codes generated. Previous recovery codes are no longer valid.",recoveryCodes});}catch(e){res.status(500).json({message:"Unable to regenerate recovery codes"});}});
+app.post("/api/admin/security/2fa/disable",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorEnabled)return res.json({message:"Two-factor authentication is already disabled."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:false,twoFactorSecret:null,recoveryCodes:[]}});await logAdminAction(req,"ADMIN_2FA_DISABLED","ADMIN",a.id,a.email,{});res.json({message:"Two-factor authentication disabled."});}catch(e){res.status(500).json({message:"Unable to disable 2FA"});}});
 // -------------------- ADMIN MANAGEMENT --------------------
 app.get("/api/admin/admins",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.admin.findMany({select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true},orderBy:{createdAt:"desc"}});res.json(rows);}

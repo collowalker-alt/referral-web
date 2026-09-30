@@ -183,6 +183,7 @@ model Admin {
   tokenVersion Int         @default(0)
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
+  recoveryCodes    Json?
 }
 
 
