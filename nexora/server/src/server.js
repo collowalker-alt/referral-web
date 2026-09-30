@@ -245,6 +245,22 @@ async function logAdminAction(req, action, targetType=null, targetId=null, targe
 
 const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
+function normalizePhoneForCountry(value,countryCode){
+  const country=COUNTRY_BY_CODE[countryCode];
+  if(!country) return "";
+  let raw=cleanPhone(value);
+  if(raw.startsWith(country.dial)) return raw;
+  raw=raw.replace(/^0+/,"");
+  return `${country.dial}${raw}`;
+}
+function isPlausibleNationalPhone(value,countryCode){
+  const country=COUNTRY_BY_CODE[countryCode];
+  const full=normalizePhoneForCountry(value,countryCode);
+  if(!country || !full.startsWith(country.dial)) return false;
+  const national=full.slice(country.dial.length);
+  if(countryCode==="KE") return /^(?:7|1)\d{8}$/.test(national);
+  return /^\d{6,12}$/.test(national) && full.length<=15;
+}
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
 const paystackPhone=v=>{
   const n=cleanPhone(v);
@@ -313,17 +329,16 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
     const {name,email,phone,password,referralCode,website}=req.body;
     // Honeypot — bots often fill hidden fields
     if(website) return res.status(201).json({token:"",user:null,ok:true});
-    const normalizedPhone=cleanPhone(phone);
     const normalizedEmail=String(email||"").trim().toLowerCase();
     if(!name||!normalizedEmail||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
     if(!EMAIL_RE.test(normalizedEmail)) return res.status(400).json({message:"Enter a valid email address"});
     if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
     const requestedCountry=COUNTRY_BY_CODE[String(req.body?.countryCode||"KE").toUpperCase()] || null;
-    const detectedCountry=detectCountryFromPhone(normalizedPhone);
     if(!requestedCountry) return res.status(400).json({message:"Please select a valid African country."});
-    if(requestedCountry.code!=="KE" && !detectedCountry) return res.status(400).json({message:"Enter an international phone number including the country code."});
+    const normalizedPhone=normalizePhoneForCountry(phone,requestedCountry.code);
+    if(!isPlausibleNationalPhone(phone,requestedCountry.code)) return res.status(400).json({message:`Enter a valid mobile number for ${requestedCountry.name}. Only the national digits should be entered after +${requestedCountry.dial}.`});
+    const detectedCountry=detectCountryFromPhone(normalizedPhone);
     if(detectedCountry && detectedCountry.code!==requestedCountry.code) return res.status(400).json({message:`The phone number belongs to ${detectedCountry.name}. Select ${detectedCountry.name} as the account country.`});
-    if(requestedCountry.code==="KE" && !PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
     const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;

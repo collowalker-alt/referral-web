@@ -509,6 +509,7 @@ function passwordStrength(pw){
 function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
   const [mode,setMode]=useState(onMode);
   const [f,setF]=useState({name:"",email:"",phone:"",password:"",referralCode:"",countryCode:"KE"});
+  const [nationalPhone,setNationalPhone]=useState("");
   const [confirmPassword,setConfirmPassword]=useState("");
   const [err,setErr]=useState("");
   const [busy,setBusy]=useState(false);
@@ -536,12 +537,13 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
   const passwordMatch=mode==="register"&&confirmPassword.length>0&&f.password===confirmPassword;
   const passwordMismatch=mode==="register"&&confirmPassword.length>0&&f.password!==confirmPassword;
   const strength=passwordStrength(f.password);
-  const phoneClean=cleanPhone(f.phone);
-  const phoneValid=f.phone?validPhone(f.phone):null;
+  const selectedCountry=COUNTRY_BY_CODE[f.countryCode]||COUNTRY_BY_CODE.KE;
+  const phoneClean=buildInternationalPhone(f.countryCode,nationalPhone);
+  const phoneValid=f.countryCode==="KE" ? PHONE_RE.test(phoneClean) : (/^\d{6,12}$/.test(nationalDigits(nationalPhone)) && phoneClean.length<=15);
   const canSubmit=()=>{
     if(busy) return false;
     if(mode==="login") return f.email && f.password;
-    if(mode==="register") return f.name && f.email && f.phone && f.password && confirmPassword && passwordMatch && agreed && phoneValid!==false;
+    if(mode==="register") return f.name && f.email && nationalPhone && f.password && confirmPassword && passwordMatch && agreed && phoneValid!==false;
     if(mode==="forgot") return f.email;
     if(mode==="reset") return resetToken && f.password && confirmPassword && f.password===confirmPassword;
     return false;
@@ -559,7 +561,7 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
     e.preventDefault();setErr("");setSuccessMsg("");
     if(mode==="register"){
       if(f.password!==confirmPassword) return setErr("Passwords do not match.");
-      if(!validPhone(f.phone)) return setErr("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541….");
+      if(!phoneValid) return setErr(`Enter a valid ${selectedCountry.name.replace(/^\S+\s/,"")} mobile number after the +${selectedCountry.dial} country code.`);
       if(!agreed) return setErr("Please accept the Terms, Privacy Policy and Membership Rules.");
       if(f.password.length<8 || !/[A-Za-z]/.test(f.password) || !/\d/.test(f.password)) return setErr("Password must be at least 8 characters and include a letter and a number.");
     }
@@ -570,7 +572,7 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
     setBusy(true);
     try{
       if(mode==="login"||mode==="register"){
-        const body={...f,phone:mode==="register"?cleanPhone(f.phone):f.phone,referralCode:(f.referralCode||ref||"").toUpperCase(),website:""};
+        const body={...f,phone:mode==="register"?phoneClean:f.phone,referralCode:(f.referralCode||ref||"").toUpperCase(),website:""};
         const d=await api(`/auth/${mode==="login"?"login":"register"}`,{method:"POST",body:JSON.stringify(body)});
         if(mode==="register"){
           setSuccessMsg("Account created successfully. Opening your workspace…");
@@ -619,14 +621,18 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
             <input required autoComplete="name" value={f.name} onChange={e=>setField("name",e.target.value)} placeholder="Your full name"/>
           </label>
           <label className="fieldlabel">Country
-            <select required value={f.countryCode} onChange={e=>{setField("countryCode",e.target.value);setField("phone","")}}>{AFRICAN_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name}</option>)}</select>
-            <span className="fieldhint">Your country is matched against your phone country code for payment routing.</span>
+            <select required value={f.countryCode} onChange={e=>{setField("countryCode",e.target.value);setNationalPhone("")}}>{AFRICAN_COUNTRIES.map(c=><option key={c.code} value={c.code}>{c.name} (+{c.dial})</option>)}</select>
+            <span className="fieldhint">Your country sets the phone prefix automatically and determines available payment methods.</span>
           </label>
-          <label className="fieldlabel">Phone
-            <input required inputMode="tel" maxLength={16} autoComplete="tel" value={f.phone} onChange={e=>setField("phone",e.target.value)} placeholder={f.countryCode==="KE"?"07…, 01…, 2547… or 2541…":"Include country code, e.g. +233…"}/>
-            {f.phone&&detectCountryFromPhoneClient(f.phone)?.code===f.countryCode&&<span className="fieldhint ok">✓ Number matches {COUNTRY_BY_CODE[f.countryCode]?.name.replace(/^\S+\s/,'')}</span>}
-            {f.phone&&detectCountryFromPhoneClient(f.phone)&&detectCountryFromPhoneClient(f.phone)?.code!==f.countryCode&&<span className="fieldhint bad">This number appears to belong to {detectCountryFromPhoneClient(f.phone)?.name}.</span>}
-            {!f.phone&&<span className="fieldhint">Kenya uses Co-op Paybill now. Other countries will see payment methods coming soon.</span>}
+          <label className="fieldlabel">Mobile number
+            <div className="phonecountryfield">
+              <span className="phoneprefix" aria-label={`Country code +${selectedCountry.dial}`}>+{selectedCountry.dial}</span>
+              <input required inputMode="numeric" maxLength={12} autoComplete="tel-national" value={nationalPhone} onChange={e=>setNationalPhone(e.target.value.replace(/\D/g,"").replace(/^0+/,""))} placeholder={f.countryCode==="KE"?"712345678":"Enter your number"}/>
+            </div>
+            <span className="fieldhint">Enter only the digits after <b>+{selectedCountry.dial}</b>. The country code is added automatically.</span>
+            {nationalPhone&&phoneValid&&<span className="fieldhint ok">✓ {selectedCountry.name.replace(/^\S+\s/,'')} number: +{selectedCountry.dial}{nationalDigits(nationalPhone)}</span>}
+            {nationalPhone&&!phoneValid&&<span className="fieldhint bad">Check the number of digits for this country's mobile format.</span>}
+            {!nationalPhone&&<span className="fieldhint">Kenya uses Co-op Paybill now. Other countries will see payment methods coming soon.</span>}
           </label>
         </>}
         {(mode==="login"||mode==="register"||mode==="forgot")&&(
