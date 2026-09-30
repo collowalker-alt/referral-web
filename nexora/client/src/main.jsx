@@ -13,6 +13,16 @@ const AFRICAN_COUNTRIES=[{code:"KE",name:"🇰🇪 Kenya",dial:"254",payment:"CO
 const COUNTRY_BY_CODE=Object.fromEntries(AFRICAN_COUNTRIES.map(c=>[c.code,c]));
 const detectCountryFromPhoneClient=v=>{let n=String(v||"").replace(/[^0-9+]/g,"").replace(/^00/,'+').replace(/^\+/,'');if(n.startsWith('0'))return COUNTRY_BY_CODE.KE;return AFRICAN_COUNTRIES.slice().sort((a,b)=>b.dial.length-a.dial.length).find(c=>n.startsWith(c.dial))||null;};
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
+const nationalDigits=v=>String(v||"").replace(/\D/g,"").replace(/^0+/,"");
+const buildInternationalPhone=(countryCode,national)=>{
+  const country=COUNTRY_BY_CODE[countryCode]||COUNTRY_BY_CODE.KE;
+  let digits=nationalDigits(national);
+  // The UI asks for the national number without a leading zero, but tolerate one
+  // pasted by the user so registration remains forgiving.
+  if(countryCode==="KE") digits=digits.replace(/^0+/,"");
+  else if(digits.startsWith(country.dial)) digits=digits.slice(country.dial.length);
+  return `${country.dial}${digits}`;
+};
 const validPhone=v=>PHONE_RE.test(cleanPhone(v));
 async function api(path,opts={}){const token=localStorage.getItem("token");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Request failed");return d}
 
