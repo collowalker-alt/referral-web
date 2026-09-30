@@ -82,6 +82,7 @@ model User {
   supportTickets    SupportTicket[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  tokenVersion      Int      @default(0)
   adSubmissions     AdSubmission[]
   products          Product[] @relation("SellerProducts")
   buyerOrders       Order[] @relation("BuyerOrders")
@@ -179,6 +180,9 @@ model Admin {
   role         AdminRole   @default(SUPER_ADMIN)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+  tokenVersion Int         @default(0)
+  twoFactorEnabled Boolean @default(false)
+  twoFactorSecret  String?
 }
 
 
@@ -428,4 +432,30 @@ model Notification {
 
   @@index([userId, createdAt])
   @@index([userId, read])
+}
+
+
+model PaymentProviderConfig {
+  id          String   @id @default(cuid())
+  countryCode String   @unique
+  countryName String
+  dial        String
+  provider    String
+  method      String
+  enabled     Boolean  @default(false)
+  settings    Json?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+model AdminLoginEvent {
+  id        String   @id @default(cuid())
+  adminId   String?
+  email     String
+  success   Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  @@index([email, createdAt])
+  @@index([adminId, createdAt])
 }

@@ -50,6 +50,7 @@ app.use(express.json({ limit: "12mb" }));
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 80 }));
 const registerLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, message: { message: "Too many registration attempts. Please try again later." } });
 const forgotLimiter = rateLimit({ windowMs: 60*60*1000, max: 8, message: { message: "Too many password reset requests. Please try again later." } });
+const adminLoginLimiter = rateLimit({ windowMs: 15*60*1000, max: 12, message: { message: "Too many administrator login attempts. Please wait before trying again." } });
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
@@ -212,7 +213,7 @@ async function sendPasswordResetEmail({ to, name, rawToken }) {
 }
 
 
-const sign = user => jwt.sign({ id:user.id }, JWT_SECRET, { expiresIn:"7d" });
+const sign = user => jwt.sign({ id:user.id, v:Number(user.tokenVersion||0) }, JWT_SECRET, { expiresIn:"7d" });
 const auth = async (req,res,next) => {
   try {
     const token=(req.headers.authorization||"").replace("Bearer ","");
@@ -220,10 +221,11 @@ const auth = async (req,res,next) => {
     const p=jwt.verify(token,JWT_SECRET);
     const u=await prisma.user.findUnique({where:{id:p.id}});
     if(!u || u.status!=="ACTIVE") return res.status(401).json({message:"Account unavailable"});
+    if(p.v!==undefined && Number(p.v)!==Number(u.tokenVersion||0)) return res.status(401).json({message:"Your session has ended. Please sign in again."});
     req.user=u; next();
   } catch { res.status(401).json({message:"Invalid or expired session"}); }
 };
-const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin", role:admin.role }, JWT_SECRET, { expiresIn:"12h" });
+const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin", role:admin.role, v:Number(admin.tokenVersion||0) }, JWT_SECRET, { expiresIn:"12h" });
 const requireAdminRole = (...roles) => (req,res,next) => { if(!req.admin || !roles.includes(req.admin.role)) return res.status(403).json({message:"You do not have permission to perform this admin action"}); next(); };
 const adminAuth = async (req,res,next) => {
   try {
@@ -233,6 +235,7 @@ const adminAuth = async (req,res,next) => {
     if(p.type!=="admin") return res.status(403).json({message:"Admin access required"});
     const a=await prisma.admin.findUnique({where:{id:p.id}});
     if(!a || a.status!=="ACTIVE") return res.status(401).json({message:"Admin account unavailable"});
+    if(p.v!==undefined && Number(p.v)!==Number(a.tokenVersion||0)) return res.status(401).json({message:"Your admin session has ended. Please sign in again."});
     req.admin=a; next();
   } catch { res.status(401).json({message:"Invalid or expired admin session"}); }
 };
@@ -309,6 +312,13 @@ async function createUserNotification(userId,{title,message,type="ACCOUNT",detai
     await prisma.$executeRawUnsafe(`INSERT INTO "Notification" ("id","userId","title","message","type","details","read","createdAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,CURRENT_TIMESTAMP)`,crypto.randomUUID(),String(userId),String(title).slice(0,160),String(message).slice(0,1000),String(type).slice(0,40),JSON.stringify(details||{}));
   }catch(e){console.error("[NOTIFICATION CREATE]",e.message);}
 }
+
+function base32Encode(buf){const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,value=0,out="";for(const b of buf){value=(value<<8)|b;bits+=8;while(bits>=5){out+=alphabet[(value>>(bits-5))&31];bits-=5;}}if(bits>0)out+=alphabet[(value<<(5-bits))&31];return out;}
+function base32Decode(input){const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,value=0,out=[];for(const ch of String(input||"").toUpperCase().replace(/=+$/,"")){const n=alphabet.indexOf(ch);if(n<0)continue;value=(value<<5)|n;bits+=5;if(bits>=8){out.push((value>>(bits-8))&255);bits-=8;}}return Buffer.from(out);}
+function generateTotpSecret(){return base32Encode(crypto.randomBytes(20));}
+function totpCode(secret,at=Date.now()){const counter=Math.floor(at/1000/30);const msg=Buffer.alloc(8);msg.writeBigInt64BE(BigInt(counter));const hash=crypto.createHmac("sha1",base32Decode(secret)).update(msg).digest();const offset=hash[hash.length-1]&15;const num=((hash[offset]&127)<<24)|((hash[offset+1]&255)<<16)|((hash[offset+2]&255)<<8)|(hash[offset+3]&255);return String(num%1000000).padStart(6,"0");}
+function verifyTotp(secret,code){const c=String(code||"").replace(/\D/g,"");if(c.length!==6)return false;for(const drift of [-1,0,1])if(totpCode(secret,Date.now()+drift*30000)===c)return true;return false;}
+function adminTotpUri(admin,secret){return `otpauth://totp/NEXORA:${encodeURIComponent(admin.email)}?secret=${secret}&issuer=NEXORA&digits=6&period=30`;}
 
 const makeCode = name => (name.replace(/[^a-z0-9]/gi,"").slice(0,5).toUpperCase() || "USER")+"-"+crypto.randomBytes(3).toString("hex").toUpperCase();
 
@@ -971,16 +981,39 @@ app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
 });
 
 // -------------------- NEXORA ADMIN --------------------
-app.post("/api/admin/auth/login", rateLimit({windowMs:15*60*1000,max:20}), async(req,res)=>{
+app.post("/api/admin/auth/login", adminLoginLimiter, async(req,res)=>{
   try{
     const email=String(req.body?.email||"").trim().toLowerCase();
     const password=String(req.body?.password||"");
     const admin=await prisma.admin.findUnique({where:{email}});
-    if(!admin || admin.status!=="ACTIVE" || !(await bcrypt.compare(password,admin.passwordHash))) return res.status(401).json({message:"Invalid admin login details"});
-    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role}});
+    const ok=Boolean(admin && admin.status==="ACTIVE" && await bcrypt.compare(password,admin.passwordHash));
+    await prisma.adminLoginEvent.create({data:{adminId:admin?.id||null,email,success:ok,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(()=>{});
+    if(!ok) return res.status(401).json({message:"Invalid admin login details"});
+    await prisma.adminActivityLog.create({data:{adminId:admin.id,adminEmail:admin.email,action:"ADMIN_LOGIN_SUCCESS",targetType:"ADMIN",targetId:admin.id,targetEmail:admin.email,details:{ip:req.ip}}}).catch(()=>{});
+    if(admin.twoFactorEnabled){
+      const challenge=jwt.sign({id:admin.id,type:"admin_2fa"},JWT_SECRET,{expiresIn:"5m"});
+      return res.json({requires2fa:true,challenge,admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role}});
+    }
+    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:Boolean(admin.twoFactorEnabled)}});
   }catch(e){console.error("Admin login error:",e);res.status(500).json({message:"Admin login failed"});}
 });
-app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email,role:req.admin.role}}));
+app.post("/api/admin/auth/verify-2fa", adminLoginLimiter, async(req,res)=>{
+  try{
+    const challenge=String(req.body?.challenge||"");const code=String(req.body?.code||"");
+    const p=jwt.verify(challenge,JWT_SECRET);if(p.type!=="admin_2fa")return res.status(401).json({message:"Invalid 2FA challenge"});
+    const admin=await prisma.admin.findUnique({where:{id:p.id}});if(!admin||admin.status!=="ACTIVE"||!admin.twoFactorEnabled||!admin.twoFactorSecret)return res.status(401).json({message:"Administrator 2FA is unavailable"});
+    if(!verifyTotp(admin.twoFactorSecret,code))return res.status(401).json({message:"Invalid authenticator code"});
+    await prisma.adminLoginEvent.create({data:{adminId:admin.id,email:admin.email,success:true,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(()=>{});
+    res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:true}});
+  }catch(e){res.status(401).json({message:"Invalid or expired 2FA challenge"});}
+});
+app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email,role:req.admin.role,twoFactorEnabled:Boolean(req.admin.twoFactorEnabled)}}));
+app.post("/api/admin/auth/logout-all",adminAuth,async(req,res)=>{try{const updated=await prisma.admin.update({where:{id:req.admin.id},data:{tokenVersion:{increment:1}}});await logAdminAction(req,"ADMIN_LOGOUT_ALL_SESSIONS","ADMIN",req.admin.id,req.admin.email,{});res.json({message:"All other administrator sessions have been signed out.",token:signAdmin(updated)});}catch(e){res.status(500).json({message:"Unable to end administrator sessions"});}});
+app.get("/api/admin/system-health",adminAuth,async(req,res)=>{const started=Date.now();let db="online",dbMs=0;try{const t=Date.now();await prisma.$queryRaw`SELECT 1`;dbMs=Date.now()-t;}catch{db="offline";}res.json({ok:db==="online",version:"2.7.0",node:process.version,uptime:Math.floor(process.uptime()),database:db,databaseMs:dbMs,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paystack:paystackConfigured(),paystackMode:paystackMode(),resend:Boolean(resend),nexbot:Boolean(NEXBOT_AI_API_KEY),memoryMb:Math.round(process.memoryUsage().rss/1024/1024),responseMs:Date.now()-started,environment:process.env.NODE_ENV||"production",time:new Date().toISOString()});});
+app.get("/api/admin/login-events",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{res.json(await prisma.adminLoginEvent.findMany({orderBy:{createdAt:"desc"},take:100,select:{id:true,adminId:true,email:true,success:true,ip:true,userAgent:true,createdAt:true}}));}catch(e){res.status(500).json({message:"Unable to load login activity"});}});
+app.post("/api/admin/security/2fa/setup",adminAuth,async(req,res)=>{try{if(req.admin.twoFactorEnabled)return res.status(400).json({message:"Two-factor authentication is already enabled."});const secret=generateTotpSecret();await prisma.admin.update({where:{id:req.admin.id},data:{twoFactorSecret:secret}});res.json({secret,otpauth:adminTotpUri(req.admin,secret),message:"Scan or enter the secret in an authenticator app, then verify the code to enable 2FA."});}catch(e){res.status(500).json({message:"Unable to prepare 2FA"});}});
+app.post("/api/admin/security/2fa/verify",adminAuth,async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorSecret)return res.status(400).json({message:"Start 2FA setup first."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:true}});await logAdminAction(req,"ADMIN_2FA_ENABLED","ADMIN",a.id,a.email,{});res.json({message:"Two-factor authentication is now enabled."});}catch(e){res.status(500).json({message:"Unable to enable 2FA"});}});
+app.post("/api/admin/security/2fa/disable",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const a=await prisma.admin.findUnique({where:{id:req.admin.id}});if(!a?.twoFactorEnabled)return res.json({message:"Two-factor authentication is already disabled."});if(!verifyTotp(a.twoFactorSecret,req.body?.code))return res.status(400).json({message:"Invalid authenticator code."});await prisma.admin.update({where:{id:a.id},data:{twoFactorEnabled:false,twoFactorSecret:null}});await logAdminAction(req,"ADMIN_2FA_DISABLED","ADMIN",a.id,a.email,{});res.json({message:"Two-factor authentication disabled."});}catch(e){res.status(500).json({message:"Unable to disable 2FA"});}});
 // -------------------- ADMIN MANAGEMENT --------------------
 app.get("/api/admin/admins",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.admin.findMany({select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true},orderBy:{createdAt:"desc"}});res.json(rows);}
@@ -1006,7 +1039,7 @@ app.patch("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),asyn
     if(req.body?.name!==undefined){const name=String(req.body.name).trim();if(!name)return res.status(400).json({message:"Name cannot be empty"});data.name=name;}
     if(req.body?.role!==undefined){const role=String(req.body.role).toUpperCase();if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"].includes(role))return res.status(400).json({message:"Invalid administrator role"});data.role=role;}
     if(req.body?.status!==undefined){const status=String(req.body.status).toUpperCase();if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid administrator status"});if(current.id===req.admin.id&&status==="SUSPENDED")return res.status(400).json({message:"You cannot suspend your own administrator account"});data.status=status;}
-    if(req.body?.password!==undefined){const password=String(req.body.password);if(password.length<10)return res.status(400).json({message:"Password must be at least 10 characters"});data.passwordHash=await bcrypt.hash(password,12);}
+    if(req.body?.password!==undefined){const password=String(req.body.password);if(password.length<10)return res.status(400).json({message:"Password must be at least 10 characters"});data.passwordHash=await bcrypt.hash(password,12);data.tokenVersion={increment:1};}
     if(current.id===req.admin.id && data.role && data.role!=="SUPER_ADMIN") return res.status(400).json({message:"You cannot remove your own Super Admin role"});
     const a=await prisma.admin.update({where:{id:current.id},data,select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true}});
     await logAdminAction(req,"ADMIN_UPDATED","ADMIN",a.id,a.email,{changes:Object.keys(data).filter(k=>k!=="passwordHash"),passwordChanged:Boolean(data.passwordHash)});
@@ -1018,9 +1051,13 @@ app.delete("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),asy
   catch(e){console.error("Admin remove error:",e);res.status(500).json({message:"Unable to remove administrator"});}
 });
 
+app.get("/api/admin/payment-config",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{const saved=await prisma.paymentProviderConfig.findMany({orderBy:{countryName:"asc"}});const by=Object.fromEntries(saved.map(x=>[x.countryCode,x]));res.json(AFRICAN_COUNTRIES.map(c=>({countryCode:c.code,countryName:c.name,dial:c.dial,provider:by[c.code]?.provider||(c.code==="KE"?"Co-op Bank":"Paystack"),method:by[c.code]?.method||(c.payment==="COOP_PAYBILL"?"Paybill":c.payment==="PAYSTACK_MOBILE_MONEY"?"Mobile Money":"Not configured"),enabled:by[c.code]?.enabled??(c.code==="KE"&&Boolean(MPESA_PAYBILL_ACCOUNT)),settings:by[c.code]?.settings||null})));}catch(e){res.status(500).json({message:"Unable to load payment configuration"});}});
+app.patch("/api/admin/payment-config/:countryCode",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const code=String(req.params.countryCode||"").toUpperCase();const c=COUNTRY_BY_CODE[code];if(!c)return res.status(404).json({message:"Country not supported"});const provider=String(req.body?.provider||"Paystack").trim().slice(0,60);const method=String(req.body?.method||"Not configured").trim().slice(0,80);const enabled=Boolean(req.body?.enabled);if(code==="KE"&&!MPESA_PAYBILL_ACCOUNT&&enabled)return res.status(400).json({message:"Configure MPESA_PAYBILL_ACCOUNT before enabling Kenya Paybill."});const row=await prisma.paymentProviderConfig.upsert({where:{countryCode:code},update:{provider,method,enabled,settings:req.body?.settings||null,countryName:c.name,dial:c.dial},create:{countryCode:code,countryName:c.name,dial:c.dial,provider,method,enabled,settings:req.body?.settings||null}});await logAdminAction(req,"PAYMENT_CONFIG_UPDATED","PAYMENT_CONFIG",row.id,null,{countryCode:code,provider,method,enabled});res.json(row);}catch(e){res.status(500).json({message:"Unable to update payment configuration"});}});
+app.get("/api/admin/users/:id/timeline",adminAuth,async(req,res)=>{try{const id=req.params.id;const [u,tx,tickets,notes,logs]=await Promise.all([prisma.user.findUnique({where:{id},select:{id:true,createdAt:true}}),prisma.transaction.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:50,select:{id:true,reference:true,type:true,amount:true,status:true,createdAt:true}}).catch(()=>[]),prisma.supportTicket.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:30,select:{id:true,subject:true,status:true,createdAt:true,updatedAt:true}}),prisma.notification.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:30,select:{id:true,title:true,type:true,createdAt:true}}),prisma.adminActivityLog.findMany({where:{targetId:id},orderBy:{createdAt:"desc"},take:50,select:{id:true,action: true,adminEmail:true,details:true,createdAt:true}})]);if(!u)return res.status(404).json({message:"Member not found"});const items=[...tx.map(x=>({kind:"TRANSACTION",title:String(x.type).replaceAll("_"," "),text:`${x.reference} · KSh ${Number(x.amount||0).toLocaleString()} · ${x.status}`,createdAt:x.createdAt})),...tickets.map(x=>({kind:"SUPPORT",title:`Support: ${x.subject}`,text:`Status: ${x.status}`,createdAt:x.createdAt})),...notes.map(x=>({kind:"NOTIFICATION",title:x.title,text:x.type,createdAt:x.createdAt})),...logs.map(x=>({kind:"ADMIN",title:x.action,text:x.adminEmail,createdAt:x.createdAt,details:x.details}))].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));res.json(items.slice(0,150));}catch(e){console.error(e);res.status(500).json({message:"Unable to load member timeline"});}});
+
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
   try{
-    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned,countries,flaggedUsers]=await Promise.all([
+    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned,countries,flaggedUsers,recentFailedLogins,openTickets]=await Promise.all([
       prisma.user.count(),
       prisma.user.count({where:{status:"ACTIVE"}}),
       prisma.package.count({where:{active:true}}),
@@ -1032,9 +1069,11 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
       prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
       prisma.commission.aggregate({_sum:{amount:true}}),
       prisma.user.groupBy({by:["countryCode"],_count:{_all:true}}),
-      prisma.user.findMany({where:{OR:[{countryVerified:false},{countryCode:"KE",phone:{not:{startsWith:"254"}}}]},select:{id:true,name:true,email:true,countryCode:true,countryName:true,phone:true},take:50})
+      prisma.user.findMany({where:{OR:[{countryVerified:false},{countryCode:"KE",phone:{not:{startsWith:"254"}}}]},select:{id:true,name:true,email:true,countryCode:true,countryName:true,phone:true},take:50}),
+      prisma.adminLoginEvent.count({where:{success:false,createdAt:{gte:new Date(Date.now()-24*60*60*1000)}}}),
+      prisma.supportTicket.count({where:{status:{in:["OPEN","IN_PROGRESS"]}}})
     ]);
-    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,recentFailedLogins,openTickets,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
 app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
@@ -1209,8 +1248,8 @@ app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
   try{
     const type=String(req.params.type||"").toLowerCase(); let rows=[], headers=[];
     if(type==="users"){
-      rows=await prisma.user.findMany({include:{wallet:true,package:true},orderBy:{createdAt:"desc"}});headers=["Name","Email","Phone","Status","Package","Balance","Total Earned","Total Withdrawn","Created"];
-      rows=rows.map(x=>[x.name,x.email,x.phone,x.status,x.package?.name||"",x.wallet?.balance||0,x.wallet?.totalEarned||0,x.wallet?.totalWithdrawn||0,x.createdAt.toISOString()]);
+      rows=await prisma.user.findMany({include:{wallet:true,package:true,referredBy:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Name","Email","Phone","Country","Country Verified","Referred By","Referral Code","Status","Package","Balance","Total Earned","Total Withdrawn","Created"];
+      rows=rows.map(x=>[x.name,x.email,x.phone,x.countryName||x.countryCode||"",x.countryVerified!==false?"Yes":"Review",x.referredBy?.email||"",x.referralCode,x.status,x.package?.name||"",x.wallet?.balance||0,x.wallet?.totalEarned||0,x.wallet?.totalWithdrawn||0,x.createdAt.toISOString()]);
     }else if(type==="transactions"){
       rows=await prisma.transaction.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Type","Amount","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.type,x.amount,x.status,x.createdAt.toISOString()]);
     }else if(type==="withdrawals"){
@@ -1255,7 +1294,9 @@ app.get("/api/support/tickets",auth,async(req,res)=>{try{res.json(await prisma.s
 app.post("/api/support/tickets",auth,async(req,res)=>{try{const subject=String(req.body?.subject||"").trim().slice(0,120);const message=String(req.body?.message||"").trim().slice(0,3000);if(!subject||!message)return res.status(400).json({message:"Subject and message are required"});const t=await prisma.supportTicket.create({data:{userId:req.user.id,subject,message}});res.status(201).json({message:"Support request submitted",ticket:t});}catch(e){console.error(e);res.status(500).json({message:"Unable to create support ticket"});}});
 
 app.patch("/api/member/profile",auth,async(req,res)=>{try{const name=String(req.body?.name||"").trim();if(name.length<2)return res.status(400).json({message:"Enter your full name"});const current=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});const country=COUNTRY_BY_CODE[current?.countryCode||"KE"]||COUNTRY_BY_CODE.KE;const supplied=String(req.body?.phone||"");const normalizedPhone=normalizePhoneForCountry(supplied,country.code);if(!isPlausibleNationalPhone(supplied,country.code))return res.status(400).json({message:`Enter a valid mobile number for ${country.name}. Only the national digits should be entered after +${country.dial}.`});const clash=await prisma.user.findFirst({where:{phone:normalizedPhone,id:{not:req.user.id}}});if(clash)return res.status(409).json({message:"That phone number is already in use"});await prisma.user.update({where:{id:req.user.id},data:{name,phone:normalizedPhone,countryCode:country.code,countryName:country.name,countryVerified:true,countrySource:"PHONE"}});res.json({message:"Profile updated successfully"});}catch(e){console.error(e);res.status(500).json({message:"Unable to update profile"});}});
-app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(req.body?.currentPassword||"");const next=String(req.body?.newPassword||"");if(next.length<8)return res.status(400).json({message:"New password must be at least 8 characters"});if(!(await bcrypt.compare(current,req.user.passwordHash)))return res.status(401).json({message:"Current password is incorrect"});await prisma.user.update({where:{id:req.user.id},data:{passwordHash:await bcrypt.hash(next,12)}});res.json({message:"Password updated successfully. Please use the new password next time you sign in."});}catch(e){console.error(e);res.status(500).json({message:"Unable to update password"});}});
+app.post("/api/member/sessions/revoke",auth,async(req,res)=>{try{const updated=await prisma.user.update({where:{id:req.user.id},data:{tokenVersion:{increment:1}}});res.json({message:"All other sessions have been signed out. This session will remain active.",token:sign(updated)});}catch(e){res.status(500).json({message:"Unable to end other sessions"});}});
+
+app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(req.body?.currentPassword||"");const next=String(req.body?.newPassword||"");if(next.length<8)return res.status(400).json({message:"New password must be at least 8 characters"});if(!(await bcrypt.compare(current,req.user.passwordHash)))return res.status(401).json({message:"Current password is incorrect"});await prisma.user.update({where:{id:req.user.id},data:{passwordHash:await bcrypt.hash(next,12),tokenVersion:{increment:1}}});res.json({message:"Password updated successfully. Please use the new password next time you sign in."});}catch(e){console.error(e);res.status(500).json({message:"Unable to update password"});}});
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
   const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
