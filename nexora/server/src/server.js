@@ -1265,9 +1265,9 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
   if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
   const wallet=await prisma.wallet.findUnique({where:{userId:req.user.id}});
   if(!wallet || wallet.balance<amount) return res.status(400).json({message:"Insufficient balance"});
-  const member=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
-  const limit=Number(member?.package?.withdrawalLimit||0);
-  if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${member.package.name} package allows withdrawals up to KSh ${limit.toLocaleString()} per request.`});
+  const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
+  const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
+  if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${memberWithPackage.package.name} package allows withdrawals up to KSh ${limit.toLocaleString()} per request.`});
   const reference=`WD-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
   await prisma.$transaction([
     prisma.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:amount},pendingBalance:{increment:amount}}}),
