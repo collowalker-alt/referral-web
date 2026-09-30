@@ -21,3 +21,7 @@
 ## Example
 Kenya selected -> prefix `+254` -> user enters `712345678` -> stored as `254712345678`.
 Ghana selected -> prefix `+233` -> user enters the national digits -> stored as `233...`.
+
+
+## Important Render deployment note
+The browser frontend and API are deployed separately. If the frontend shows the country selector but registration still returns an old message such as `Invalid Kenyan phone number`, the live API is running an older server build. Redeploy the `server` code from this ZIP to the NEXORA API service. The updated API exposes `/api/version` and returns `countryAwareRegistration: true` so the frontend/backend versions can be checked.
