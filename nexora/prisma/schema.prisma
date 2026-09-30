@@ -57,6 +57,10 @@ model User {
   name              String
   email             String   @unique
   phone             String   @unique
+  countryCode       String   @default("KE")
+  countryName       String   @default("Kenya")
+  countryVerified   Boolean  @default(true)
+  countrySource     String   @default("PHONE")
   passwordHash      String
   referralCode      String   @unique
   referredById      String?

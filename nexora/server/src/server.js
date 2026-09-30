@@ -55,6 +55,19 @@ const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const AFRICAN_COUNTRIES = [
+  {code:"KE",name:"Kenya",dial:"254",payment:"COOP_PAYBILL"},{code:"GH",name:"Ghana",dial:"233",payment:"PAYSTACK_MOBILE_MONEY"},{code:"CI",name:"Côte d’Ivoire",dial:"225",payment:"PAYSTACK_MOBILE_MONEY"},{code:"NG",name:"Nigeria",dial:"234",payment:"COMING_SOON"},{code:"ZA",name:"South Africa",dial:"27",payment:"COMING_SOON"},{code:"EG",name:"Egypt",dial:"20",payment:"COMING_SOON"},{code:"RW",name:"Rwanda",dial:"250",payment:"COMING_SOON"},{code:"TZ",name:"Tanzania",dial:"255",payment:"COMING_SOON"},{code:"UG",name:"Uganda",dial:"256",payment:"COMING_SOON"},{code:"ZM",name:"Zambia",dial:"260",payment:"COMING_SOON"},{code:"BW",name:"Botswana",dial:"267",payment:"COMING_SOON"},{code:"MZ",name:"Mozambique",dial:"258",payment:"COMING_SOON"},{code:"ZW",name:"Zimbabwe",dial:"263",payment:"COMING_SOON"},{code:"SN",name:"Senegal",dial:"221",payment:"COMING_SOON"},{code:"CM",name:"Cameroon",dial:"237",payment:"COMING_SOON"},{code:"ET",name:"Ethiopia",dial:"251",payment:"COMING_SOON"},{code:"MA",name:"Morocco",dial:"212",payment:"COMING_SOON"},{code:"TN",name:"Tunisia",dial:"216",payment:"COMING_SOON"},{code:"MU",name:"Mauritius",dial:"230",payment:"COMING_SOON"}
+];
+const COUNTRY_BY_CODE = Object.fromEntries(AFRICAN_COUNTRIES.map(x=>[x.code,x]));
+function normalizeInternationalPhone(value){ return String(value||"").replace(/[^0-9+]/g,"").replace(/^00/,'+'); }
+function detectCountryFromPhone(value){
+  let n=normalizeInternationalPhone(value).replace(/^\+/,'');
+  if(n.startsWith('0')) return COUNTRY_BY_CODE.KE;
+  return AFRICAN_COUNTRIES.slice().sort((a,b)=>b.dial.length-a.dial.length).find(c=>n.startsWith(c.dial)) || null;
+}
+function countryForUser(u){ return COUNTRY_BY_CODE[u?.countryCode] || detectCountryFromPhone(u?.phone) || COUNTRY_BY_CODE.KE; }
+function paymentAvailabilityForCountry(code){ return code==='KE' ? 'COOP_PAYBILL' : (['GH','CI'].includes(code) ? 'PAYSTACK_MOBILE_MONEY' : 'COMING_SOON'); }
+
 const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -230,13 +243,7 @@ async function logAdminAction(req, action, targetType=null, targetId=null, targe
   }catch(e){ console.error("[ADMIN AUDIT]",e.message); }
 }
 
-const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/; 
-const normalizeCountry=code=>String(code||"KE").toUpperCase();
-const validRegistrationPhone=(v,country="KE")=>{
-  const n=cleanPhone(v);
-  if(country==="KE") return PHONE_RE.test(n);
-  return /^\d{9,15}$/.test(n);
-};
+const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
 const cleanPhone=v=>String(v||"").trim().replace(/[\s().-]/g,"").replace(/^\+/,"");
 // Paystack's M-Pesa charge endpoint requires the international +254 format.
 const paystackPhone=v=>{
@@ -294,15 +301,16 @@ app.get("/", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0
 app.get("/api", (req,res) => res.json({ ok: true, name: "NEXORA API", version: "1.0" }));
 app.get("/api/health",(req,res)=>res.json({ok:true,name:"NEXORA API"}));
 
-app.get("/api/payments/methods",(req,res)=>{
-  res.json({wallet:true,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paybillNumber:MPESA_PAYBILL_NUMBER||null,paybillAccount:MPESA_PAYBILL_ACCOUNT||null,paybillName:MPESA_PAYBILL_NAME,stkPush:false,provider:(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT)?"coopbank_paybill":"unconfigured"});
+app.get("/api/payments/methods",auth,async(req,res)=>{
+  const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
+  const kenya=member?.countryCode==="KE";
+  res.json({wallet:true,countryCode:member?.countryCode||null,countryName:member?.countryName||null,paybill:kenya&&Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paybillNumber:kenya?(MPESA_PAYBILL_NUMBER||null):null,paybillAccount:kenya?(MPESA_PAYBILL_ACCOUNT||null):null,paybillName:kenya?MPESA_PAYBILL_NAME:null,stkPush:false,paymentAvailability:paymentAvailabilityForCountry(member?.countryCode||"KE"),provider:kenya&&MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT?"coopbank_paybill":"coming_soon"});
 });
 
 
 app.post("/api/auth/register", registerLimiter, async (req,res)=>{
   try {
-    const {name,email,phone,password,referralCode,website,country}=req.body;
-     const selectedCountry=normalizeCountry(country);
+    const {name,email,phone,password,referralCode,website}=req.body;
     // Honeypot — bots often fill hidden fields
     if(website) return res.status(201).json({token:"",user:null,ok:true});
     const normalizedPhone=cleanPhone(phone);
@@ -310,17 +318,22 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
     if(!name||!normalizedEmail||!phone||!password) return res.status(400).json({message:"Name, email, phone and password are required"});
     if(!EMAIL_RE.test(normalizedEmail)) return res.status(400).json({message:"Enter a valid email address"});
     if(!isStrongPassword(password)) return res.status(400).json({message:"Password must be at least 8 characters and include a letter and a number"});
-    if(!validRegistrationPhone(normalizedPhone,selectedCountry)) return res.status(400).json({message:selectedCountry==="KE"?"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541….":"Enter a valid mobile number for the selected country."});
+    const requestedCountry=COUNTRY_BY_CODE[String(req.body?.countryCode||"KE").toUpperCase()] || null;
+    const detectedCountry=detectCountryFromPhone(normalizedPhone);
+    if(!requestedCountry) return res.status(400).json({message:"Please select a valid African country."});
+    if(requestedCountry.code!=="KE" && !detectedCountry) return res.status(400).json({message:"Enter an international phone number including the country code."});
+    if(detectedCountry && detectedCountry.code!==requestedCountry.code) return res.status(400).json({message:`The phone number belongs to ${detectedCountry.name}. Select ${detectedCountry.name} as the account country.`});
+    if(requestedCountry.code==="KE" && !PHONE_RE.test(normalizedPhone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
     const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
     if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:String(referralCode).trim().toUpperCase()}});
     const hash=await bcrypt.hash(password,12);
     const user=await prisma.user.create({data:{
-      name:String(name).trim(),email:normalizedEmail,phone:normalizedPhone,passwordHash:hash,referralCode:makeCode(name),
+      name:String(name).trim(),email:normalizedEmail,phone:normalizedPhone,countryCode:requestedCountry.code,countryName:requestedCountry.name,countryVerified:Boolean(detectedCountry&&detectedCountry.code===requestedCountry.code),countrySource:"PHONE",passwordHash:hash,referralCode:makeCode(name),
       referredById:parent?.id,wallet:{create:{}}
     }});
-    res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+    res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,countryCode:user.countryCode,countryName:user.countryName,paymentAvailability:paymentAvailabilityForCountry(user.countryCode),referralCode:user.referralCode}});
   } catch(e){ console.error(e); res.status(500).json({message:"Registration failed"}); }
 });
 
@@ -330,7 +343,7 @@ app.post("/api/auth/login", async (req,res)=>{
     const user=await prisma.user.findUnique({where:{email:String(email||"").toLowerCase()}});
     if(!user || !(await bcrypt.compare(password||"",user.passwordHash))) return res.status(401).json({message:"Invalid login details"});
     if(user.status!=="ACTIVE") return res.status(403).json({message:"Account is suspended"});
-    res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,referralCode:user.referralCode}});
+    res.json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,countryCode:user.countryCode,countryName:user.countryName,paymentAvailability:paymentAvailabilityForCountry(user.countryCode),referralCode:user.referralCode}});
   } catch(e){ console.error(e); res.status(500).json({message:"Login failed"}); }
 });
 
@@ -594,7 +607,7 @@ app.get("/api/me",auth,async(req,res)=>{
   const level1=await prisma.user.findMany({where:{referredById:u.id},select:{id:true}});
   const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
   const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
-  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,paymentAvailability:paymentAvailabilityForCountry(u.countryCode)},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
 });
 
 app.get("/api/referrals",auth,async(req,res)=>{
@@ -719,6 +732,8 @@ app.post("/api/payments/wallet-purchase",auth,async(req,res)=>{
 // Start a paybill payment: creates PENDING tx and returns paybill instructions
 app.post("/api/payments/paybill/initiate",auth,async(req,res)=>{
   try{
+    const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
+    if(member?.countryCode!=="KE") return res.status(403).json({message:"Payment methods are coming soon for your country. Kenya accounts currently use Co-op Bank Paybill."});
     if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"M-Pesa Paybill payments are not fully configured yet. Set MPESA_PAYBILL_ACCOUNT in Render."});
     const {packageId}=req.body||{};
     if(!packageId) return res.status(400).json({message:"Package is required"});
@@ -990,7 +1005,7 @@ app.delete("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),asy
 
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
   try{
-    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned]=await Promise.all([
+    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned,countries,flaggedUsers]=await Promise.all([
       prisma.user.count(),
       prisma.user.count({where:{status:"ACTIVE"}}),
       prisma.package.count({where:{active:true}}),
@@ -1000,16 +1015,19 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
       prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS"},_sum:{amount:true}}),
       prisma.withdrawal.count(),
       prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
-      prisma.commission.aggregate({_sum:{amount:true}})
+      prisma.commission.aggregate({_sum:{amount:true}}),
+      prisma.user.groupBy({by:["countryCode"],_count:{_all:true}}),
+      prisma.user.findMany({where:{OR:[{countryVerified:false},{countryCode:"KE",phone:{not:{startsWith:"254"}}}]},select:{id:true,name:true,email:true,countryCode:true,countryName:true,phone:true},take:50})
     ]);
-    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured"});
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
 app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{
-    const q=String(req.query.q||"").trim();
-    const rows=await prisma.user.findMany({where:q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}}]}:undefined,include:{package:true,wallet:true,referredBy:{select:{name:true,email:true}}},orderBy:{createdAt:"desc"},take:200});
-    res.json(rows.map(u=>({id:u.id,name:u.name,email:u.email,phone:u.phone,status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,createdAt:u.createdAt})));
+    const q=String(req.query.q||"").trim(); const country=String(req.query.country||"").toUpperCase(); const status=String(req.query.status||"").toUpperCase();
+    const where={...(q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}},{referralCode:{contains:q,mode:"insensitive"}},{countryName:{contains:q,mode:"insensitive"}}]}:{}),...(country?{countryCode:country}:{}),...(status?{status}: {})};
+    const rows=await prisma.user.findMany({where,include:{package:true,wallet:true,referredBy:{select:{id:true,name:true,email:true,referralCode:true,countryCode:true,countryName:true}},referrals:{select:{id:true,name:true,email:true,status:true,package:{select:{name:true}},createdAt:true},take:20,orderBy:{createdAt:"desc"}}},orderBy:{createdAt:"desc"},take:300});
+    res.json(rows.map(u=>{const c=countryForUser(u);const phoneCountry=detectCountryFromPhone(u.phone);return {id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode||c.code,countryName:u.countryName||c.name,countryVerified:u.countryVerified!==false,phoneCountryCode:phoneCountry?.code||null,paymentAvailability:paymentAvailabilityForCountry(u.countryCode||c.code),status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,referralCount:u.referrals?.length||0,referrals:u.referrals,createdAt:u.createdAt,riskFlags:[...(u.countryVerified===false?["COUNTRY_MISMATCH"]:[]),...(phoneCountry&&u.countryCode&&phoneCountry.code!==u.countryCode?["PHONE_COUNTRY_MISMATCH"]:[])]};}));
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
 app.post("/api/admin/users/balance",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
@@ -1225,6 +1243,8 @@ app.patch("/api/member/profile",auth,async(req,res)=>{try{const name=String(req.
 app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(req.body?.currentPassword||"");const next=String(req.body?.newPassword||"");if(next.length<8)return res.status(400).json({message:"New password must be at least 8 characters"});if(!(await bcrypt.compare(current,req.user.passwordHash)))return res.status(401).json({message:"Current password is incorrect"});await prisma.user.update({where:{id:req.user.id},data:{passwordHash:await bcrypt.hash(next,12)}});res.json({message:"Password updated successfully. Please use the new password next time you sign in."});}catch(e){console.error(e);res.status(500).json({message:"Unable to update password"});}});
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
+  const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
+  if(member?.countryCode!=="KE") return res.status(403).json({message:"Withdrawals are coming soon for your country. Kenya currently supports M-Pesa withdrawals."});
   const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
   if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
   if(!Number.isInteger(amount)||amount<100) return res.status(400).json({message:"Minimum withdrawal is KSh 100"});
@@ -1275,6 +1295,8 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
 // Wallet deposits via Co-operative Bank Paybill (manual confirmation-code verification).
 app.post("/api/wallet/deposit/paybill/initiate",auth,async(req,res)=>{
   try{
+    const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
+    if(member?.countryCode!=="KE") return res.status(403).json({message:"Wallet payment methods are coming soon for your country."});
     if(!MPESA_PAYBILL_NUMBER || !MPESA_PAYBILL_ACCOUNT) return res.status(503).json({message:"Co-op Bank Paybill is not fully configured. Set MPESA_PAYBILL_ACCOUNT in the server environment."});
     const amount=Number(req.body?.amount);
     if(!Number.isInteger(amount)||amount<100)return res.status(400).json({message:"Minimum deposit is KSh 100"});
