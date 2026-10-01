@@ -1304,7 +1304,7 @@ function App(){
  {page==="transactions"&&<Transactions rows={transactions} onOpenReceipt={x=>setReceipt({reference:x.reference,type:x.type.replaceAll("_"," "),amount:x.amount,status:x.status,method:x.metadata?.method||x.metadata?.paystack?.provider||"NEXORA",createdAt:x.createdAt})} onOpenPending={x=>{const packageId=x.metadata?.packageId;const pkg=packages.find(p=>p.id===packageId);if(pkg)setPayment({reference:x.reference,package:pkg,phone:cleanPhone(x.metadata?.phone||me.user.phone||""),status:String(x.status||"PENDING").toLowerCase(),chargeAmount:Number(x.metadata?.chargeAmount||x.amount),display_text:x.metadata?.paystack?.display_text||"",message:""})}}/>} 
  {page==="support"&&<SupportCenter tickets={tickets} reload={()=>load(false)}/>} {page==="security"&&<Security me={me} reload={()=>load(false)} strength={profileStrength}/>}
  </div></main>{pageTransition&&<NexoraPageTransition label={nav.find(x=>x[0]===page)?.[1]||"Opening workspace…"}/>}<CommandCenter goPage={setPage} goPackages={()=>setPage("referrals")} share={share} goSecurity={()=>setPage("security")} onDeposit={()=>setPage("wallet")}/>{!mobile && !me?.package && (page==="dashboard"||page==="referrals"||page==="marketplace") && (
-  <div className="nx-sticky-cta show">
+  <div className={`nx-sticky-cta ${mobile?"menu-hidden":"show"}`}>
     <button type="button" className="primary" onClick={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}>Get a plan</button>
   </div>
 )}
@@ -1504,6 +1504,29 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
   <div className="shopcategorybar panel">
    <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
    <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
+  </div>
+
+  <section className="nx-core-areas" aria-label="NEXORA core areas">
+   <div className="nx-core-head"><div><span className="pill">NEXORA WORKSPACE</span><h2>Four things you can do here</h2><p className="muted">Shop, earn, advertise and keep learning — all from one member workspace.</p></div></div>
+   <div className="nx-core-grid">
+    <button className="nx-core-card marketplace" onClick={()=>goPage("marketplace")}><span className="nx-core-icon"><Store size={21}/></span><span><b>MARKETPLACE</b><small>Buy &amp; sell products</small></span><ArrowUpRight size={17}/></button>
+    <button className="nx-core-card earn" onClick={()=>goPackages?goPackages():goPage("referrals")}><span className="nx-core-icon"><TrendingUp size={21}/></span><span><b>EARN</b><small>Referrals &amp; approved rewards</small></span><ArrowUpRight size={17}/></button>
+    <button className="nx-core-card advertise" onClick={()=>goPage("products")}><span className="nx-core-icon"><Megaphone size={21}/></span><span><b>ADVERTISE</b><small>Premium advertising tools</small></span><ArrowUpRight size={17}/></button>
+    <button className="nx-core-card academy" onClick={()=>goPage("academy")}><span className="nx-core-icon"><GraduationCap size={21}/></span><span><b>ACADEMY</b><small>Learn how NEXORA works</small></span><ArrowUpRight size={17}/></button>
+   </div>
+  </section>
+
+  <div className="nx-journey panel">
+   <div className="nx-journey-head"><div><span className="pill">YOUR JOURNEY</span><h3>Know what comes next</h3></div><span className="muted small">Progress is based on recorded account activity.</span></div>
+   <div className="nx-journey-steps">
+    {[
+     ["ACCOUNT",true,()=>goSecurity()],
+     ["PLAN",!!me.package,()=>goPackages?goPackages():goPage("referrals")],
+     ["PAYMENT",!!me.package,()=>goPage("transactions")],
+     ["EARN",!!me.package,()=>goPage("referrals")],
+     ["TRACK",true,()=>goPage("analytics")]
+    ].map(([label,done,action],i)=><button key={label} className={`nx-journey-step ${done?"done":""}`} onClick={action}><span className="nx-journey-dot">{done?<Check size={13}/>:i+1}</span><b>{label}</b>{i<4&&<i/>}</button>)}
+   </div>
   </div>
 
   <div className="dashboardquick">

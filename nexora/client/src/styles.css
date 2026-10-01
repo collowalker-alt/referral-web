@@ -4940,3 +4940,131 @@ html.nexora-light aside button.active{background:#ecfdf5;color:#0f766e}
   .admininputwrap{min-height:52px}
   .admininputwrap input{height:50px !important}
 }
+
+/* =========================================================
+   NEXORA PRODUCT DESIGN SYSTEM — unified premium pass
+   ========================================================= */
+:root{
+  --nx-brand-blue:#168cff;
+  --nx-brand-cyan:#55e5ff;
+  --nx-brand-deep:#071525;
+  --nx-surface-solid:#0a1625;
+  --nx-surface-raised:#0e1e31;
+  --nx-surface-soft:#122640;
+  --nx-border-soft:rgba(130,176,219,.16);
+  --nx-border-focus:rgba(85,229,255,.48);
+  --nx-text-soft:#c6d5e6;
+  --nx-success:#38d9a9;
+  --nx-shadow:0 18px 55px rgba(0,0,0,.28);
+}
+
+/* Buttons: one physical interaction language across NEXORA. */
+.primary,.secondary,.hero-balance-btn,.quickaction,.shopcategorychips button,.market-tabs button,.wallettabs button,.nx-core-card,.nx-journey-step,.command-item,.mobile-bottom-nav button{
+  transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s ease,border-color .18s ease,background .18s ease,filter .18s ease;
+}
+.primary:hover,.secondary:hover,.hero-balance-btn:hover,.quickaction:hover,.shopcategorychips button:hover,.market-tabs button:hover,.wallettabs button:hover,.nx-core-card:hover,.command-item:hover{
+  transform:translateY(-2px);
+}
+.primary:active,.secondary:active,.hero-balance-btn:active,.quickaction:active,.shopcategorychips button:active,.market-tabs button:active,.wallettabs button:active,.nx-core-card:active,.command-item:active{
+  transform:translateY(1px) scale(.985);
+}
+.primary:focus-visible,.secondary:focus-visible,.hero-balance-btn:focus-visible,.quickaction:focus-visible,.nx-core-card:focus-visible,.nx-journey-step:focus-visible,.adminpasswordtoggle:focus-visible{
+  outline:2px solid var(--nx-brand-cyan);outline-offset:3px;
+}
+
+/* More solid surfaces, less excessive glass. */
+.panel,.dashboardstat,.dashboardhero-balance,.dashboardhero-plan,.shopcategorybar,.dashboardquick,.gamification,.nx-journey{
+  background:linear-gradient(145deg,rgba(12,27,44,.98),rgba(7,17,29,.98));
+  border-color:var(--nx-border-soft);
+  box-shadow:0 12px 38px rgba(0,0,0,.14);
+}
+
+/* Core four areas: the primary NEXORA information architecture. */
+.nx-core-areas{margin:20px 0 22px}
+.nx-core-head{margin-bottom:12px}
+.nx-core-head h2{margin:5px 0 4px;font-size:22px;letter-spacing:-.02em}
+.nx-core-head p{margin:0;font-size:13px}
+.nx-core-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.nx-core-card{min-height:112px;display:grid;grid-template-columns:44px 1fr 18px;align-items:center;gap:11px;text-align:left;padding:15px;border:1px solid var(--nx-border-soft);border-radius:17px;background:var(--nx-surface-solid);color:var(--nx-text-soft);cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,.12)}
+.nx-core-card:hover{border-color:rgba(85,229,255,.28);box-shadow:0 16px 40px rgba(0,0,0,.22)}
+.nx-core-card>span:nth-child(2){display:grid;gap:5px;min-width:0}
+.nx-core-card b{font-size:12px;letter-spacing:.08em;color:#f2f8ff}
+.nx-core-card small{font-size:11px;color:#8195aa;line-height:1.35}
+.nx-core-card>svg{color:#6f879f}
+.nx-core-icon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.08);background:#11233a;color:#8fc7ff}
+.nx-core-card.earn .nx-core-icon{background:rgba(56,217,169,.09);color:#75e4c7}
+.nx-core-card.advertise .nx-core-icon{background:rgba(154,108,255,.11);color:#c3a5ff}
+.nx-core-card.academy .nx-core-icon{background:rgba(90,169,255,.11);color:#91c4ff}
+
+/* Journey tracker. */
+.nx-journey{padding:17px 18px;margin:0 0 22px;border:1px solid var(--nx-border-soft);border-radius:17px}
+.nx-journey-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:17px}
+.nx-journey-head h3{margin:5px 0 0;font-size:18px}
+.nx-journey-steps{display:grid;grid-template-columns:repeat(5,1fr);align-items:start;gap:0}
+.nx-journey-step{position:relative;display:grid;justify-items:center;gap:8px;background:transparent;border:0;color:#75899e;cursor:pointer;padding:0 5px;min-width:0}
+.nx-journey-step b{font-size:9px;letter-spacing:.1em}
+.nx-journey-dot{position:relative;z-index:2;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:#0b1726;border:1px solid #29415c;color:#71879d;font-size:11px;font-weight:800}
+.nx-journey-step.done .nx-journey-dot{background:rgba(56,217,169,.12);border-color:rgba(56,217,169,.48);color:#72e5c7;box-shadow:0 0 0 5px rgba(56,217,169,.035)}
+.nx-journey-step.done b{color:#b9cbdc}
+.nx-journey-step>i{position:absolute;left:calc(50% + 17px);right:calc(-50% + 17px);top:15px;height:1px;background:#223a53}
+.nx-journey-step.done>i{background:linear-gradient(90deg,rgba(56,217,169,.5),#223a53)}
+.nx-journey-step:last-child>i{display:none}
+
+/* Notifications / status surfaces feel like a coherent system. */
+.notice,.successbanner,.error,.toast{border-radius:13px!important;box-shadow:0 12px 35px rgba(0,0,0,.18)}
+.notice{border-color:rgba(85,169,255,.22)!important}
+.successbanner{border-color:rgba(56,217,169,.25)!important}
+
+/* Fixed modal structure: header/footer remain visible while bodies scroll. */
+.modalbackdrop .modal{max-height:min(88vh,820px);overflow:hidden;display:flex;flex-direction:column}
+.modalbackdrop .modal>.modalhead,.modalbackdrop .modal>.modalfoot{flex:0 0 auto}
+.modalbackdrop .modal>.instructionbody,.modalbackdrop .modal>.lessonbody,.modalbackdrop .modal>.paymentbody,.modalbackdrop .modal>.depositbody,.modalbackdrop .modal>form{min-height:0}
+.modalbackdrop .modal>.instructionbody,.modalbackdrop .modal>.lessonbody{overflow:auto;overscroll-behavior:contain}
+.modalbackdrop .modal>.modalhead{position:relative;z-index:5;background:linear-gradient(180deg,rgba(10,23,39,.99),rgba(10,23,39,.94));border-bottom:1px solid rgba(130,176,219,.11)}
+.modalbackdrop .modal>.modalfoot{position:relative;z-index:5;background:linear-gradient(0deg,rgba(8,18,30,.99),rgba(8,18,30,.94));border-top:1px solid rgba(130,176,219,.11)}
+.modalbackdrop .modal .iconbtn{width:38px;height:38px;border-radius:12px;background:#10243a;border-color:rgba(130,176,219,.18)}
+
+/* Inputs: dark, tactile, touch-friendly fields. */
+input,select,textarea{transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-border-focus)!important;box-shadow:0 0 0 4px rgba(85,229,255,.07),0 10px 30px rgba(0,0,0,.10)}
+
+/* Admin console polish. */
+.adminloginbox{background:linear-gradient(150deg,rgba(10,25,42,.985),rgba(5,13,24,.985))!important;border:1px solid rgba(85,169,255,.24)!important;box-shadow:0 30px 90px rgba(0,0,0,.5),0 0 60px rgba(22,140,255,.07)!important;border-radius:26px!important}
+.adminlogo img{width:58px!important;height:58px!important;object-fit:contain;border-radius:16px;filter:drop-shadow(0 8px 20px rgba(0,110,255,.18))}
+.adminsecurepill{border-color:rgba(85,229,255,.18)!important;background:rgba(85,229,255,.06)!important;color:#8bdff0!important}
+.adminfield>span{font-size:12px!important;letter-spacing:.02em;color:#b9cadc!important}
+.admininputwrap{min-height:56px!important;border-radius:14px!important;background:#071321!important;border:1px solid rgba(118,151,184,.20)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+.admininputwrap:focus-within{border-color:rgba(85,229,255,.48)!important;box-shadow:0 0 0 4px rgba(85,229,255,.06),inset 0 1px 0 rgba(255,255,255,.03)!important}
+.admininputwrap>svg{color:#7894b0!important}
+.admininputwrap input{background:transparent!important;color:#eef7ff!important;font-size:15px!important;padding-right:84px!important}
+.admininputwrap input::placeholder{color:#5e7288!important}
+.adminpasswordtoggle{height:40px!important;min-width:72px!important;right:8px!important;top:8px!important;border-radius:11px!important;background:#10253b!important;border-color:rgba(118,151,184,.22)!important;color:#b9cce0!important}
+.adminpasswordtoggle:hover{background:#15324d!important;color:#9ff2dc!important;border-color:rgba(56,217,169,.38)!important}
+.adminloginbtn{min-height:56px!important;border-radius:15px!important}
+
+/* App-like splash/loading treatment. */
+.nx-page-transition{background:radial-gradient(circle at 50% 42%,rgba(22,140,255,.10),transparent 35%),rgba(3,9,16,.88)!important;backdrop-filter:blur(10px)}
+.nx-page-transition .nx-page-transition-card{border-color:rgba(85,229,255,.18)!important;box-shadow:0 30px 90px rgba(0,0,0,.42),0 0 50px rgba(22,140,255,.07)!important}
+
+/* Mobile: prioritize the four areas, journey, and safe bottom navigation. */
+@media(max-width:900px){
+ .nx-core-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:760px){
+ .nx-core-grid{grid-template-columns:1fr 1fr;gap:9px}
+ .nx-core-card{min-height:102px;padding:13px;border-radius:15px}
+ .nx-core-card small{font-size:10px}
+ .nx-core-icon{width:39px;height:39px;border-radius:12px}
+ .nx-journey{padding:15px 12px}
+ .nx-journey-head{display:block}
+ .nx-journey-head>.muted{display:block;margin-top:5px}
+ .nx-journey-steps{overflow-x:auto;grid-template-columns:repeat(5,108px);padding:4px 2px 7px;scrollbar-width:thin}
+ .nx-journey-step>i{left:70px;right:-35px}
+ .nx-sticky-cta.show{z-index:180}
+ .mobile-bottom-nav{z-index:220}
+ .command-center{z-index:250}
+}
+@media(max-width:430px){
+ .nx-core-grid{grid-template-columns:1fr}
+ .nx-core-card{min-height:88px}
+}
