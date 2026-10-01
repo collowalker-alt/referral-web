@@ -4897,3 +4897,69 @@ html.nexora-light aside button.active{background:#ecfdf5;color:#0f766e}
 
 /* Local-currency display */
 .currencyhint{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:10px 12px;border:1px solid var(--border,#e5e7eb);border-radius:12px;background:rgba(15,23,42,.03);font-size:12px}.currencyhint strong{font-size:12px;letter-spacing:.04em}
+
+/* NEXORA mobile sidebar: keep logout in a dedicated footer so it can never sit
+   underneath the sticky Get a plan CTA or the bottom navigation. */
+.app aside > .logoutbtn{
+  flex:0 0 auto;
+  width:100%;
+  margin:10px 0 2px !important;
+  padding:13px 14px;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  background:rgba(80,22,31,.18);
+  border:1px solid rgba(255,120,135,.12);
+  border-radius:12px;
+  color:#ff9da8;
+  text-align:left;
+  font-weight:700;
+}
+.app aside > .logoutbtn:hover{background:#3b1822;color:#ffd7dc;border-color:rgba(255,120,135,.25)}
+.membernavscroll{padding-bottom:18px}
+@media(max-width:760px){
+  .app aside > .logoutbtn{margin-bottom:max(4px,env(safe-area-inset-bottom,0px)) !important}
+}
+
+/* Admin login — modern dark credential fields with clear, touch-friendly Show control. */
+.adminloginbox{
+  width:min(500px,100%);
+  padding:30px;
+  border-radius:28px;
+  background:linear-gradient(155deg,#0b1a2d 0%,#081320 62%,#06101c 100%);
+  border:1px solid rgba(106,153,198,.28);
+  box-shadow:0 35px 100px rgba(0,0,0,.58), inset 0 1px 0 rgba(255,255,255,.035);
+}
+.adminlogo{margin-bottom:26px}
+.adminlogo img{width:52px;height:52px;border-radius:15px;box-shadow:0 8px 22px rgba(0,0,0,.3)}
+.adminloginintro{display:grid;grid-template-columns:58px 1fr;gap:14px;align-items:start;margin:4px 0 22px}
+.adminloginintro .adminshield{margin:0;width:58px;height:58px;border-radius:17px;background:linear-gradient(145deg,#132f4c,#0d2035);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 10px 28px rgba(0,0,0,.22)}
+.adminsecurepill{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:rgba(71,224,185,.08);border:1px solid rgba(71,224,185,.16);color:#7ee8cc;font-size:9px;font-weight:900;letter-spacing:.12em}
+.adminloginintro h1{margin:9px 0 5px;font-size:30px;letter-spacing:-.025em}
+.adminloginintro p{margin:0;line-height:1.55;font-size:13px}
+.adminloginform{display:grid;gap:15px;margin-top:2px}
+.adminfield{display:grid;gap:7px;font-size:12px;font-weight:850;color:#b9c9da}
+.admininputwrap{position:relative;display:flex;align-items:center;min-height:54px;border:1px solid #29445f;border-radius:14px;background:#071321;box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 6px 18px rgba(0,0,0,.12);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.admininputwrap:focus-within{border-color:#43dcb5;box-shadow:0 0 0 3px rgba(67,220,181,.09),inset 0 1px 0 rgba(255,255,255,.035)}
+.admininputwrap > svg{flex:0 0 auto;margin-left:15px;color:#6f8ca9}
+.admininputwrap:focus-within > svg{color:#75e6c9}
+.admininputwrap input{width:100%;height:52px !important;min-width:0;border:0 !important;outline:0 !important;border-radius:13px !important;background:transparent !important;color:#eef6ff !important;padding:0 14px 0 11px !important;box-shadow:none !important;font-size:15px}
+.admininputwrap input::placeholder{color:#637993 !important}
+.admininputwrap.has-toggle input{padding-right:82px !important}
+.adminpasswordtoggle{position:absolute;right:7px;top:7px;height:38px;min-width:66px;padding:0 9px;display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid rgba(118,151,184,.22);border-radius:10px;background:#10243a;color:#b7c8da;font-size:11px;font-weight:850;z-index:3}
+.adminpasswordtoggle:hover{background:#15304b;color:#e9fff8;border-color:rgba(67,220,181,.38)}
+.adminpasswordtoggle:focus-visible{outline:2px solid #43dcb5;outline-offset:2px}
+.adminloginbtn{position:relative;overflow:hidden;min-height:54px;margin-top:2px;border-radius:14px;box-shadow:0 12px 28px rgba(56,217,169,.16)}
+.adminloginbtn .adminbtnshine{position:absolute;inset:0;transform:translateX(-110%);background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.16) 48%,transparent 70%);animation:adminBtnShine 3.2s ease-in-out infinite}
+@keyframes adminBtnShine{0%,65%{transform:translateX(-110%)}85%,100%{transform:translateX(110%)}}
+.adminsecondarybtn{min-height:46px;border-radius:12px}
+.adminloginbox .adminback{padding-top:4px;margin-top:7px;color:#83e6cc}
+.adminloginbox .error{border:1px solid rgba(255,111,130,.22);background:rgba(84,24,34,.55);border-radius:12px}
+.admininputwrap.codeinput input{text-align:center;letter-spacing:.22em;font-weight:850;font-size:20px}
+@media(max-width:520px){
+  .adminauth{padding:12px}
+  .adminloginbox{padding:22px 18px;border-radius:24px}
+  .adminloginintro h1{font-size:26px}
+  .admininputwrap{min-height:52px}
+  .admininputwrap input{height:50px !important}
+}
