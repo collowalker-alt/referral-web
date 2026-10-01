@@ -5248,3 +5248,22 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
   .servicechatmodal .admin-chat-send{width:100%;min-height:48px}
   .servicechatmodal .chatlog{min-height:240px;max-height:50vh}
 }
+
+/* NEXORA project chat: make the member message composer clearly visible and comfortable. */
+.projectchat .user-chatcomposer{display:flex;flex-direction:column;gap:9px;margin-top:12px;padding:13px;border:1px solid rgba(103,217,192,.18);border-radius:16px;background:linear-gradient(145deg,rgba(9,23,35,.96),rgba(7,16,26,.98));box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 10px 30px rgba(0,0,0,.16)}
+.projectchat .user-chatcomposer textarea{display:block;width:100%;min-height:112px;resize:vertical;padding:14px 15px;border:1px solid rgba(126,157,184,.34);border-radius:13px;background:#071421;color:#f0f7ff;line-height:1.55;font-size:14px;outline:none;box-sizing:border-box;box-shadow:inset 0 1px 4px rgba(0,0,0,.18)}
+.projectchat .user-chatcomposer textarea:hover{border-color:rgba(126,157,184,.52)}
+.projectchat .user-chatcomposer textarea:focus{border-color:rgba(103,217,192,.72);box-shadow:0 0 0 3px rgba(103,217,192,.10),inset 0 1px 4px rgba(0,0,0,.18)}
+.projectchat .user-chatcomposer textarea::placeholder{color:#72879b;opacity:1}
+.chatcomposer-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.user-chat-send{min-width:145px;min-height:44px;justify-content:center;display:flex;align-items:center;gap:7px}
+.notificationbutton{appearance:none;width:100%;border:1px solid transparent;text-align:left;color:inherit;cursor:pointer;display:grid;grid-template-columns:20px 1fr auto;align-items:start;gap:11px}
+.notificationbutton:hover{border-color:rgba(103,217,192,.18);background:rgba(103,217,192,.055)}
+.notificationbutton:focus-visible{outline:2px solid rgba(103,217,192,.7);outline-offset:2px}
+.notificationbutton>svg:last-child{color:#637b90;margin-top:4px}
+@media(max-width:700px){
+ .projectchat .user-chatcomposer textarea{min-height:125px;font-size:14px}
+ .chatcomposer-actions{align-items:stretch;flex-direction:column}
+ .chatcomposer-actions small{text-align:center}
+ .user-chat-send{width:100%;min-height:48px}
+}
