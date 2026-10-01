@@ -1161,9 +1161,6 @@ function NexoraPageTransition({label="Opening workspace…"}){
 function App(){
  const path=window.location.pathname || "/";
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState("dashboard"),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[notifications,setNotifications]=useState([]),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES);
- if(path === "/admin" || path.startsWith("/admin/")) return <AdminApp/>;
- if(path === "/terms" || path === "/privacy" || path === "/membership") return <LegalPage type={path.slice(1)}/>;
- if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
  const load=async(show=true)=>{
   if(show)setLoading(true);setError("");
   try{
@@ -1210,6 +1207,11 @@ function App(){
   return()=>{alive=false};
  },[]);
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
+ // IMPORTANT: all App hooks above must run on every render. Route-specific returns
+ // are intentionally kept after the hooks to prevent React error #310 (hook order).
+ if(path === "/admin" || path.startsWith("/admin/")) return <AdminApp/>;
+ if(path === "/terms" || path === "/privacy" || path === "/membership") return <LegalPage type={path.slice(1)}/>;
+ if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
  if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
  const nav=[
   ["dashboard","Home",BarChart3],["marketplace","🛒 Shop & Marketplace",Store],["wallet","Wallet & Payments",WalletCards],["transfer","Send Money",SendHorizontal],["services","NEXORA Services",Wrench],["transactions","Orders & Transactions",History],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
