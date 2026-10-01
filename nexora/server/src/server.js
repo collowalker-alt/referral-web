@@ -1475,6 +1475,124 @@ app.post("/api/admin/wallet/deposits/verify",adminAuth,requireAdminRole("SUPER_A
   }catch(e){console.error("[ADMIN DEPOSIT VERIFY]",e);res.status(500).json({message:"Unable to verify wallet deposit"});}
 });
 
+
+// -------------------- MEMBER TRANSFERS & DIGITAL SERVICES --------------------
+async function ensureTransferAndServiceTables(){
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "WalletTransfer" (
+    "id" TEXT PRIMARY KEY,
+    "senderId" TEXT NOT NULL,
+    "recipientId" TEXT NOT NULL,
+    "amount" INTEGER NOT NULL,
+    "note" TEXT NOT NULL DEFAULT '',
+    "reference" TEXT UNIQUE NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'COMPLETED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WalletTransfer_sender_created_idx" ON "WalletTransfer"("senderId","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WalletTransfer_recipient_created_idx" ON "WalletTransfer"("recipientId","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ServiceRequest" (
+    "id" TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "serviceType" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "budget" INTEGER,
+    "whatsapp" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'SUBMITTED',
+    "isDone" BOOLEAN NOT NULL DEFAULT false,
+    "isPaid" BOOLEAN NOT NULL DEFAULT false,
+    "adminNote" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_user_created_idx" ON "ServiceRequest"("userId","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_status_created_idx" ON "ServiceRequest"("status","createdAt")`);
+}
+
+function serviceRequestStatus(done,paid){ return paid ? 'PAID' : done ? 'DONE' : 'IN_PROGRESS'; }
+
+app.get('/api/transfers',auth,async(req,res)=>{
+  try{
+    const rows=await prisma.$queryRawUnsafe(`SELECT t.*, s.name AS "senderName", r.name AS "recipientName" FROM "WalletTransfer" t JOIN "User" s ON s.id=t."senderId" JOIN "User" r ON r.id=t."recipientId" WHERE t."senderId"=$1 OR t."recipientId"=$1 ORDER BY t."createdAt" DESC LIMIT 100`,req.user.id);
+    res.json(rows);
+  }catch(e){console.error('[TRANSFERS]',e);res.status(500).json({message:'Unable to load money transfers'});}
+});
+
+app.post('/api/transfers',auth,async(req,res)=>{
+  try{
+    const rawRecipient=String(req.body?.recipient||'').trim();
+    const amount=Math.floor(Number(req.body?.amount||0));
+    const note=String(req.body?.note||'').trim().slice(0,240);
+    if(!rawRecipient) return res.status(400).json({message:'Enter the recipient email, phone number or referral code.'});
+    if(!Number.isFinite(amount)||amount<1) return res.status(400).json({message:'Enter a valid transfer amount.'});
+    if(amount>500000) return res.status(400).json({message:'Transfer amount exceeds the current per-transfer limit.'});
+    const recipient=await prisma.user.findFirst({where:{OR:[{email:rawRecipient.toLowerCase()},{phone:cleanPhone(rawRecipient)},{referralCode:rawRecipient.toUpperCase()}]}});
+    if(!recipient) return res.status(404).json({message:'Recipient not found. Check the email, phone number or referral code.'});
+    if(recipient.id===req.user.id) return res.status(400).json({message:'You cannot send money to your own account.'});
+    if(recipient.status!=='ACTIVE') return res.status(400).json({message:'That recipient account is not available to receive transfers.'});
+    const sender=await prisma.user.findUnique({where:{id:req.user.id},include:{wallet:true}});
+    if(!sender?.wallet||Number(sender.wallet.balance)<amount) return res.status(400).json({message:'Insufficient available wallet balance.'});
+    const ref=`TRF-${crypto.randomUUID().replaceAll('-','').slice(0,20).toUpperCase()}`;
+    const id=crypto.randomUUID();
+    await prisma.$transaction(async tx=>{
+      const locked=await tx.$queryRawUnsafe(`SELECT "balance" FROM "Wallet" WHERE "userId"=$1 FOR UPDATE`,sender.id);
+      const balance=Number(locked?.[0]?.balance||0);
+      if(balance<amount) throw new Error('Insufficient available wallet balance.');
+      await tx.wallet.update({where:{userId:sender.id},data:{balance:{decrement:amount},totalWithdrawn:{increment:0}}});
+      await tx.wallet.upsert({where:{userId:recipient.id},create:{userId:recipient.id,balance:amount},update:{balance:{increment:amount}}});
+      await tx.$executeRawUnsafe(`INSERT INTO "WalletTransfer" ("id","senderId","recipientId","amount","note","reference","status") VALUES ($1,$2,$3,$4,$5,$6,'COMPLETED')`,id,sender.id,recipient.id,amount,note,ref);
+      await tx.transaction.create({data:{userId:sender.id,type:'WITHDRAWAL',amount,status:'SUCCESS',reference:`${ref}-OUT`,metadata:{kind:'WALLET_TRANSFER',transferReference:ref,direction:'OUT',recipientId:recipient.id,note}}});
+      await tx.transaction.create({data:{userId:recipient.id,type:'DEPOSIT',amount,status:'SUCCESS',reference:`${ref}-IN`,metadata:{kind:'WALLET_TRANSFER',transferReference:ref,direction:'IN',senderId:sender.id,note}}});
+    });
+    await createUserNotification(recipient.id,{title:'Money received',message:`You received ${amount} in your NEXORA wallet from ${sender.name}.`,type:'WALLET',details:{reference:ref,amount}});
+    await createUserNotification(sender.id,{title:'Money sent',message:`Your transfer of ${amount} to ${recipient.name} was completed.`,type:'WALLET',details:{reference:ref,amount}});
+    const wallet=await prisma.wallet.findUnique({where:{userId:sender.id}});
+    res.status(201).json({reference:ref,recipient:{id:recipient.id,name:recipient.name,email:recipient.email,phone:recipient.phone},amount,wallet});
+  }catch(e){console.error('[TRANSFER CREATE]',e);res.status(400).json({message:e.message||'Unable to complete transfer'});}
+});
+
+app.get('/api/service-requests',auth,async(req,res)=>{
+  try{const rows=await prisma.$queryRawUnsafe(`SELECT "id","serviceType","title","description","budget","whatsapp","email","status","isDone","isPaid","adminNote","createdAt","updatedAt" FROM "ServiceRequest" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 100`,req.user.id);res.json(rows)}
+  catch(e){res.status(500).json({message:'Unable to load your service requests'});}
+});
+
+app.post('/api/service-requests',auth,async(req,res)=>{
+  try{
+    const allowed=['WEBSITE','MOBILE_APP','WEB_APP','ECOMMERCE','UI_UX','AUTOMATION','API_INTEGRATION','BRANDING','MAINTENANCE','HOSTING_DOMAIN','CUSTOM_SOFTWARE','OTHER'];
+    const serviceType=String(req.body?.serviceType||'OTHER').toUpperCase();
+    const title=String(req.body?.title||'').trim().slice(0,180);
+    const description=String(req.body?.description||'').trim().slice(0,6000);
+    const whatsapp=cleanPhone(req.body?.whatsapp||'');
+    const email=String(req.body?.email||'').trim().toLowerCase().slice(0,180);
+    const budget=req.body?.budget===''||req.body?.budget==null?null:Math.max(0,Math.floor(Number(req.body.budget)));
+    if(!allowed.includes(serviceType))return res.status(400).json({message:'Choose a valid service type.'});
+    if(!title||!description)return res.status(400).json({message:'Project title and description are required.'});
+    if(!whatsapp||whatsapp.length<10)return res.status(400).json({message:'Please provide a valid WhatsApp number.'});
+    if(!/^\S+@\S+\.\S+$/.test(email))return res.status(400).json({message:'Please provide a valid email address.'});
+    const id=crypto.randomUUID();
+    await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequest" ("id","userId","serviceType","title","description","budget","whatsapp","email") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,id,req.user.id,serviceType,title,description,budget,whatsapp,email);
+    await createUserNotification(req.user.id,{title:'Project request submitted',message:'Your digital project request is now visible to the NEXORA team for review.',type:'SERVICE',details:{requestId:id}});
+    const [row]=await prisma.$queryRawUnsafe(`SELECT * FROM "ServiceRequest" WHERE "id"=$1`,id);res.status(201).json(row);
+  }catch(e){console.error('[SERVICE REQUEST]',e);res.status(400).json({message:e.message||'Unable to submit project request'});}
+});
+
+app.get('/api/admin/service-requests',adminAuth,async(req,res)=>{
+  try{const rows=await prisma.$queryRawUnsafe(`SELECT sr.*,u.name AS "userName",u.email AS "userEmail",u.phone AS "userPhone" FROM "ServiceRequest" sr JOIN "User" u ON u.id=sr."userId" ORDER BY sr."createdAt" DESC LIMIT 500`);res.json(rows)}
+  catch(e){res.status(500).json({message:'Unable to load project requests'});}
+});
+
+app.patch('/api/admin/service-requests/:id',adminAuth,async(req,res)=>{
+  try{
+    const done=Boolean(req.body?.isDone); const paid=Boolean(req.body?.isPaid); const status=serviceRequestStatus(done,paid); const note=String(req.body?.adminNote||'').trim().slice(0,3000);
+    const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "isDone"=$1,"isPaid"=$2,"status"=$3,"adminNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$5 RETURNING *`,done,paid,status,note,req.params.id);
+    if(!rows.length)return res.status(404).json({message:'Project request not found'});
+    const row=rows[0]; await logAdminAction(req,'SERVICE_REQUEST_UPDATE','SERVICE_REQUEST',row.id,null,{isDone:done,isPaid:paid,status});
+    await createUserNotification(row.userId,{title:paid?'Project completed & paid':done?'Project marked completed':'Project request updated',message:paid?'Your NEXORA project request has been marked completed and paid for.':done?'Your NEXORA project request has been marked completed by the team.':'There is an update on your NEXORA project request.',type:'SERVICE',details:{requestId:row.id,status}});
+    res.json(row);
+  }catch(e){console.error('[ADMIN SERVICE REQUEST]',e);res.status(400).json({message:'Unable to update project request'});}
+});
+
 // -------------------- SERVE NEXORA FRONTEND FROM RENDER --------------------
 // The production deployment uses one Render service for both the React UI and API.
 // Vite builds client/dist, and Express serves it here. SPA fallback makes /admin work.
@@ -1562,6 +1680,7 @@ async function startServer(){
     await ensureSupportTicketTable();
     await ensureNotificationTable();
     await ensureResetTokenColumns();
+    await ensureTransferAndServiceTables();
     await ensureAdmin();
   }catch(e){
     console.error("[ADMIN] Could not initialize admin account:",e);
