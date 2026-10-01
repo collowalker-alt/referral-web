@@ -1514,12 +1514,19 @@ async function ensureTransferAndServiceTables(){
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
-  // Existing deployments may already have ServiceRequest without a DEFAULT on updatedAt.
-  // CREATE TABLE IF NOT EXISTS does not alter an existing table, so repair the column explicitly.
-  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP`);
-  await prisma.$executeRawUnsafe(`UPDATE "ServiceRequest" SET "updatedAt"=COALESCE("updatedAt","createdAt",CURRENT_TIMESTAMP) WHERE "updatedAt" IS NULL`);
-  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET NOT NULL`);
+  // Existing deployments may have an older ServiceRequest shape. CREATE TABLE IF NOT EXISTS
+  // does not modify an existing table, so add every newer column first, then repair timestamps.
   const serviceCols=[
+    ['serviceType',"TEXT NOT NULL DEFAULT 'OTHER'"],
+    ['title',"TEXT NOT NULL DEFAULT 'NEXORA Service Request'"],
+    ['description',"TEXT NOT NULL DEFAULT ''"],
+    ['budget','INTEGER'],
+    ['whatsapp',"TEXT NOT NULL DEFAULT ''"],
+    ['email',"TEXT NOT NULL DEFAULT ''"],
+    ['status',"TEXT NOT NULL DEFAULT 'SUBMITTED'"],
+    ['isDone','BOOLEAN NOT NULL DEFAULT false'],
+    ['isPaid','BOOLEAN NOT NULL DEFAULT false'],
+    ['adminNote','TEXT'],
     ['isReceived','BOOLEAN NOT NULL DEFAULT false'],
     ['quoteAmount','INTEGER'],
     ['quoteNote','TEXT'],
@@ -1527,9 +1534,16 @@ async function ensureTransferAndServiceTables(){
     ['milestone',"TEXT NOT NULL DEFAULT 'Requirements'"],
     ['revisionCount','INTEGER NOT NULL DEFAULT 0'],
     ['clientApproved','BOOLEAN NOT NULL DEFAULT false'],
-    ['attachments',"TEXT NOT NULL DEFAULT '[]'"]
+    ['attachments',"TEXT NOT NULL DEFAULT '[]'"],
+    ['createdAt','TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP'],
+    ['updatedAt','TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP']
   ];
-  for(const [col,def] of serviceCols){try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ADD COLUMN IF NOT EXISTS "${col}" ${def}`)}catch{}}
+  for(const [col,def] of serviceCols){try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ADD COLUMN IF NOT EXISTS "${col}" ${def}`)}catch(e){console.warn(`[SERVICE SCHEMA] ${col}:`,e.message)}}
+  try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "createdAt" SET DEFAULT CURRENT_TIMESTAMP`)}catch(e){}
+  try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP`)}catch(e){}
+  try{await prisma.$executeRawUnsafe(`UPDATE "ServiceRequest" SET "createdAt"=COALESCE("createdAt",CURRENT_TIMESTAMP), "updatedAt"=COALESCE("updatedAt","createdAt",CURRENT_TIMESTAMP) WHERE "createdAt" IS NULL OR "updatedAt" IS NULL`)}catch(e){console.warn('[SERVICE TIMESTAMP REPAIR]',e.message)}
+  try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "createdAt" SET NOT NULL`)}catch(e){}
+  try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET NOT NULL`)}catch(e){}
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_user_created_idx" ON "ServiceRequest"("userId","createdAt")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_status_created_idx" ON "ServiceRequest"("status","createdAt")`);
   await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ServiceRequestMessage" ("id" TEXT PRIMARY KEY,"requestId" TEXT NOT NULL,"senderId" TEXT NOT NULL,"senderRole" TEXT NOT NULL,"senderName" TEXT NOT NULL DEFAULT 'NEXORA',"message" TEXT NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
@@ -1586,6 +1600,9 @@ app.get('/api/service-requests',auth,async(req,res)=>{
 
 app.post('/api/service-requests',auth,async(req,res)=>{
   try{
+    // Repair/verify the legacy ServiceRequest table immediately before an insert.
+    // This protects deployments whose database was created by an older NEXORA build.
+    await ensureTransferAndServiceTables();
     const allowed=['WEBSITE','MOBILE_APP','WEB_APP','ECOMMERCE','UI_UX','AUTOMATION','API_INTEGRATION','BRANDING','MAINTENANCE','HOSTING_DOMAIN','CUSTOM_SOFTWARE','OTHER'];
     const serviceType=String(req.body?.serviceType||'OTHER').toUpperCase();
     const title=String(req.body?.title||'').trim().slice(0,180);
@@ -1599,9 +1616,16 @@ app.post('/api/service-requests',auth,async(req,res)=>{
     if(!whatsapp||whatsapp.length<10)return res.status(400).json({message:'Please provide a valid WhatsApp number.'});
     if(!/^\S+@\S+\.\S+$/.test(email))return res.status(400).json({message:'Please provide a valid email address.'});
     const id=crypto.randomUUID();
-    await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequest" ("id","userId","serviceType","title","description","budget","whatsapp","email","status","isDone","isPaid","adminNote","isReceived","quoteAmount","quoteNote","quoteStatus","milestone","revisionCount","clientApproved","attachments","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'SUBMITTED',false,false,NULL,false,NULL,NULL,'NONE','Requirements',0,false,$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,id,req.user.id,serviceType,title,description,budget,whatsapp,email,JSON.stringify(attachments));
-    await createUserNotification(req.user.id,{title:'Project request submitted',message:'Your digital project request is now visible to the NEXORA team for review.',type:'SERVICE',details:{requestId:id}});
-    const [row]=await prisma.$queryRawUnsafe(`SELECT * FROM "ServiceRequest" WHERE "id"=$1`,id);res.status(201).json(row);
+    // Use Prisma for the final write so @default/@updatedAt values are handled by the
+    // client as well as the database. This avoids the legacy NULL updatedAt failure.
+    const row=await prisma.serviceRequest.create({data:{
+      id,userId:req.user.id,serviceType,title,description,budget,whatsapp,email,
+      status:'SUBMITTED',isDone:false,isPaid:false,adminNote:null,isReceived:false,
+      quoteAmount:null,quoteNote:null,quoteStatus:'NONE',milestone:'Requirements',
+      revisionCount:0,clientApproved:false,attachments:JSON.stringify(attachments)
+    }});
+    await createUserNotification(req.user.id,{title:'Project request submitted',message:'Your digital project request has been submitted successfully and is now awaiting review by the NEXORA team. We will contact you through WhatsApp or email if we need more information or have feedback.',type:'SERVICE',details:{requestId:id}});
+    res.status(201).json(row);
   }catch(e){console.error('[SERVICE REQUEST]',e);res.status(400).json({message:e.message||'Unable to submit project request'});}
 });
 
