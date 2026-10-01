@@ -1421,9 +1421,8 @@ function PendingPaymentBanner({transactions,goPage}){
   </div>;
 }
 function SoftPlanReminder({me,goPackages}){
-  if(me?.package) return null;
   const [hide,setHide]=useState(()=>sessionStorage.getItem("nexora-plan-nudge")==="1");
-  if(hide) return null;
+  if(me?.package || hide) return null;
   return <div className="plannudge">
     <PackageIcon size={18}/>
     <div><b>Activate a plan to unlock earning tools</b><span>Referral link and Premium advertising start with a membership plan.</span></div>
