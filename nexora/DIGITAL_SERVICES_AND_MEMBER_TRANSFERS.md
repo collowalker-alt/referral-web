@@ -22,3 +22,6 @@
 6. The member receives an in-app notification.
 
 The current **Paid** field is a workflow/status flag; it does not automatically move money to a third-party developer or client. A future version can add project invoices, milestone payments and escrow-style release if required.
+
+## NEXORA Services expansion
+The latest Services workflow supports request lifecycle states, admin receipt acknowledgement, information requests, quotations, milestones, client approval/revision, project chat, reference attachments and payment completion. The member-facing Services page and public/instructions content have been updated accordingly.

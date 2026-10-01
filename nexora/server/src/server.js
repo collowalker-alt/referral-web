@@ -1503,11 +1503,38 @@ async function ensureTransferAndServiceTables(){
     "isDone" BOOLEAN NOT NULL DEFAULT false,
     "isPaid" BOOLEAN NOT NULL DEFAULT false,
     "adminNote" TEXT,
+    "isReceived" BOOLEAN NOT NULL DEFAULT false,
+    "quoteAmount" INTEGER,
+    "quoteNote" TEXT,
+    "quoteStatus" TEXT NOT NULL DEFAULT 'NONE',
+    "milestone" TEXT NOT NULL DEFAULT 'Requirements',
+    "revisionCount" INTEGER NOT NULL DEFAULT 0,
+    "clientApproved" BOOLEAN NOT NULL DEFAULT false,
+    "attachments" TEXT NOT NULL DEFAULT '[]',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Existing deployments may already have ServiceRequest without a DEFAULT on updatedAt.
+  // CREATE TABLE IF NOT EXISTS does not alter an existing table, so repair the column explicitly.
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET DEFAULT CURRENT_TIMESTAMP`);
+  await prisma.$executeRawUnsafe(`UPDATE "ServiceRequest" SET "updatedAt"=COALESCE("updatedAt","createdAt",CURRENT_TIMESTAMP) WHERE "updatedAt" IS NULL`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ALTER COLUMN "updatedAt" SET NOT NULL`);
+  const serviceCols=[
+    ['isReceived','BOOLEAN NOT NULL DEFAULT false'],
+    ['quoteAmount','INTEGER'],
+    ['quoteNote','TEXT'],
+    ['quoteStatus',"TEXT NOT NULL DEFAULT 'NONE'"],
+    ['milestone',"TEXT NOT NULL DEFAULT 'Requirements'"],
+    ['revisionCount','INTEGER NOT NULL DEFAULT 0'],
+    ['clientApproved','BOOLEAN NOT NULL DEFAULT false'],
+    ['attachments',"TEXT NOT NULL DEFAULT '[]'"]
+  ];
+  for(const [col,def] of serviceCols){try{await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequest" ADD COLUMN IF NOT EXISTS "${col}" ${def}`)}catch{}}
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_user_created_idx" ON "ServiceRequest"("userId","createdAt")`);
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequest_status_created_idx" ON "ServiceRequest"("status","createdAt")`);
+  await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "ServiceRequestMessage" ("id" TEXT PRIMARY KEY,"requestId" TEXT NOT NULL,"senderId" TEXT NOT NULL,"senderRole" TEXT NOT NULL,"senderName" TEXT NOT NULL DEFAULT 'NEXORA',"message" TEXT NOT NULL,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "ServiceRequestMessage" ADD COLUMN IF NOT EXISTS "senderName" TEXT NOT NULL DEFAULT 'NEXORA'`);
+  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ServiceRequestMessage_request_created_idx" ON "ServiceRequestMessage"("requestId","createdAt")`);
 }
 
 function serviceRequestStatus(done,paid){ return paid ? 'PAID' : done ? 'DONE' : 'IN_PROGRESS'; }
@@ -1553,7 +1580,7 @@ app.post('/api/transfers',auth,async(req,res)=>{
 });
 
 app.get('/api/service-requests',auth,async(req,res)=>{
-  try{const rows=await prisma.$queryRawUnsafe(`SELECT "id","serviceType","title","description","budget","whatsapp","email","status","isDone","isPaid","adminNote","createdAt","updatedAt" FROM "ServiceRequest" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 100`,req.user.id);res.json(rows)}
+  try{const rows=await prisma.$queryRawUnsafe(`SELECT "id","serviceType","title","description","budget","whatsapp","email","status","isDone","isPaid","adminNote","isReceived","quoteAmount","quoteNote","quoteStatus","milestone","revisionCount","clientApproved","attachments","createdAt","updatedAt" FROM "ServiceRequest" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 100`,req.user.id);res.json(rows)}
   catch(e){res.status(500).json({message:'Unable to load your service requests'});}
 });
 
@@ -1566,39 +1593,58 @@ app.post('/api/service-requests',auth,async(req,res)=>{
     const whatsapp=cleanPhone(req.body?.whatsapp||'');
     const email=String(req.body?.email||'').trim().toLowerCase().slice(0,180);
     const budget=req.body?.budget===''||req.body?.budget==null?null:Math.max(0,Math.floor(Number(req.body.budget)));
+    let attachments=[];try{attachments=Array.isArray(req.body?.attachments)?req.body.attachments.slice(0,8).map(x=>({name:String(x?.name||'file').slice(0,180),type:String(x?.type||'application/octet-stream').slice(0,120),data:String(x?.data||'').slice(0,900000)})).filter(x=>x.data):[]}catch{}
     if(!allowed.includes(serviceType))return res.status(400).json({message:'Choose a valid service type.'});
     if(!title||!description)return res.status(400).json({message:'Project title and description are required.'});
     if(!whatsapp||whatsapp.length<10)return res.status(400).json({message:'Please provide a valid WhatsApp number.'});
     if(!/^\S+@\S+\.\S+$/.test(email))return res.status(400).json({message:'Please provide a valid email address.'});
     const id=crypto.randomUUID();
-    await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequest" ("id","userId","serviceType","title","description","budget","whatsapp","email") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,id,req.user.id,serviceType,title,description,budget,whatsapp,email);
+    await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequest" ("id","userId","serviceType","title","description","budget","whatsapp","email","status","isDone","isPaid","adminNote","isReceived","quoteAmount","quoteNote","quoteStatus","milestone","revisionCount","clientApproved","attachments","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'SUBMITTED',false,false,NULL,false,NULL,NULL,'NONE','Requirements',0,false,$9,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,id,req.user.id,serviceType,title,description,budget,whatsapp,email,JSON.stringify(attachments));
     await createUserNotification(req.user.id,{title:'Project request submitted',message:'Your digital project request is now visible to the NEXORA team for review.',type:'SERVICE',details:{requestId:id}});
     const [row]=await prisma.$queryRawUnsafe(`SELECT * FROM "ServiceRequest" WHERE "id"=$1`,id);res.status(201).json(row);
   }catch(e){console.error('[SERVICE REQUEST]',e);res.status(400).json({message:e.message||'Unable to submit project request'});}
 });
 
+app.get('/api/service-requests/:id/messages',auth,async(req,res)=>{
+  try{const own=await prisma.$queryRawUnsafe(`SELECT "id" FROM "ServiceRequest" WHERE "id"=$1 AND "userId"=$2`,req.params.id,req.user.id);if(!own.length)return res.status(404).json({message:'Request not found'});const rows=await prisma.$queryRawUnsafe(`SELECT m.* FROM "ServiceRequestMessage" m WHERE m."requestId"=$1 ORDER BY m."createdAt" ASC`,req.params.id);res.json(rows)}catch(e){res.status(500).json({message:'Unable to load project messages'})}
+});
+app.post('/api/service-requests/:id/messages',auth,async(req,res)=>{
+  try{const own=await prisma.$queryRawUnsafe(`SELECT "id" FROM "ServiceRequest" WHERE "id"=$1 AND "userId"=$2`,req.params.id,req.user.id);if(!own.length)return res.status(404).json({message:'Request not found'});const message=String(req.body?.message||'').trim().slice(0,4000);if(!message)return res.status(400).json({message:'Enter a message.'});const id=crypto.randomUUID();await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequestMessage" ("id","requestId","senderId","senderRole","senderName","message","createdAt") VALUES ($1,$2,$3,'USER',$4,$5,CURRENT_TIMESTAMP)`,id,req.params.id,req.user.id,(req.user.name||'You'),message);res.status(201).json({id,message,senderRole:'USER',senderName:req.user.name||'You',createdAt:new Date().toISOString()})}catch(e){res.status(400).json({message:'Unable to send project message'})}
+});
+app.post('/api/service-requests/:id/approve',auth,async(req,res)=>{try{const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "clientApproved"=true,"status"='COMPLETED',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2 RETURNING *`,req.params.id,req.user.id);if(!rows.length)return res.status(404).json({message:'Request not found'});res.json(rows[0])}catch(e){res.status(400).json({message:'Unable to approve project'})}});
+app.post('/api/service-requests/:id/revision',auth,async(req,res)=>{try{const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "revisionCount"="revisionCount"+1,"status"='INFO_REQUIRED',"adminNote"=$1,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$2 AND "userId"=$3 RETURNING *`,String(req.body?.message||'Revision requested').slice(0,2000),req.params.id,req.user.id);if(!rows.length)return res.status(404).json({message:'Request not found'});res.json(rows[0])}catch(e){res.status(400).json({message:'Unable to request revision'})}});
+
+app.post('/api/service-requests/:id/quote',auth,async(req,res)=>{try{const accept=Boolean(req.body?.accept);const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "quoteStatus"=$1,"status"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$3 AND "userId"=$4 RETURNING *`,accept?'ACCEPTED':'DECLINED',accept?'IN_PROGRESS':'QUOTED',req.params.id,req.user.id);if(!rows.length)return res.status(404).json({message:'Request not found'});res.json(rows[0])}catch(e){res.status(400).json({message:'Unable to update quotation'})}});
+
 app.get('/api/admin/service-requests',adminAuth,async(req,res)=>{
-  try{const rows=await prisma.$queryRawUnsafe(`SELECT sr.*,u.name AS "userName",u.email AS "userEmail",u.phone AS "userPhone" FROM "ServiceRequest" sr JOIN "User" u ON u.id=sr."userId" ORDER BY sr."createdAt" DESC LIMIT 500`);res.json(rows)}
-  catch(e){res.status(500).json({message:'Unable to load project requests'});}
+  try{const rows=await prisma.$queryRawUnsafe(`SELECT sr.*,u.name AS "userName",u.email AS "userEmail",u.phone AS "userPhone" FROM "ServiceRequest" sr JOIN "User" u ON u.id=sr."userId" ORDER BY sr."createdAt" DESC LIMIT 500`);res.json(rows)}catch(e){res.status(500).json({message:'Unable to load service requests'})}
 });
 
 app.patch('/api/admin/service-requests/:id',adminAuth,async(req,res)=>{
   try{
-    const done=Boolean(req.body?.isDone); const paid=Boolean(req.body?.isPaid); const status=serviceRequestStatus(done,paid); const note=String(req.body?.adminNote||'').trim().slice(0,3000);
-    const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "isDone"=$1,"isPaid"=$2,"status"=$3,"adminNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$5 RETURNING *`,done,paid,status,note,req.params.id);
-    if(!rows.length)return res.status(404).json({message:'Project request not found'});
-    const row=rows[0]; await logAdminAction(req,'SERVICE_REQUEST_UPDATE','SERVICE_REQUEST',row.id,null,{isDone:done,isPaid:paid,status});
-    await createUserNotification(row.userId,{title:paid?'Project completed & paid':done?'Project marked completed':'Project request updated',message:paid?'Your NEXORA project request has been marked completed and paid for.':done?'Your NEXORA project request has been marked completed by the team.':'There is an update on your NEXORA project request.',type:'SERVICE',details:{requestId:row.id,status}});
-    res.json(row);
-  }catch(e){console.error('[ADMIN SERVICE REQUEST]',e);res.status(400).json({message:'Unable to update project request'});}
+    const current=(await prisma.$queryRawUnsafe(`SELECT * FROM "ServiceRequest" WHERE "id"=$1`,req.params.id))[0];
+    if(!current)return res.status(404).json({message:'Request not found'});
+    const action=String(req.body?.action||'').toUpperCase();
+    let status=current.status,isReceived=current.isReceived,isDone=current.isDone,isPaid=current.isPaid,quoteAmount=current.quoteAmount,quoteNote=current.quoteNote,quoteStatus=current.quoteStatus,milestone=current.milestone,adminNote=String(req.body?.adminNote??current.adminNote??'').slice(0,4000);
+    if(action==='RECEIVE'){isReceived=true;status='RECEIVED'}
+    else if(action==='INFO'){status='INFO_REQUIRED'}
+    else if(action==='QUOTE'){quoteAmount=Math.max(0,Math.floor(Number(req.body?.quoteAmount||0)));quoteNote=String(req.body?.quoteNote||'').slice(0,3000);quoteStatus='SENT';status='QUOTED'}
+    else if(action==='START'){status='IN_PROGRESS';milestone=String(req.body?.milestone||'Development').slice(0,120)}
+    else if(action==='MILESTONE'){milestone=String(req.body?.milestone||milestone).slice(0,120);status='IN_PROGRESS'}
+    else if(action==='DONE'){isDone=true;status='COMPLETED';milestone='Delivery / Review'}
+    else if(action==='PAID'){isPaid=true;isDone=true;status='PAID';milestone='Completed & Paid'}
+    else {status=String(req.body?.status||status).toUpperCase()}
+    const rows=await prisma.$queryRawUnsafe(`UPDATE "ServiceRequest" SET "isReceived"=$1,"isDone"=$2,"isPaid"=$3,"status"=$4,"adminNote"=$5,"quoteAmount"=$6,"quoteNote"=$7,"quoteStatus"=$8,"milestone"=$9,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$10 RETURNING *`,isReceived,isDone,isPaid,status,adminNote,quoteAmount,quoteNote,quoteStatus,milestone,req.params.id);
+    const r=rows[0];
+    const uid=current.userId;
+    const messages={RECEIVE:'Your NEXORA request has been received and is now being processed.',INFO:'NEXORA needs a little more information before we can continue your project.',QUOTE:'A quotation is now available for your NEXORA project.',START:'Your NEXORA project is now in progress.',MILESTONE:`Your project milestone was updated to: ${milestone}.`,DONE:'Your project is completed and ready for your review.',PAID:'Your NEXORA project has been completed and payment has been recorded.'};
+    if(messages[action]) await createUserNotification(uid,{title:action==='QUOTE'?'Quotation available':action==='INFO'?'More information needed':'Project update',message:messages[action],type:'SERVICE',details:{requestId:r.id,status:r.status}});
+    res.json(r);
+  }catch(e){console.error('[SERVICE ADMIN UPDATE]',e);res.status(400).json({message:e.message||'Unable to update service request'})}
 });
+app.get('/api/admin/service-requests/:id/messages',adminAuth,async(req,res)=>{try{const rows=await prisma.$queryRawUnsafe(`SELECT m.* FROM "ServiceRequestMessage" m WHERE m."requestId"=$1 ORDER BY m."createdAt" ASC`,req.params.id);res.json(rows)}catch(e){res.status(500).json({message:'Unable to load project messages'})}});
+app.post('/api/admin/service-requests/:id/messages',adminAuth,async(req,res)=>{try{const message=String(req.body?.message||'').trim().slice(0,4000);if(!message)return res.status(400).json({message:'Enter a message.'});const sr=(await prisma.$queryRawUnsafe(`SELECT "userId" FROM "ServiceRequest" WHERE "id"=$1`,req.params.id))[0];if(!sr)return res.status(404).json({message:'Request not found'});const id=crypto.randomUUID();const senderId=req.admin?.id||req.user?.id;if(!senderId)return res.status(401).json({message:'Admin session not found'});await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequestMessage" ("id","requestId","senderId","senderRole","senderName","message","createdAt") VALUES ($1,$2,$3,'ADMIN',$4,$5,CURRENT_TIMESTAMP)`,id,req.params.id,senderId,req.admin.name||'NEXORA Team',message);await createUserNotification(sr.userId,{title:'New project message',message:'NEXORA has sent you a new message about your project.',type:'SERVICE',details:{requestId:req.params.id}});res.status(201).json({id,message,senderRole:'ADMIN',senderName:req.admin.name||'NEXORA Team',createdAt:new Date().toISOString()})}catch(e){res.status(400).json({message:'Unable to send project message'})}});
 
-// -------------------- SERVE NEXORA FRONTEND FROM RENDER --------------------
-// The production deployment uses one Render service for both the React UI and API.
-// Vite builds client/dist, and Express serves it here. SPA fallback makes /admin work.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const clientDist = path.resolve(__dirname, "../../client/dist");
 app.use(express.static(clientDist, { index: "index.html" }));
 app.get("/{*splat}", (req,res,next) => {
   if (req.path.startsWith("/api/")) return next();

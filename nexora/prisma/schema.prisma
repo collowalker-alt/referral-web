@@ -174,9 +174,17 @@ model ServiceRequest {
   status      String   @default("SUBMITTED")
   isDone      Boolean  @default(false)
   isPaid      Boolean  @default(false)
-  adminNote   String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  adminNote      String?  @db.Text
+  isReceived    Boolean  @default(false)
+  quoteAmount   Int?
+  quoteNote     String?  @db.Text
+  quoteStatus   String   @default("NONE")
+  milestone     String   @default("Requirements")
+  revisionCount Int      @default(0)
+  clientApproved Boolean @default(false)
+  attachments   String   @default("[]") @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   @@index([userId, createdAt])
   @@index([status, createdAt])
 }
