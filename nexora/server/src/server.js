@@ -11,6 +11,13 @@ import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { Resend } from "resend";
 
+// Resolve the deployed frontend build from this server/src directory.
+// Without these ESM path variables, the catch-all/static serving code throws
+// ReferenceError: clientDist is not defined during Render startup.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDist = path.resolve(__dirname, "../../client/dist");
+
 dotenv.config();
 const prisma = new PrismaClient();
 const app = express();
