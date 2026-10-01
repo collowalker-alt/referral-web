@@ -5236,16 +5236,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
 @media(max-width:760px){.navservicesub{white-space:normal;line-height:1.25;max-width:190px}.navserviceitem{min-height:58px!important}.adminnavlabel small{white-space:normal;line-height:1.25;max-width:180px}.adminserviceitem{min-height:58px!important}}
 
 /* Admin project chat composer: spacious, multi-line and easy to use */
-.servicechatmodal .chatcomposer.admin-chatcomposer{align-items:stretch;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(120,150,180,.12)}
-.servicechatmodal .admin-chatcomposer textarea{flex:1;min-width:0;min-height:82px;resize:vertical;padding:13px 14px;border-radius:13px;border:1px solid rgba(120,150,180,.22);background:#081421;color:#eef6ff;line-height:1.5;font-size:13px;outline:none;box-sizing:border-box}
-.servicechatmodal .admin-chatcomposer textarea:focus{border-color:rgba(103,217,192,.58);box-shadow:0 0 0 3px rgba(103,217,192,.08)}
+.servicechatmodal{width:min(820px,100%)}
+.servicechatmodal .chatcomposer.admin-chatcomposer{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin-top:12px;padding:12px 0 0;border-top:1px solid rgba(120,150,180,.12);width:100%;box-sizing:border-box}
+.servicechatmodal .admin-chatcomposer textarea{display:block;width:100%;flex:0 0 auto;min-width:0;min-height:140px;height:140px;resize:vertical;padding:14px 15px;border-radius:13px;border:1px solid rgba(120,150,180,.34);background:#071421;color:#eef6ff;line-height:1.55;font-size:14px;outline:none;box-sizing:border-box;box-shadow:inset 0 1px 4px rgba(0,0,0,.18)}
+.servicechatmodal .admin-chatcomposer textarea:hover{border-color:rgba(126,157,184,.52)}
+.servicechatmodal .admin-chatcomposer textarea:focus{border-color:rgba(103,217,192,.72);box-shadow:0 0 0 3px rgba(103,217,192,.10),inset 0 1px 4px rgba(0,0,0,.18)}
 .servicechatmodal .admin-chatcomposer textarea::placeholder{color:#71859a}
-.servicechatmodal .admin-chat-send{min-width:94px;min-height:82px;align-self:stretch;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:13px}
+.servicechatmodal .admin-chat-send{width:max-content;min-width:130px;min-height:48px;align-self:flex-end;display:flex;align-items:center;justify-content:center;gap:7px;border-radius:12px}
 .servicechatmodal .chatlog{min-height:320px;max-height:420px;padding:12px 4px}
 @media (max-width:700px){
-  .servicechatmodal .chatcomposer.admin-chatcomposer{flex-direction:column}
-  .servicechatmodal .admin-chatcomposer textarea{min-height:96px;width:100%}
-  .servicechatmodal .admin-chat-send{width:100%;min-height:48px}
+  .servicechatmodal .admin-chatcomposer textarea{min-height:135px;height:135px;width:100%}
+  .servicechatmodal .admin-chat-send{width:100%;min-height:50px}
   .servicechatmodal .chatlog{min-height:240px;max-height:50vh}
 }
 
