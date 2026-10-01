@@ -5068,3 +5068,141 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
  .nx-core-grid{grid-template-columns:1fr}
  .nx-core-card{min-height:88px}
 }
+
+/* =========================================================
+   NEXORA MOTION LANGUAGE — Lift / Select / Slide / Confirm / Settle
+   ========================================================= */
+:root{
+  --nx-motion-fast:.16s;
+  --nx-motion:.24s;
+  --nx-motion-slow:.42s;
+  --nx-brand-blue:#4ea0ff;
+  --nx-brand-cyan:#63e7ff;
+  --nx-brand-glow:rgba(78,160,255,.18);
+}
+
+/* Keep important UI layers from clipping badges, focus rings or shadows. */
+.activity-center,.activity-center *{overflow:visible}
+.activity-center{isolation:isolate}
+.header-icon-btn{overflow:visible!important;z-index:1}
+.header-icon-btn>span{
+  right:-9px!important;
+  top:-9px!important;
+  min-width:21px!important;
+  height:21px!important;
+  padding:0 5px!important;
+  border-radius:999px!important;
+  font-size:10px!important;
+  line-height:1!important;
+  border:2px solid #07111d!important;
+  background:linear-gradient(145deg,#72edca,#36cda8)!important;
+  color:#04130f!important;
+  box-shadow:0 5px 14px rgba(56,217,169,.32),0 0 0 2px rgba(56,217,169,.08)!important;
+  z-index:20!important;
+  transform-origin:center;
+  animation:nxBadgePop .35s cubic-bezier(.2,.9,.25,1.35);
+}
+@keyframes nxBadgePop{0%{transform:scale(.45);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1)}}
+
+/* App-like screen transitions */
+.app main>section,.app main>.nx-ptr>section{animation:nxScreenIn .26s ease-out both}
+@keyframes nxScreenIn{from{opacity:.45;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* Premium hero depth without turning the entire app into glass. */
+.home-hero-compact,.dashboardhero{position:relative;overflow:hidden}
+.home-hero-compact::before,.dashboardhero::before{
+  content:"";position:absolute;inset:-35%;pointer-events:none;z-index:0;
+  background:radial-gradient(circle at 72% 28%,rgba(78,160,255,.11),transparent 28%),radial-gradient(circle at 22% 75%,rgba(99,231,255,.055),transparent 25%);
+  animation:nxAmbient 9s ease-in-out infinite alternate;
+}
+.home-hero-compact>* ,.dashboardhero>*{position:relative;z-index:1}
+@keyframes nxAmbient{from{transform:translate3d(-1%,0,0) scale(1)}to{transform:translate3d(1%,1%,0) scale(1.025)}}
+
+/* Physical buttons: lift on hover, press on touch, selected state rises. */
+.primary,.secondary,.hero-balance-btn,.quickaction,.nx-core-card,.nx-journey-step,.command-item,.shopcategorychips button,.market-tabs button,.wallettabs button{
+  will-change:transform;transform-origin:center bottom;
+}
+.primary:hover,.secondary:hover,.hero-balance-btn:hover,.quickaction:hover,.nx-core-card:hover{box-shadow:0 12px 28px rgba(0,0,0,.22)}
+.primary:active,.secondary:active,.hero-balance-btn:active,.quickaction:active,.nx-core-card:active{box-shadow:0 5px 14px rgba(0,0,0,.16)}
+
+/* Core-area cards gently reveal their hierarchy on entry. */
+.nx-core-card{animation:nxCardIn .42s ease-out both}
+.nx-core-card:nth-child(2){animation-delay:.045s}.nx-core-card:nth-child(3){animation-delay:.09s}.nx-core-card:nth-child(4){animation-delay:.135s}
+@keyframes nxCardIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+/* Journey: completed nodes feel settled, next node gets a restrained pulse. */
+.nx-journey-step.done .nx-journey-dot{animation:nxDoneSettle .5s ease-out both}
+@keyframes nxDoneSettle{0%{transform:scale(.82)}65%{transform:scale(1.08)}100%{transform:scale(1)}}
+
+/* Balance/count surfaces. */
+.home-balance-value,.dashboardstat strong,.bigmetric{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dashboardhero-balance,.dashboardhero-plan,.dashboardstat{transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease}
+.dashboardhero-balance:hover,.dashboardhero-plan:hover,.dashboardstat:hover{transform:translateY(-2px);box-shadow:0 18px 45px rgba(0,0,0,.22);border-color:rgba(99,231,255,.18)}
+
+/* Notification/activity surfaces. */
+.activity-popover{transform-origin:top right;animation:nxPopover .2s cubic-bezier(.2,.8,.2,1) both}
+@keyframes nxPopover{from{opacity:0;transform:translateY(-6px) scale(.985)}to{opacity:1;transform:none}}
+.activity-popover-row{transition:background .16s ease,transform .16s ease}
+.activity-popover-row:hover{transform:translateX(2px)}
+
+/* Unified toast/notice motion. */
+.toast,.notice,.successbanner,.error{animation:nxToastIn .28s cubic-bezier(.2,.8,.2,1) both}
+@keyframes nxToastIn{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+
+/* Modal motion: clean, app-like rather than dramatic. */
+.modalbackdrop{animation:nxBackdropIn .18s ease-out both}
+.modalbackdrop .modal{animation:nxModalIn .24s cubic-bezier(.2,.8,.2,1) both}
+@keyframes nxBackdropIn{from{opacity:0}to{opacity:1}}
+@keyframes nxModalIn{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+
+/* Mobile bottom sheets: modals remain accessible and feel native. */
+@media(max-width:760px){
+  .modalbackdrop .modal.phonemodal,
+  .modalbackdrop .modal.paymentmodal,
+  .modalbackdrop .modal.depositmodal,
+  .modalbackdrop .modal.authmodal,
+  .modalbackdrop .modal.lessonmodal{
+    border-radius:22px 22px 0 0!important;
+    margin:0!important;
+    width:min(100%,720px)!important;
+    max-height:92vh!important;
+    align-self:flex-end!important;
+    animation:nxSheetIn .28s cubic-bezier(.2,.8,.2,1) both!important;
+  }
+  .modalbackdrop{align-items:flex-end!important;padding:0!important}
+  .modalbackdrop .modal>.modalhead{padding-top:16px}
+}
+@keyframes nxSheetIn{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+
+/* Loading/skeleton treatment. */
+.nx-skel-card,.nx-skeleton,.skeleton{position:relative;overflow:hidden}
+.nx-skel-card::after,.nx-skeleton::after,.skeleton::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.055),transparent);
+  animation:nxShimmer 1.25s infinite;
+}
+@keyframes nxShimmer{to{transform:translateX(100%)}}
+
+/* Marketplace cards get the same tactile lift. */
+.marketcard{transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.marketcard:hover{transform:translateY(-4px);box-shadow:0 18px 42px rgba(0,0,0,.22);border-color:rgba(99,231,255,.2)}
+
+/* Academy cards and milestone feedback. */
+.academycard,.milestone{transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+.academycard:hover{transform:translateY(-3px);box-shadow:0 16px 38px rgba(0,0,0,.2)}
+.milestone.done span{animation:nxCheckSettle .4s ease-out both}
+@keyframes nxCheckSettle{0%{transform:scale(.75)}70%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+/* Security/payment states. */
+.adminloginbtn,.paymentfoot .primary{position:relative;overflow:hidden}
+.adminloginbtn::after,.paymentfoot .primary::after{
+  content:"";position:absolute;inset:0;transform:translateX(-120%);
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.16),transparent);
+  animation:nxButtonSheen 3.8s ease-in-out infinite;
+}
+@keyframes nxButtonSheen{0%,65%{transform:translateX(-120%)}82%,100%{transform:translateX(120%)}}
+
+/* Respect reduced-motion accessibility preferences. */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.001ms!important}
+}
