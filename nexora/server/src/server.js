@@ -635,6 +635,39 @@ app.post("/api/nexbot/chat",auth,nexbotLimiter,async(req,res)=>{
   }catch(e){console.error("[NEXBOT]",e);res.status(500).json({message:"NexBot could not answer right now. Please try again."});}
 });
 
+
+// Lightweight Server-Sent Events stream used by the web app for live updates.
+// EventSource cannot send an Authorization header, so the short-lived JWT is
+// accepted through the query string only for this streaming endpoint.
+const openRealtimeStream = (req,res,kind) => {
+  try{
+    const token=String(req.query?.token||"");
+    if(!token) return res.status(401).end();
+    const p=jwt.verify(token,JWT_SECRET);
+    if(kind==="admin" && p.type!=="admin") return res.status(403).end();
+    if(kind==="member" && p.type==="admin") return res.status(403).end();
+    res.writeHead(200,{
+      "Content-Type":"text/event-stream; charset=utf-8",
+      "Cache-Control":"no-cache, no-transform",
+      "Connection":"keep-alive",
+      "X-Accel-Buffering":"no"
+    });
+    res.write(`event: connected\ndata: ${JSON.stringify({ok:true})}\n\n`);
+    const timer=setInterval(()=>{
+      if(res.writableEnded) return clearInterval(timer);
+      res.write(`event: refresh\ndata: ${JSON.stringify({at:Date.now()})}\n\n`);
+    },2500);
+    const keepAlive=setInterval(()=>{
+      if(res.writableEnded) return clearInterval(keepAlive);
+      res.write(`: keepalive\n\n`);
+    },15000);
+    req.on("close",()=>{clearInterval(timer);clearInterval(keepAlive);});
+  }catch(e){ return res.status(401).end(); }
+};
+
+app.get("/api/realtime", (req,res)=>openRealtimeStream(req,res,"member"));
+app.get("/api/admin/realtime", (req,res)=>openRealtimeStream(req,res,"admin"));
+
 app.get("/api/notifications",auth,async(req,res)=>{
   try{
     const rows=await prisma.$queryRawUnsafe(`SELECT "id","title","message","type","details","read","createdAt" FROM "Notification" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 50`,req.user.id);

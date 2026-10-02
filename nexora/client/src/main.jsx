@@ -832,7 +832,15 @@ function AdminManagement({action,busy=false}){
 
 function AdminApp(){const [admin,setAdmin]=useState(null),[loading,setLoading]=useState(true),[page,setPage]=useState("overview"),[data,setData]=useState({overview:null,users:[],transactions:[],withdrawals:[],packages:[],announcements:[],deposits:[]}),[error,setError]=useState(""),[search,setSearch]=useState(""),[mobile,setMobile]=useState(false),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[busyMessage,setBusyMessage]=useState("");
  const load=async(show=true)=>{if(show)setLoading(true);setError("");try{const a=await adminApi("/admin/me");setAdmin(a.admin);const r=a.admin.role;const isSuper=r==="SUPER_ADMIN", isAdmin=r==="ADMIN", isFinance=r==="FINANCE_ADMIN", isSupport=r==="SUPPORT_ADMIN";const [overview,users,transactions,withdrawals,packages,announcements,adProducts,adSubmissions,deposits,marketProducts,marketOrders]=await Promise.all([adminApi("/admin/overview"),adminApi("/admin/users"),((isSuper||isAdmin||isFinance)?adminApi("/admin/transactions"):Promise.resolve([])),((isSuper||isAdmin||isFinance)?adminApi("/admin/withdrawals"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/packages"):Promise.resolve([])),((isSuper||isAdmin||isSupport)?adminApi("/admin/announcements"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/ad-products"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/ad-submissions"):Promise.resolve([])),((isSuper||isAdmin||isFinance)?adminApi("/admin/wallet/deposits"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/marketplace/products"):Promise.resolve([])),((isSuper||isAdmin)?adminApi("/admin/marketplace/orders"):Promise.resolve([]))]);setData({overview,users,transactions,withdrawals,packages,announcements,adProducts,adSubmissions,deposits,marketProducts,marketOrders});}catch(e){localStorage.removeItem("adminToken");setAdmin(null);if(!String(e.message).toLowerCase().includes("session"))setError(e.message)}finally{setLoading(false)}};
- useEffect(()=>{if(localStorage.getItem("adminToken"))load();else setLoading(false)},[]);
+ useEffect(()=>{if(localStorage.getItem("adminToken"))load();else setLoading(false)},[]); useEffect(()=>{
+  const token=localStorage.getItem("adminToken");
+  if(!token)return;
+  const stream=new EventSource(`${API}/admin/realtime?token=${encodeURIComponent(token)}`);
+  const onRefresh=()=>load(false);
+  stream.addEventListener("refresh",onRefresh);
+  return()=>{stream.removeEventListener("refresh",onRefresh);stream.close()};
+ },[!!admin]);
+
  const action=async(fn,msg)=>{if(busy)return false;setBusy(true);setBusyMessage(msg);setError("");setNotice(`Processing… ${msg}`);try{await fn();await load(false);setNotice(`✓ ${msg}`);return true}catch(e){setError(e.message);setNotice("");return false}finally{setBusy(false);setBusyMessage("")}};
  if(loading&&!admin)return <NexoraSplash label="Opening admin console…"/>;if(!admin)return <AdminLogin onLogin={a=>{setAdmin(a);load(false)}}/>;
  const nav=[["overview","Overview",BarChart3],["users","Users",UsersRound]]; const r=admin.role; if(["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"].includes(r)) nav.push(["transactions","Transactions",ReceiptText],["deposits","Wallet deposits",WalletCards],["paybillverify","Paybill verification",BadgeCheck],["withdrawals","Withdrawals",HandCoins]); if(["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"].includes(r)) nav.push(["repair","Payment repair",Wrench]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["packages","Packages",PackageIcon],["advertising","Advertising",Megaphone],["marketplace","Marketplace",Store],["serviceRequests","NEXORA Services",Wrench]); if(["SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"].includes(r)) nav.push(["announcements","Announcements",Megaphone],["support","Support tickets",LifeBuoy]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["activity","Activity log",Activity]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["paymentconfig","Payment configuration",CreditCard]); if(["SUPER_ADMIN","ADMIN"].includes(r)) nav.push(["health","System health",Activity], ["loginactivity","Login activity",History], ["security","Security center",Shield]); if(r==="SUPER_ADMIN") nav.push(["admins","Admin management",UserCog]);
@@ -1206,6 +1214,19 @@ function App(){
   api("/currency/rates?base=KES").then(d=>{if(alive&&d?.rates)setCurrencyRates({...FALLBACK_KES_RATES,...d.rates})}).catch(()=>{});
   return()=>{alive=false};
  },[]);
+ useEffect(()=>{
+  if(!me)return;
+  const token=localStorage.getItem("token");
+  if(!token)return;
+  const stream=new EventSource(`${API}/realtime?token=${encodeURIComponent(token)}`);
+  const onRefresh=()=>{
+    // Keep the current screen live without a manual browser refresh.
+    load(false);
+    window.dispatchEvent(new CustomEvent("nexora-realtime"));
+  };
+  stream.addEventListener("refresh",onRefresh);
+  return()=>{stream.removeEventListener("refresh",onRefresh);stream.close()};
+ },[!!me]);
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
  useEffect(()=>{const fn=e=>{const page=e.detail?.page;if(page)setPage(page)};window.addEventListener("nexora-go-page",fn);return()=>window.removeEventListener("nexora-go-page",fn)},[]);
  // IMPORTANT: all App hooks above must run on every render. Route-specific returns
@@ -1329,7 +1350,23 @@ function DigitalServices({me}){
  const types=[['WEBSITE','Business / personal website'],['MOBILE_APP','Mobile app'],['WEB_APP','Web application / SaaS'],['ECOMMERCE','E-commerce store'],['UI_UX','UI/UX & product design'],['AUTOMATION','Automation / business workflow'],['API_INTEGRATION','API / payment integration'],['BRANDING','Branding & digital identity'],['MAINTENANCE','Website/app maintenance'],['HOSTING_DOMAIN','Hosting & domain setup'],['CUSTOM_SOFTWARE','Custom software'],['OTHER','Other digital request']];
  const serviceMap={Website:'WEBSITE','Mobile app':'MOBILE_APP','Web app':'WEB_APP','E-commerce':'ECOMMERCE','Automation':'AUTOMATION','API integration':'API_INTEGRATION'};
  const [form,setForm]=useState({serviceType:'WEBSITE',title:'',description:'',budget:'',whatsapp:me?.user?.phone||'',email:me?.user?.email||''}),[rows,setRows]=useState([]),[busy,setBusy]=useState(false),[msg,setMsg]=useState(''),[err,setErr]=useState(''),[files,setFiles]=useState([]),[selected,setSelected]=useState(null),[messages,setMessages]=useState([]),[chat,setChat]=useState(''),[chatBusy,setChatBusy]=useState(false);const formRef=useRef(null);
- const load=async()=>{try{const data=await api('/service-requests');setRows(data);let target=null;try{target=sessionStorage.getItem('nexora-open-service-request')}catch{};if(target){const found=data.find(x=>String(x.id)===String(target));if(found){try{sessionStorage.removeItem('nexora-open-service-request')}catch{};openProject(found)}}}catch(e){setErr(e.message)}}; useEffect(()=>{load()},[]);
+ const load=async()=>{try{const data=await api('/service-requests');setRows(data);let target=null;try{target=sessionStorage.getItem('nexora-open-service-request')}catch{};if(target){const found=data.find(x=>String(x.id)===String(target));if(found){try{sessionStorage.removeItem('nexora-open-service-request')}catch{};openProject(found)}}}catch(e){setErr(e.message)}}; useEffect(()=>{load()},[]); useEffect(()=>{
+  const onRealtime=async()=>{
+    try{
+      const data=await api('/service-requests');
+      setRows(data);
+      if(selected?.id){
+        const fresh=data.find(x=>String(x.id)===String(selected.id));
+        if(fresh)setSelected(fresh);
+        const chatRows=await api(`/service-requests/${selected.id}/messages`);
+        setMessages(chatRows);
+      }
+    }catch{}
+  };
+  window.addEventListener("nexora-realtime",onRealtime);
+  return()=>window.removeEventListener("nexora-realtime",onRealtime);
+ },[selected?.id]);
+
  const chooseService=(label)=>{const type=serviceMap[label]||'OTHER';setForm(x=>({...x,serviceType:type}));setMsg('');setErr('');requestAnimationFrame(()=>formRef.current?.scrollIntoView({behavior:'smooth',block:'start'}));setTimeout(()=>formRef.current?.querySelector('input[name="project-title"]')?.focus(),450)};
  const readFile=(file)=>new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve({name:file.name,type:file.type,data:String(r.result||'')});r.onerror=reject;r.readAsDataURL(file)});
  const submit=async e=>{e.preventDefault();setBusy(true);setMsg('');setErr('');try{const attachments=await Promise.all(files.slice(0,6).map(readFile));await api('/service-requests',{method:'POST',body:JSON.stringify({...form,budget:form.budget===''?'':Math.round(localToBase(form.budget)),attachments})});setMsg('Your request has been sent to NEXORA and is now awaiting review. We will contact you through WhatsApp or email. If the response is delayed, please contact NEXORA Support.');setForm(x=>({...x,title:'',description:'',budget:''}));setFiles([]);await load()}catch(e){setErr(e.message)}finally{setBusy(false)}};
