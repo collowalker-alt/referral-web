@@ -5326,3 +5326,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
 @keyframes nexbotMascotFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1.5deg)}}
 .nexbot-root.is-open .nexbot-mascot-fab{animation:none;transform:scale(.94)}
 @media(prefers-reduced-motion:reduce){.nexbot-mascot-fab{animation:none!important}}
+
+/* Keep lesson dialogs anchored to the viewport, never to the Academy scroll container. */
+.lessonmodalbackdrop{position:fixed!important;inset:0!important;width:100vw;height:100vh;height:100dvh;overflow-y:auto;overscroll-behavior:contain;display:grid;place-items:center;box-sizing:border-box;padding:18px;z-index:1000}
+.lessonmodalbackdrop .lessonmodal{position:relative;width:min(760px,100%);max-height:calc(100vh - 36px);max-height:calc(100dvh - 36px);margin:auto;display:flex;flex-direction:column;min-height:0}
+.lessonmodalbackdrop .lessonbody{min-height:0;max-height:none;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain}
+.lessonmodalbackdrop .modalhead,.lessonmodalbackdrop .modalfoot{flex:0 0 auto}
+@media(max-width:600px){.lessonmodalbackdrop{padding:10px}.lessonmodalbackdrop .lessonmodal{max-height:calc(100dvh - 20px);border-radius:16px}.lessonmodalbackdrop .modalhead{padding:15px}.lessonmodalbackdrop .modalhead h2{font-size:20px}.lessonmodalbackdrop .lessonbody{padding:15px}.lessonmodalbackdrop .modalfoot{padding:12px 15px}}
