@@ -5333,3 +5333,40 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
 .lessonmodalbackdrop .lessonbody{min-height:0;max-height:none;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain}
 .lessonmodalbackdrop .modalhead,.lessonmodalbackdrop .modalfoot{flex:0 0 auto}
 @media(max-width:600px){.lessonmodalbackdrop{padding:10px}.lessonmodalbackdrop .lessonmodal{max-height:calc(100dvh - 20px);border-radius:16px}.lessonmodalbackdrop .modalhead{padding:15px}.lessonmodalbackdrop .modalhead h2{font-size:20px}.lessonmodalbackdrop .lessonbody{padding:15px}.lessonmodalbackdrop .modalfoot{padding:12px 15px}}
+
+/* NEXORA visual polish pack: premium interactions without skeleton loaders. */
+:root{--nx-accent:#39d7b0;--nx-accent-soft:rgba(57,215,176,.14);--nx-border:rgba(123,157,190,.18);--nx-surface:#091625;--nx-text:#eaf2ff}
+/* Consistent, quick interaction feedback across buttons and clickable cards. */
+button,.primary,.secondary,.quickaction,.hero-balance-btn,.nx-core-card,.marketcard,.academycard,.productcard,.notificationbutton{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease,background-color .18s ease,filter .18s ease}
+button:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:2px solid rgba(57,215,176,.9);outline-offset:3px}
+.primary,.hero-balance-btn{background-image:linear-gradient(110deg,rgba(57,215,176,.12),rgba(57,215,176,0) 65%)}
+.primary:hover,.hero-balance-btn:hover,.quickaction:hover,.nx-core-card:hover{transform:translateY(-2px);border-color:rgba(57,215,176,.38);box-shadow:0 12px 28px rgba(0,0,0,.22),0 0 0 1px rgba(57,215,176,.04)}
+button:active,.primary:active,.secondary:active,.quickaction:active{transform:translateY(1px) scale(.99)}
+button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:saturate(.55);opacity:.65;transform:none;box-shadow:none}
+.marketcard:hover,.academycard:hover{border-color:rgba(57,215,176,.28)}
+/* Wallet and progress numbers transition when server-confirmed values update. */
+.balance,.walletbalance,.wallet-balance,.earning-value,.statvalue,.stat-value,.progress-ring,.progressbar>span{transition:color .22s ease,background .22s ease,width .35s ease,stroke-dashoffset .35s ease,transform .22s ease}
+.walletbalance:hover,.wallet-balance:hover,.earning-value:hover{color:#78f0d0}
+/* Modal backdrop and panel consistency: viewport placement, readable surfaces. */
+.modalbackdrop{position:fixed;inset:0;box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;padding:clamp(10px,2.5vh,24px);}
+.modalbackdrop>.modal,.modalbackdrop .modal{box-sizing:border-box;max-height:calc(100dvh - 2 * clamp(10px,2.5vh,24px));min-height:0;overflow:auto;overscroll-behavior:contain}
+.modalbackdrop .modalhead{position:sticky;top:0;z-index:3;background:inherit}
+.modalbackdrop .modalfoot{position:sticky;bottom:0;z-index:3;background:inherit}
+/* Better toast and status feedback, keeping the site's existing colors. */
+.toast,.notice,.successbanner,.error{border-radius:13px;box-shadow:0 12px 32px rgba(0,0,0,.22)}
+/* NexBot greets with a gentle float; hovering adds a brief friendly wave-like tilt. */
+.nexbot-fab{transition:transform .2s ease,box-shadow .2s ease,filter .2s ease!important}
+.nexbot-fab:hover{transform:translateY(-3px) scale(1.035);box-shadow:0 12px 32px rgba(0,0,0,.38),0 0 0 5px rgba(28,169,255,.13),0 0 28px rgba(0,149,255,.3)!important}
+.nexbot-fab:hover .nexbot-mascot-fab{animation:nexbotMascotWave .7s ease-in-out 1}
+@keyframes nexbotMascotWave{0%,100%{transform:translateY(0) rotate(0)}22%{transform:translateY(-2px) rotate(-7deg)}48%{transform:translateY(-1px) rotate(6deg)}72%{transform:translateY(-2px) rotate(-4deg)}}
+/* Responsive polish for small screens and touch devices. */
+@media(max-width:700px){
+  .modalbackdrop{padding:10px!important}
+  .modalbackdrop>.modal,.modalbackdrop .modal{max-width:100%;max-height:calc(100dvh - 20px);border-radius:16px}
+  .marketcard:hover,.academycard:hover,.primary:hover,.secondary:hover,.quickaction:hover{transform:none}
+  .nexbot-fab{width:58px;height:58px}
+}
+@media(hover:none){.marketcard:hover,.academycard:hover,.primary:hover,.secondary:hover,.quickaction:hover,.nx-core-card:hover{transform:none;box-shadow:none}}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
