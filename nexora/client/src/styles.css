@@ -5272,3 +5272,57 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nx-borde
 /* Live-contact controls: keep both floating controls clearly visible. */
 .supportfloat{opacity:1;}
 .nexbot-fab{opacity:1;}
+
+/* Fix: dashboard notification buttons must inherit the dark NEXORA surface,
+   rather than the browser's default white button background. */
+.notificationlist .notificationbutton,
+.notificationpanel .notificationbutton {
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(145deg, rgba(12, 28, 45, .98), rgba(7, 18, 31, .98)) !important;
+  color: #e7f0fb !important;
+  border: 1px solid rgba(111, 151, 184, .18) !important;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025);
+}
+.notificationlist .notificationbutton b,
+.notificationpanel .notificationbutton b { color: #eaf2ff !important; }
+.notificationlist .notificationbutton p,
+.notificationpanel .notificationbutton p { color: #9aacc0 !important; }
+.notificationlist .notificationbutton small,
+.notificationpanel .notificationbutton small { color: #70869d !important; }
+.notificationlist .notificationbutton > svg:first-child,
+.notificationpanel .notificationbutton > svg:first-child { color: #63dfc0; }
+.notificationlist .notificationbutton:hover,
+.notificationpanel .notificationbutton:hover {
+  background: linear-gradient(145deg, rgba(15, 39, 57, .99), rgba(8, 25, 39, .99)) !important;
+  border-color: rgba(103, 217, 192, .42) !important;
+}
+.notificationlist .notificationbutton.unread,
+.notificationpanel .notificationbutton.unread {
+  background: linear-gradient(145deg, rgba(12, 35, 53, .99), rgba(8, 23, 38, .99)) !important;
+  border-color: rgba(100, 180, 255, .32) !important;
+}
+
+/* NEXBOT mascot refresh: waving 3D character with subtle motion */
+.nexbot-fab{
+  overflow:visible!important;
+  isolation:isolate;
+  background:radial-gradient(circle at 35% 18%,#183a59 0%,#071426 68%,#04101d 100%)!important;
+  border:1px solid rgba(50,190,255,.65)!important;
+  box-shadow:0 8px 26px rgba(0,0,0,.42),0 0 0 4px rgba(28,169,255,.10),0 0 22px rgba(0,149,255,.24)!important;
+}
+.nexbot-mascot-fab{
+  position:absolute;inset:-12px -10px -8px -12px;width:calc(100% + 22px);height:calc(100% + 20px);
+  object-fit:cover;object-position:58% 30%;border-radius:50%;pointer-events:none;z-index:1;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.45));
+  animation:nexbotMascotFloat 3s ease-in-out infinite;transform-origin:55% 70%;
+}
+.nexbot-fab-glow{z-index:0!important;opacity:.75!important;background:radial-gradient(circle,rgba(0,174,255,.32),transparent 70%)!important}
+.nexbot-fab-dot{z-index:3!important}
+.nexbot-avatar{overflow:hidden!important;background:#06172a!important;border:1px solid rgba(44,181,255,.45)!important}
+.nexbot-mascot-head{width:100%;height:100%;display:block;object-fit:cover;object-position:58% 23%;transform:scale(1.12)}
+.nexbot-tip{border-color:rgba(44,181,255,.35)!important}
+@keyframes nexbotMascotFloat{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-4px) rotate(1.5deg)}}
+.nexbot-root.is-open .nexbot-mascot-fab{animation:none;transform:scale(.94)}
+@media(prefers-reduced-motion:reduce){.nexbot-mascot-fab{animation:none!important}}
