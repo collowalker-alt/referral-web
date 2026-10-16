@@ -31,6 +31,7 @@ enum TransactionType {
   COMMISSION
   WITHDRAWAL
   REFUND
+  CONNECT_PURCHASE
 }
 
 enum WithdrawalStatus {
@@ -50,6 +51,7 @@ enum AdminRole {
   ADMIN
   FINANCE_ADMIN
   SUPPORT_ADMIN
+  CONNECT_ADMIN
 }
 
 model User {
@@ -95,6 +97,8 @@ model User {
   transfersSent     WalletTransfer[] @relation("WalletTransferSender")
   transfersReceived WalletTransfer[] @relation("WalletTransferRecipient")
   serviceRequests   ServiceRequest[]
+  connectOrders     ConnectOrder[]
+  pushSubscriptions PushSubscription[]
 
   @@index([referredById])
   @@index([packageId])
@@ -145,6 +149,35 @@ model Transaction {
   @@index([userId, createdAt])
 }
 
+
+model ConnectOrder {
+  id                String   @id @default(cuid())
+  reference         String   @unique
+  requestKey        String?  @unique
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bundleId          String
+  bundleCategory    String
+  bundleName        String
+  validity          String
+  amount            Int
+  recipientPhone    String
+  recipientType     String   @default("SELF")
+  paymentMethod     String
+  paymentStatus     String   @default("PENDING")
+  status            String   @default("AWAITING_PAYMENT")
+  paymentReference  String?  @unique
+  adminNote         String?  @db.Text
+  handledByAdminId  String?
+  paidAt            DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus, createdAt])
+}
 
 model WalletTransfer {
   id          String   @id
@@ -231,6 +264,26 @@ model Admin {
   twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
   recoveryCodes    Json?
+  notifications    AdminNotification[]
+  pushSubscriptions PushSubscription[]
+}
+
+
+model AdminNotification {
+  id        String   @id @default(cuid())
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  dedupeKey String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  details   Json?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([adminId, dedupeKey])
+  @@index([adminId, read, createdAt])
+  @@index([type, createdAt])
 }
 
 
@@ -505,5 +558,24 @@ model AdminLoginEvent {
   userAgent String?
   createdAt DateTime @default(now())
   @@index([email, createdAt])
+  @@index([adminId, createdAt])
+}
+
+
+// Browser push subscriptions are explicitly enabled by each member/admin on each device.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
   @@index([adminId, createdAt])
 }

@@ -10,6 +10,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { Resend } from "resend";
+import webpush from "web-push";
 
 // Resolve the deployed frontend build from this server/src directory.
 // Without these ESM path variables, the catch-all/static serving code throws
@@ -86,6 +87,14 @@ const NEXBOT_AI_API_KEY = String(process.env.NEXBOT_AI_API_KEY || process.env.OP
 const NEXBOT_AI_MODEL = String(process.env.NEXBOT_AI_MODEL || "gpt-5.6-luna").trim();
 const NEXBOT_AI_URL = String(process.env.NEXBOT_AI_URL || "https://api.openai.com/v1/responses").trim();
 const PAYSTACK_API_URL = "https://api.paystack.co";
+const VAPID_PUBLIC_KEY = String(process.env.VAPID_PUBLIC_KEY || "").trim();
+const VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY || "").trim();
+const VAPID_SUBJECT = String(process.env.VAPID_SUBJECT || (process.env.ADMIN_EMAIL ? `mailto:${process.env.ADMIN_EMAIL}` : "")).trim();
+let WEB_PUSH_CONFIGURED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY && VAPID_SUBJECT);
+if (WEB_PUSH_CONFIGURED) {
+  try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY); }
+  catch (e) { WEB_PUSH_CONFIGURED = false; console.error("[WEB PUSH] Invalid VAPID configuration:", e.message); }
+}
 const MPESA_PAYBILL_NUMBER = String(process.env.MPESA_PAYBILL_NUMBER || "400200").trim();
 const MPESA_PAYBILL_ACCOUNT = String(process.env.MPESA_PAYBILL_ACCOUNT || "").trim();
 const MPESA_PAYBILL_NAME = String(process.env.MPESA_PAYBILL_NAME || "NEXORA").trim();
@@ -243,6 +252,16 @@ const adminAuth = async (req,res,next) => {
     const a=await prisma.admin.findUnique({where:{id:p.id}});
     if(!a || a.status!=="ACTIVE") return res.status(401).json({message:"Admin account unavailable"});
     if(p.v!==undefined && Number(p.v)!==Number(a.tokenVersion||0)) return res.status(401).json({message:"Your admin session has ended. Please sign in again."});
+    // A Connect Admin is intentionally isolated from the main admin console.
+    // Allow only profile/session security and Connect-order routes.
+    if(a.role==="CONNECT_ADMIN"){
+      const path=String(req.path||"");
+      const connectOrdersRoute=path==="/api/admin/connect/orders" || /^\/api\/admin\/connect\/orders\/[^/]+$/.test(path);
+      const adminNotificationsRoute=path==="/api/admin/notifications" || path==="/api/admin/notifications/read-all" || /^\/api\/admin\/notifications\/[^/]+\/read$/.test(path);
+      const adminPushRoute=path==="/api/admin/push/status" || path==="/api/admin/push/subscribe" || path==="/api/admin/push/unsubscribe";
+      const allowed=path==="/api/admin/me" || path==="/api/admin/auth/logout-all" || path.startsWith("/api/admin/security/2fa/") || connectOrdersRoute || adminNotificationsRoute || adminPushRoute;
+      if(!allowed) return res.status(403).json({message:"Connect Admin accounts can access NEXORA Connect orders only."});
+    }
     req.admin=a; next();
   } catch { res.status(401).json({message:"Invalid or expired admin session"}); }
 };
@@ -313,11 +332,85 @@ const logPaystackCharge=(label,{reference,httpStatus,response,phone,email}={})=>
     email:maskEmail(email)
   }));
 };
+async function pushSubscriptions(where) {
+  if (!WEB_PUSH_CONFIGURED) return [];
+  return prisma.pushSubscription.findMany({ where, select: { id:true, endpoint:true, p256dh:true, auth:true } });
+}
+async function deliverWebPush(subscriptions, payload) {
+  if (!WEB_PUSH_CONFIGURED || !subscriptions?.length) return { sent:0, removed:0 };
+  let sent=0, removed=0;
+  const body=JSON.stringify({
+    title:String(payload?.title||"NEXORA").slice(0,120),
+    body:String(payload?.message||payload?.body||"You have a new NEXORA update.").slice(0,300),
+    icon:"/nexora-logo.png", badge:"/favicon.png",
+    url:String(payload?.url||"/").startsWith("/")?String(payload?.url||"/"):"/",
+    tag:String(payload?.tag||payload?.type||"nexora-update").slice(0,100),
+    timestamp:Date.now()
+  });
+  const deliverOne=async sub=>{
+    try {
+      await webpush.sendNotification({endpoint:sub.endpoint,keys:{p256dh:sub.p256dh,auth:sub.auth}},body,{TTL:60*60});
+      sent++;
+    } catch(e) {
+      if ([404,410].includes(Number(e?.statusCode))) {
+        await prisma.pushSubscription.deleteMany({where:{id:sub.id}}).catch(()=>{}); removed++;
+      } else {
+        console.warn("[WEB PUSH DELIVERY] Delivery failed:", Number(e?.statusCode)||"network error");
+      }
+    }
+  };
+  for(let i=0;i<subscriptions.length;i+=100) await Promise.all(subscriptions.slice(i,i+100).map(deliverOne));
+  return {sent,removed};
+}
+async function pushToUser(userId,payload) {
+  try { const subs=await pushSubscriptions({userId:String(userId)}); return deliverWebPush(subs,{...payload,url:payload?.url||"/?page=notifications"}); }
+  catch(e) { console.warn("[WEB PUSH USER]",e.message); return {sent:0}; }
+}
+async function pushToAdmin(adminId,payload) {
+  try { const subs=await pushSubscriptions({adminId:String(adminId)}); return deliverWebPush(subs,{...payload,url:payload?.url||"/"}); }
+  catch(e) { console.warn("[WEB PUSH ADMIN]",e.message); return {sent:0}; }
+}
+async function pushToActiveMembers(payload) {
+  try { const subs=await prisma.pushSubscription.findMany({where:{userId:{not:null},user:{status:"ACTIVE"}},select:{id:true,endpoint:true,p256dh:true,auth:true}}); return deliverWebPush(subs,{...payload,url:payload?.url||"/?page=community"}); }
+  catch(e) { console.warn("[WEB PUSH BROADCAST]",e.message); return {sent:0}; }
+}
+async function broadcastMemberNotification({title,message,type="ANNOUNCEMENT",details={}}={}) {
+  const safeTitle=String(title||"").trim().slice(0,160), safeMessage=String(message||"").trim().slice(0,1000);
+  if(!safeTitle||!safeMessage) throw new Error("Title and message are required.");
+  const users=await prisma.user.findMany({where:{status:"ACTIVE"},select:{id:true}});
+  const chunkSize=400;
+  for(let i=0;i<users.length;i+=chunkSize){
+    const chunk=users.slice(i,i+chunkSize);
+    await prisma.notification.createMany({data:chunk.map(u=>({id:crypto.randomUUID(),userId:u.id,title:safeTitle,message:safeMessage,type,details:details||{}}))});
+  }
+  // Push only reaches members who explicitly enabled notifications on a device.
+  const delivery=await pushToActiveMembers({title:safeTitle,message:safeMessage,type,tag:`nexora-${type.toLowerCase()}`,url:"/?page=community"});
+  return {recipients:users.length,pushSent:delivery.sent};
+}
 async function createUserNotification(userId,{title,message,type="ACCOUNT",details=null}={}){
   try{
     if(!userId||!title||!message)return;
     await prisma.$executeRawUnsafe(`INSERT INTO "Notification" ("id","userId","title","message","type","details","read","createdAt") VALUES ($1,$2,$3,$4,$5,$6::jsonb,false,CURRENT_TIMESTAMP)`,crypto.randomUUID(),String(userId),String(title).slice(0,160),String(message).slice(0,1000),String(type).slice(0,40),JSON.stringify(details||{}));
+    const page=details?.destinationPage||details?.page||"notifications";
+    void pushToUser(userId,{title,message,type,tag:`nexora-${String(type).toLowerCase()}`,url:`/?page=${encodeURIComponent(page)}`});
   }catch(e){console.error("[NOTIFICATION CREATE]",e.message);}
+}
+
+// Persistent in-app + background push notifications for administrators. Unique dedupe keys
+// avoid sending a second phone push if the same business event is retried.
+async function createAdminNotifications({roles=["SUPER_ADMIN","ADMIN"],dedupeKey,title,message,type="INFO",details=null}={}){
+  try{
+    if(!dedupeKey||!title||!message)return;
+    const eligible=await prisma.admin.findMany({where:{status:"ACTIVE",role:{in:[...new Set(roles)]}},select:{id:true}});
+    if(!eligible.length)return;
+    await Promise.all(eligible.map(async a=>{
+      try {
+        await prisma.adminNotification.create({data:{adminId:a.id,dedupeKey:String(dedupeKey).slice(0,240),title:String(title).slice(0,160),message:String(message).slice(0,1000),type:String(type).slice(0,40),details:details||{}}});
+        const page=details?.destinationPage||"overview";
+        void pushToAdmin(a.id,{title,message,type,tag:`nexora-admin-${String(type).toLowerCase()}`,url:`/admin?adminPage=${encodeURIComponent(page)}`});
+      } catch(e) { if(e?.code!=="P2002") console.error("[ADMIN NOTIFICATION CREATE]",e.message); }
+    }));
+  }catch(e){console.error("[ADMIN NOTIFICATION CREATE]",e.message);}
 }
 
 function base32Encode(buf){const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";let bits=0,value=0,out="";for(const b of buf){value=(value<<8)|b;bits+=8;while(bits>=5){out+=alphabet[(value>>(bits-5))&31];bits-=5;}}if(bits>0)out+=alphabet[(value<<(5-bits))&31];return out;}
@@ -387,6 +480,7 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
       name:String(name).trim(),email:normalizedEmail,phone:normalizedPhone,countryCode:requestedCountry.code,countryName:requestedCountry.name,countryVerified:Boolean(detectedCountry&&detectedCountry.code===requestedCountry.code),countrySource:"PHONE",passwordHash:hash,referralCode:makeCode(name),
       referredById:parent?.id,wallet:{create:{}}
     }});
+    await createUserNotification(user.id,{title:`Welcome to NEXORA, ${user.name.split(/\s+/)[0]}!`,message:"Your NEXORA account is ready. Explore the marketplace, Academy, membership options and NEXORA Connect. You can enable phone notifications in your Notifications centre to hear about important updates.",type:"WELCOME",details:{destinationPage:"dashboard"}});
     res.status(201).json({token:sign(user),user:{id:user.id,name:user.name,email:user.email,phone:user.phone,countryCode:user.countryCode,countryName:user.countryName,paymentAvailability:paymentAvailabilityForCountry(user.countryCode),referralCode:user.referralCode}});
   } catch(e){ console.error(e); res.status(500).json({message:"Registration failed"}); }
 });
@@ -668,6 +762,38 @@ const openRealtimeStream = (req,res,kind) => {
 app.get("/api/realtime", (req,res)=>openRealtimeStream(req,res,"member"));
 app.get("/api/admin/realtime", (req,res)=>openRealtimeStream(req,res,"admin"));
 
+app.get("/api/push/public-key",(req,res)=>{
+  res.set("Cache-Control","no-store");
+  if(!WEB_PUSH_CONFIGURED)return res.json({enabled:false,publicKey:null,message:"Background push is not configured on the server yet."});
+  res.json({enabled:true,publicKey:VAPID_PUBLIC_KEY});
+});
+app.get("/api/push/status",auth,async(req,res)=>{
+  try{const count=await prisma.pushSubscription.count({where:{userId:req.user.id}});res.json({enabled:WEB_PUSH_CONFIGURED,subscribed:count>0,devices:count});}
+  catch(e){res.status(500).json({message:"Unable to load push notification settings."});}
+});
+app.post("/api/push/subscribe",auth,async(req,res)=>{
+  try{
+    if(!WEB_PUSH_CONFIGURED)return res.status(503).json({message:"Background push is not configured on the server yet."});
+    const endpoint=String(req.body?.endpoint||"");const keys=req.body?.keys||{};
+    if(!/^https:\/\//i.test(endpoint)||!keys.p256dh||!keys.auth)return res.status(400).json({message:"Invalid browser push subscription."});
+    const existing=await prisma.pushSubscription.findUnique({where:{endpoint}});
+    if(existing) await prisma.pushSubscription.update({where:{endpoint},data:{userId:req.user.id,p256dh:String(keys.p256dh),auth:String(keys.auth),userAgent:String(req.headers["user-agent"]||"").slice(0,500)}});
+    else await prisma.pushSubscription.create({data:{endpoint,p256dh:String(keys.p256dh),auth:String(keys.auth),userId:req.user.id,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}});
+    res.json({ok:true,subscribed:true});
+  }catch(e){console.error("[PUSH SUBSCRIBE USER]",e.message);res.status(500).json({message:"Could not enable push notifications."});}
+});
+app.post("/api/push/unsubscribe",auth,async(req,res)=>{
+  try{
+    const endpoint=String(req.body?.endpoint||"");if(!endpoint)return res.status(400).json({message:"Subscription endpoint is required."});
+    const current=await prisma.pushSubscription.findFirst({where:{endpoint,userId:req.user.id}});
+    if(!current)return res.json({ok:true,unsubscribeBrowser:true});
+    const updated=await prisma.pushSubscription.update({where:{id:current.id},data:{userId:null}});
+    const remaining=Boolean(updated.adminId);
+    if(!updated.userId&&!updated.adminId)await prisma.pushSubscription.delete({where:{id:updated.id}});
+    res.json({ok:true,unsubscribeBrowser:!remaining});
+  }catch(e){console.error("[PUSH UNSUBSCRIBE USER]",e.message);res.status(500).json({message:"Could not disable push notifications."});}
+});
+
 app.get("/api/notifications",auth,async(req,res)=>{
   try{
     const rows=await prisma.$queryRawUnsafe(`SELECT "id","title","message","type","details","read","createdAt" FROM "Notification" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT 50`,req.user.id);
@@ -904,6 +1030,10 @@ app.post("/api/payments/paybill/submit-code",auth,async(req,res)=>{
 
     const meta={...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true};
     await prisma.transaction.update({where:{id:tx.id},data:{metadata:meta}});
+    if(tx.type==="PACKAGE_PURCHASE") {
+      const packageRecord=meta.packageId?await prisma.package.findUnique({where:{id:meta.packageId},select:{name:true}}):null;
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`plan-payment-confirmation:${reference}`,title:"Membership payment needs verification",message:`${req.user.name||req.user.email} submitted an M-Pesa code for ${packageRecord?.name||"a membership plan"} — KSh ${Number(tx.amount).toLocaleString()}. Verify the transaction before activating the plan.`,type:"PAYMENT_CONFIRMATION",details:{reference,transactionId:tx.id,amount:tx.amount,packageId:meta.packageId||null,paymentKind:"PLAN_PAYMENT",destinationPage:"paybillverify",memberId:req.user.id,memberName:req.user.name||req.user.email}});
+    }
 
     res.json({
       status:"pending_verification",
@@ -1023,6 +1153,13 @@ async function activatePaidPackage(reference){
       }
     }
   });
+  // Alert finance/admin after confirmed activation (not merely after a payment attempt).
+  const activatedTx=await prisma.transaction.findUnique({where:{reference}});
+  if(activatedTx?.status==="SUCCESS") {
+    const activatedUser=await prisma.user.findUnique({where:{id:activatedTx.userId},select:{name:true,email:true}});
+    const activatedPackage=await prisma.package.findUnique({where:{id:packageId},select:{name:true}});
+    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`plan-purchase:${reference}`,title:"Membership plan purchased",message:`${activatedUser?.name||activatedUser?.email||"A member"} purchased/activated ${activatedPackage?.name||"a membership plan"} for KSh ${Number(activatedTx.amount).toLocaleString()}. Ref: ${reference}.`,type:"PLAN_PURCHASE",details:{reference,transactionId:activatedTx.id,packageId,amount:activatedTx.amount,memberId:activatedTx.userId,memberName:activatedUser?.name||activatedUser?.email,destinationPage:"transactions"}});
+  }
 }
 
 app.get("/api/payments/status/:reference",auth,async(req,res)=>{
@@ -1040,6 +1177,60 @@ app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
     const result=await queryAndApplyPaystackStatus(req.params.reference);
     res.json({status:result.status,display_text:result.message||"",message:result.message||"Payment status checked"});
   }catch(e){console.error("[PAYSTACK VERIFY EXCEPTION]",e);res.status(500).json({message:e.message||"Verification failed"});}
+});
+
+// -------------------- NEXORA CONNECT ORDERS --------------------
+// Server-authoritative prices: never accept price, name, category or validity from the browser.
+const CONNECT_BUNDLE_CATALOG = Object.fromEntries([
+  ["data-19","data",19,"1 GB","1 hour"],["data-20","data",20,"250 MB","24 hours"],["data-49","data",49,"400 MB","7 days"],["data-50","data",50,"1.5 GB","3 hours"],["data-51","data",51,"750 MB + 50 SMS","Validity as provided by Kigen"],["data-55","data",55,"1 GB","Till midnight"],["data-99","data",99,"1 GB","24 hours"],["data-300","data",300,"2.5 GB","7 days"],["data-700","data",700,"6 GB","7 days"],["data-999","data",999,"21 GB","1 month"],["data-23","data",23,"1 GB","1 hour"],["data-53","data",53,"1.5 GB","3 hours"],["data-54","data",54,"750 MB + 50 SMS + free WhatsApp","As listed by Kigen"],["data-110","data",110,"2 GB","24 hours"],["data-270","data",270,"5 GB","3 days"],
+  ["minutes-22","minutes",22,"45 minutes","3 hours"],["minutes-52","minutes",52,"60 minutes","Till midnight"],["minutes-250","minutes",250,"200 minutes","7 days"],["minutes-1000","minutes",1000,"1,000 minutes","30 days"],
+  ["sms-5","sms",5,"20 SMS","24 hours"],["sms-10","sms",10,"200 SMS","24 hours"],["sms-30","sms",30,"1,000 SMS","1 week"],["sms-100","sms",100,"1,500 SMS","30 days"],["sms-200","sms",200,"3,500 SMS","30 days"]
+].map(([id,category,amount,name,validity])=>[id,{id,category,amount,name,validity}]));
+const normalizeConnectRecipient=value=>{let d=String(value||"").replace(/\D/g,"");if(/^0[17]\d{8}$/.test(d))d=`254${d.slice(1)}`;return /^254[17]\d{8}$/.test(d)?d:"";};
+const connectOrderPublicSelect={id:true,reference:true,bundleId:true,bundleCategory:true,bundleName:true,validity:true,amount:true,recipientPhone:true,recipientType:true,paymentMethod:true,paymentStatus:true,status:true,paymentReference:true,adminNote:true,paidAt:true,deliveredAt:true,createdAt:true,updatedAt:true};
+app.get("/api/connect/orders",auth,async(req,res)=>{
+  try{const rows=await prisma.connectOrder.findMany({where:{userId:req.user.id},select:connectOrderPublicSelect,orderBy:{createdAt:"desc"},take:50});res.json(rows);}
+  catch(e){console.error("[CONNECT ORDERS]",e);res.status(500).json({message:"Unable to load your Connect orders. Please try again."});}
+});
+app.post("/api/connect/orders",auth,rateLimit({windowMs:15*60*1000,max:25,message:{message:"Too many Connect order attempts. Please wait and try again."}}),async(req,res)=>{
+  let requestKey=String(req.body?.requestKey||"").trim().slice(0,100);
+  try{
+    if(String(req.user.countryCode||"KE").toUpperCase()!=="KE")return res.status(403).json({message:"Kigen Safaricom bundles are currently available to Kenya accounts only."});
+    const bundle=CONNECT_BUNDLE_CATALOG[String(req.body?.bundleId||"")];if(!bundle)return res.status(400).json({message:"Select a valid bundle from the current NEXORA Connect catalogue."});
+    const recipientType=String(req.body?.recipientType||"SELF").toUpperCase();if(!["SELF","FRIEND"].includes(recipientType))return res.status(400).json({message:"Select whether the bundle is for your own number or someone else."});
+    const recipientPhone=recipientType==="SELF"?normalizeConnectRecipient(req.user.phone):normalizeConnectRecipient(req.body?.recipientPhone);
+    if(!recipientPhone)return res.status(400).json({message:recipientType==="SELF"?"Your profile phone must be a valid Kenyan Safaricom number before ordering.":"Enter a valid Kenyan Safaricom phone number such as 0712345678."});
+    const paymentMethod=String(req.body?.paymentMethod||"").toUpperCase();if(!["WALLET","KIGEN_DIRECT"].includes(paymentMethod))return res.status(400).json({message:"Choose wallet balance or payment directly to Kigen."});
+    if(!requestKey||requestKey.length<8)return res.status(400).json({message:"Order request key is missing. Please try again."});
+    const prior=await prisma.connectOrder.findUnique({where:{requestKey}});
+    if(prior){if(prior.userId!==req.user.id)return res.status(409).json({message:"This order request could not be reused. Refresh and try again."});return res.json({order:prior,walletBalance:(await prisma.wallet.findUnique({where:{userId:req.user.id}}))?.balance??0,reused:true,message:"This order was already recorded; it was not charged a second time."});}
+    const reference=`NXCON-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
+    const created=await prisma.$transaction(async tx=>{
+      const repeated=await tx.connectOrder.findUnique({where:{requestKey}});
+      if(repeated){if(repeated.userId!==req.user.id)throw Object.assign(new Error("Request key was already used."),{statusCode:409});return {order:repeated,reused:true,walletBalance:(await tx.wallet.findUnique({where:{userId:req.user.id}}))?.balance??0};}
+      let paymentStatus="PENDING",status="AWAITING_PAYMENT",paidAt=null,walletBalance=null;
+      if(paymentMethod==="WALLET"){
+        const debit=await tx.wallet.updateMany({where:{userId:req.user.id,balance:{gte:bundle.amount}},data:{balance:{decrement:bundle.amount}}});
+        if(debit.count!==1)throw Object.assign(new Error("Your available wallet balance is too low for this bundle. Add funds or choose payment directly to Kigen."),{statusCode:402});
+        paymentStatus="PAID";status="PENDING_FULFILLMENT";paidAt=new Date();
+      }
+      const order=await tx.connectOrder.create({data:{reference,requestKey,userId:req.user.id,bundleId:bundle.id,bundleCategory:bundle.category,bundleName:bundle.name,validity:bundle.validity,amount:bundle.amount,recipientPhone,recipientType,paymentMethod,paymentStatus,status,paidAt}});
+      if(paymentMethod==="WALLET"){
+        await tx.transaction.create({data:{userId:req.user.id,type:"CONNECT_PURCHASE",amount:bundle.amount,status:"SUCCESS",reference:`${reference}-WALLET`,metadata:{source:"NEXORA_CONNECT",connectOrderId:order.id,orderReference:reference,bundleId:bundle.id,direction:"OUT",paymentMethod:"WALLET"}}});
+      }
+      walletBalance=(await tx.wallet.findUnique({where:{userId:req.user.id}}))?.balance??0;
+      return {order,reused:false,walletBalance};
+    });
+    if(!created.reused){
+      await createUserNotification(req.user.id,{title:paymentMethod==="WALLET"?"Connect order placed":"Connect order request saved",message:paymentMethod==="WALLET"?`Your wallet payment of KSh ${bundle.amount.toLocaleString()} was recorded for ${bundle.name}. Order ${created.order.reference} is waiting for bundle fulfilment; payment does not itself confirm delivery.`:`Your ${bundle.name} request ${created.order.reference} was saved. Payment is not yet verified; follow Kigen's instructions and keep the M-Pesa confirmation.`,type:"CONNECT",details:{orderId:created.order.id,reference:created.order.reference,status:created.order.status,paymentStatus:created.order.paymentStatus}});
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","CONNECT_ADMIN"],dedupeKey:`connect-order:${created.order.id}:created`,title:"New NEXORA Connect order",message:`${req.user.name||req.user.email} ordered ${bundle.name} for KSh ${bundle.amount.toLocaleString()}. ${paymentMethod==="WALLET"?"Wallet payment is recorded; fulfilment is pending.":"External payment is not verified in NEXORA; check payment before fulfilment."}`,type:"CONNECT_ORDER",details:{orderId:created.order.id,reference:created.order.reference,bundleName:bundle.name,amount:bundle.amount,paymentMethod,paymentStatus:created.order.paymentStatus,status:created.order.status,recipientPhone:created.order.recipientPhone,destinationPage:"connectorders"}});
+    }
+    res.status(created.reused?200:201).json({order:created.order,walletBalance:created.walletBalance,reused:created.reused,message:created.reused?"This order was already recorded.":paymentMethod==="WALLET"?"Wallet payment recorded. Your bundle is awaiting fulfilment.":"Order request saved. Payment remains pending until verified."});
+  }catch(e){
+    if(e?.code==="P2002"&&requestKey){const prior=await prisma.connectOrder.findUnique({where:{requestKey}}).catch(()=>null);if(prior?.userId===req.user.id)return res.json({order:prior,walletBalance:(await prisma.wallet.findUnique({where:{userId:req.user.id}}).catch(()=>null))?.balance??0,reused:true,message:"This order was already recorded; it was not charged a second time."});}
+    if(e?.statusCode)return res.status(e.statusCode).json({message:e.message});
+    console.error("[CONNECT ORDER CREATE]",e);res.status(500).json({message:"Could not save the Connect order. No success was reported; please refresh your orders before retrying."});
+  }
 });
 
 // -------------------- NEXORA ADMIN --------------------
@@ -1073,7 +1264,119 @@ app.post("/api/admin/auth/verify-2fa", adminLoginLimiter, async(req,res)=>{
     res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:true}});
   }catch(e){res.status(401).json({message:"Invalid or expired 2FA challenge"});}
 });
+app.get("/api/admin/notifications",adminAuth,async(req,res)=>{
+  try{
+    const [rows,unreadCount]=await Promise.all([
+      prisma.adminNotification.findMany({where:{adminId:req.admin.id},orderBy:{createdAt:"desc"},take:40}),
+      prisma.adminNotification.count({where:{adminId:req.admin.id,read:false}})
+    ]);
+    res.json({notifications:rows,unreadCount});
+  }catch(e){console.error("[ADMIN NOTIFICATIONS]",e);res.status(500).json({message:"Unable to load admin notifications"});}
+});
+app.post("/api/admin/notifications/:id/read",adminAuth,async(req,res)=>{
+  try{const result=await prisma.adminNotification.updateMany({where:{id:req.params.id,adminId:req.admin.id},data:{read:true}});res.json({ok:true,updated:result.count});}
+  catch(e){console.error("[ADMIN NOTIFICATION READ]",e);res.status(500).json({message:"Unable to mark notification as read"});}
+});
+app.post("/api/admin/notifications/read-all",adminAuth,async(req,res)=>{
+  try{const result=await prisma.adminNotification.updateMany({where:{adminId:req.admin.id,read:false},data:{read:true}});res.json({ok:true,updated:result.count});}
+  catch(e){console.error("[ADMIN NOTIFICATION READ ALL]",e);res.status(500).json({message:"Unable to mark notifications as read"});}
+});
+app.get("/api/admin/push/status",adminAuth,async(req,res)=>{
+  try{const count=await prisma.pushSubscription.count({where:{adminId:req.admin.id}});res.json({enabled:WEB_PUSH_CONFIGURED,subscribed:count>0,devices:count});}
+  catch(e){res.status(500).json({message:"Unable to load admin push settings."});}
+});
+app.post("/api/admin/push/subscribe",adminAuth,async(req,res)=>{
+  try{
+    if(!WEB_PUSH_CONFIGURED)return res.status(503).json({message:"Background push is not configured on the server yet."});
+    const endpoint=String(req.body?.endpoint||"");const keys=req.body?.keys||{};
+    if(!/^https:\/\//i.test(endpoint)||!keys.p256dh||!keys.auth)return res.status(400).json({message:"Invalid browser push subscription."});
+    const existing=await prisma.pushSubscription.findUnique({where:{endpoint}});
+    if(existing)await prisma.pushSubscription.update({where:{endpoint},data:{adminId:req.admin.id,p256dh:String(keys.p256dh),auth:String(keys.auth),userAgent:String(req.headers["user-agent"]||"").slice(0,500)}});
+    else await prisma.pushSubscription.create({data:{endpoint,p256dh:String(keys.p256dh),auth:String(keys.auth),adminId:req.admin.id,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}});
+    res.json({ok:true,subscribed:true});
+  }catch(e){console.error("[PUSH SUBSCRIBE ADMIN]",e.message);res.status(500).json({message:"Could not enable admin push notifications."});}
+});
+app.post("/api/admin/push/unsubscribe",adminAuth,async(req,res)=>{
+  try{
+    const endpoint=String(req.body?.endpoint||"");if(!endpoint)return res.status(400).json({message:"Subscription endpoint is required."});
+    const current=await prisma.pushSubscription.findFirst({where:{endpoint,adminId:req.admin.id}});
+    if(!current)return res.json({ok:true,unsubscribeBrowser:true});
+    const updated=await prisma.pushSubscription.update({where:{id:current.id},data:{adminId:null}});
+    const remaining=Boolean(updated.userId);
+    if(!updated.userId&&!updated.adminId)await prisma.pushSubscription.delete({where:{id:updated.id}});
+    res.json({ok:true,unsubscribeBrowser:!remaining});
+  }catch(e){console.error("[PUSH UNSUBSCRIBE ADMIN]",e.message);res.status(500).json({message:"Could not disable admin push notifications."});}
+});
+
 app.get("/api/admin/me",adminAuth,async(req,res)=>res.json({admin:{id:req.admin.id,name:req.admin.name,email:req.admin.email,role:req.admin.role,twoFactorEnabled:Boolean(req.admin.twoFactorEnabled)}}));
+app.get("/api/admin/connect/orders",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","CONNECT_ADMIN"),async(req,res)=>{
+  try{
+    const rows=await prisma.connectOrder.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true,countryCode:true}}},orderBy:{createdAt:"desc"},take:500});
+    res.json(rows);
+  }catch(e){console.error("[ADMIN CONNECT ORDERS]",e);res.status(500).json({message:"Unable to load Connect orders. Apply the database schema update if this is a new deployment."});}
+});
+app.patch("/api/admin/connect/orders/:id",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","CONNECT_ADMIN"),async(req,res)=>{
+  try{
+    const action=String(req.body?.action||"").toUpperCase();
+    const note=String(req.body?.note||"").trim().slice(0,2000);
+    const current=await prisma.connectOrder.findUnique({where:{id:req.params.id},include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
+    if(!current)return res.status(404).json({message:"Connect order not found."});
+    let updated=null, refunded=false, notificationTitle="Connect order updated", notificationMessage="Your Connect order status was updated.", auditAction=action;
+    if(action==="VERIFY_PAYMENT"){
+      const paymentReference=String(req.body?.paymentReference||"").trim().toUpperCase().replace(/\s/g,"").slice(0,100);
+      if(current.status!=="AWAITING_PAYMENT"||current.paymentStatus!=="PENDING")return res.status(409).json({message:"This order is no longer awaiting payment verification."});
+      if(paymentReference.length<5)return res.status(400).json({message:"Enter the M-Pesa transaction code after independently confirming the payment with the provider."});
+      const changed=await prisma.connectOrder.updateMany({where:{id:current.id,status:"AWAITING_PAYMENT",paymentStatus:"PENDING"},data:{paymentReference,paymentStatus:"PAID",status:"PENDING_FULFILLMENT",paidAt:new Date(),adminNote:note||"Payment independently checked by Connect Admin.",handledByAdminId:req.admin.id}});
+      if(changed.count!==1)return res.status(409).json({message:"This order has already changed. Refresh and verify the latest status."});
+      updated=await prisma.connectOrder.findUnique({where:{id:current.id}});
+      notificationTitle="Connect payment verified";notificationMessage=`Payment for Connect order ${current.reference} was recorded as verified. Your bundle is now awaiting fulfilment.`;
+    }else if(action==="START_PROCESSING"){
+      if(current.paymentStatus!=="PAID"||current.status!=="PENDING_FULFILLMENT")return res.status(409).json({message:"Only paid orders awaiting fulfilment can be moved into processing."});
+      const changed=await prisma.connectOrder.updateMany({where:{id:current.id,paymentStatus:"PAID",status:"PENDING_FULFILLMENT"},data:{status:"PROCESSING",adminNote:note||current.adminNote,handledByAdminId:req.admin.id}});
+      if(changed.count!==1)return res.status(409).json({message:"Order status changed. Refresh the order list and try again."});
+      updated=await prisma.connectOrder.findUnique({where:{id:current.id}});notificationTitle="Bundle order processing";notificationMessage=`Your Connect order ${current.reference} is now being processed for ${current.recipientPhone}.`;
+    }else if(action==="DELIVER"){
+      const changed=await prisma.connectOrder.updateMany({where:{id:current.id,paymentStatus:"PAID",status:{in:["PENDING_FULFILLMENT","PROCESSING"]}},data:{status:"DELIVERED",deliveredAt:new Date(),adminNote:note||current.adminNote,handledByAdminId:req.admin.id}});
+      if(changed.count!==1)return res.status(409).json({message:"Only paid, undelivered orders can be marked delivered. Refresh and check the current status."});
+      updated=await prisma.connectOrder.findUnique({where:{id:current.id}});notificationTitle="Bundle marked delivered";notificationMessage=`NEXORA has marked Connect order ${current.reference} as delivered to ${current.recipientPhone}. If the bundle has not arrived, contact Kigen Internet Services through the official contact details on NEXORA Connect.`;
+    }else if(action==="FAIL"){
+      if(["DELIVERED","FAILED","CANCELLED"].includes(current.status))return res.status(409).json({message:"This order is already in a final status."});
+      if(current.paymentMethod==="WALLET"&&current.paymentStatus==="PAID"){
+        const result=await prisma.$transaction(async tx=>{
+          const claimed=await tx.connectOrder.updateMany({where:{id:current.id,paymentStatus:"PAID",status:{in:["PENDING_FULFILLMENT","PROCESSING"]}},data:{status:"FAILED",paymentStatus:"REFUNDED",adminNote:note||"Order could not be fulfilled. Wallet payment refunded.",handledByAdminId:req.admin.id}});
+          if(claimed.count!==1)throw Object.assign(new Error("Order status changed; refresh before retrying."),{statusCode:409});
+          await tx.wallet.update({where:{userId:current.userId},data:{balance:{increment:current.amount}}});
+          await tx.transaction.create({data:{userId:current.userId,type:"REFUND",amount:current.amount,status:"SUCCESS",reference:`CONNECT-REF-${current.reference}`,metadata:{source:"NEXORA_CONNECT",connectOrderId:current.id,orderReference:current.reference,direction:"IN",reason:note||"Connect fulfilment failed",processedBy:req.admin.id}}});
+          const row=await tx.connectOrder.findUnique({where:{id:current.id}});return row;
+        });
+        updated=result;refunded=true;
+        notificationTitle="Connect order failed — wallet refunded";notificationMessage=`We could not fulfil Connect order ${current.reference}. KSh ${current.amount.toLocaleString()} has been returned to your NEXORA wallet. ${note?`Reason: ${note}`:""}`.trim();
+      }else{
+        const nextPaymentStatus=current.paymentStatus==="PENDING"?"FAILED":current.paymentStatus;
+        const nextStatus=current.status==="AWAITING_PAYMENT"?"FAILED":"FAILED";
+        const changed=await prisma.connectOrder.updateMany({where:{id:current.id,status:current.status,paymentStatus:current.paymentStatus},data:{status:nextStatus,paymentStatus:nextPaymentStatus,adminNote:note||(current.paymentMethod==="KIGEN_DIRECT"&&current.paymentStatus==="PAID"?"External payment was received by the provider; any refund must be coordinated with Kigen.":"Order could not be fulfilled."),handledByAdminId:req.admin.id}});
+        if(changed.count!==1)return res.status(409).json({message:"Order status changed; refresh before retrying."});
+        updated=await prisma.connectOrder.findUnique({where:{id:current.id}});
+        notificationTitle="Connect order could not be completed";
+        notificationMessage=current.paymentMethod==="KIGEN_DIRECT"&&current.paymentStatus==="PAID"?`Connect order ${current.reference} could not be fulfilled. Payment was made directly to Kigen, so any refund must be confirmed with Kigen Internet Services. ${note}`.trim():`Connect order ${current.reference} could not be completed. ${note||"Please contact support if you need help."}`;
+      }
+    }else if(action==="CANCEL"){
+      if(current.status!=="AWAITING_PAYMENT"||current.paymentStatus!=="PENDING")return res.status(409).json({message:"Only unpaid orders awaiting payment can be cancelled this way."});
+      const changed=await prisma.connectOrder.updateMany({where:{id:current.id,status:"AWAITING_PAYMENT",paymentStatus:"PENDING"},data:{status:"CANCELLED",paymentStatus:"CANCELLED",adminNote:note||"Cancelled by Connect Admin before payment was verified.",handledByAdminId:req.admin.id}});
+      if(changed.count!==1)return res.status(409).json({message:"This order has already changed. Refresh before cancelling."});
+      updated=await prisma.connectOrder.findUnique({where:{id:current.id}});
+      notificationTitle="Connect order cancelled";notificationMessage=`Connect order ${current.reference} was cancelled before payment was verified. No NEXORA wallet balance was taken.`;
+    }else return res.status(400).json({message:"Unsupported order action."});
+    await logAdminAction(req,`CONNECT_ORDER_${auditAction}`,"CONNECT_ORDER",current.id,current.user?.email,{reference:current.reference,action,note,walletRefunded:refunded,paymentMethod:current.paymentMethod});
+    await createUserNotification(current.userId,{title:notificationTitle,message:notificationMessage,type:"CONNECT",details:{orderId:current.id,reference:current.reference,status:updated.status,paymentStatus:updated.paymentStatus,action}});
+    res.json({order:updated,walletRefunded:refunded,message:refunded?"Order marked failed and wallet balance refunded.":action==="VERIFY_PAYMENT"?"Payment recorded as manually verified. Confirm delivery separately.":`Connect order updated: ${updated.status.replaceAll("_"," ")}.`});
+  }catch(e){
+    if(e?.code==="P2002")return res.status(409).json({message:"That M-Pesa transaction reference is already attached to another Connect order."});
+    if(e?.statusCode)return res.status(e.statusCode).json({message:e.message});
+    console.error("[ADMIN CONNECT ORDER UPDATE]",e);res.status(500).json({message:"Unable to update this Connect order."});
+  }
+});
+
 app.post("/api/admin/auth/logout-all",adminAuth,async(req,res)=>{try{const updated=await prisma.admin.update({where:{id:req.admin.id},data:{tokenVersion:{increment:1}}});await logAdminAction(req,"ADMIN_LOGOUT_ALL_SESSIONS","ADMIN",req.admin.id,req.admin.email,{});res.json({message:"All other administrator sessions have been signed out.",token:signAdmin(updated)});}catch(e){res.status(500).json({message:"Unable to end administrator sessions"});}});
 app.get("/api/admin/system-health",adminAuth,async(req,res)=>{const started=Date.now();let db="online",dbMs=0;try{const t=Date.now();await prisma.$queryRaw`SELECT 1`;dbMs=Date.now()-t;}catch{db="offline";}res.json({ok:db==="online",version:"2.7.0",node:process.version,uptime:Math.floor(process.uptime()),database:db,databaseMs:dbMs,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paystack:paystackConfigured(),paystackMode:paystackMode(),resend:Boolean(resend),nexbot:Boolean(NEXBOT_AI_API_KEY),memoryMb:Math.round(process.memoryUsage().rss/1024/1024),responseMs:Date.now()-started,environment:process.env.NODE_ENV||"production",time:new Date().toISOString()});});
 app.get("/api/admin/login-events",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{res.json(await prisma.adminLoginEvent.findMany({orderBy:{createdAt:"desc"},take:100,select:{id:true,adminId:true,email:true,success:true,ip:true,userAgent:true,createdAt:true}}));}catch(e){res.status(500).json({message:"Unable to load login activity"});}});
@@ -1092,7 +1395,7 @@ app.post("/api/admin/admins",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req
     if(!name) return res.status(400).json({message:"Administrator name is required"});
     if(!email || !email.includes("@")) return res.status(400).json({message:"Enter a valid administrator email"});
     if(password.length<10) return res.status(400).json({message:"Password must be at least 10 characters"});
-    if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"].includes(role)) return res.status(400).json({message:"Invalid administrator role"});
+    if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN","CONNECT_ADMIN"].includes(role)) return res.status(400).json({message:"Invalid administrator role"});
     const passwordHash=await bcrypt.hash(password,12);
     const a=await prisma.admin.create({data:{name,email,passwordHash,role,status:"ACTIVE"},select:{id:true,name:true,email:true,role:true,status:true,createdAt:true,updatedAt:true}});
     await logAdminAction(req,"ADMIN_CREATED","ADMIN",a.id,a.email,{role:a.role});
@@ -1104,7 +1407,7 @@ app.patch("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),asyn
     const current=await prisma.admin.findUnique({where:{id:req.params.id}}); if(!current)return res.status(404).json({message:"Administrator not found"});
     const data={};
     if(req.body?.name!==undefined){const name=String(req.body.name).trim();if(!name)return res.status(400).json({message:"Name cannot be empty"});data.name=name;}
-    if(req.body?.role!==undefined){const role=String(req.body.role).toUpperCase();if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"].includes(role))return res.status(400).json({message:"Invalid administrator role"});data.role=role;}
+    if(req.body?.role!==undefined){const role=String(req.body.role).toUpperCase();if(!["SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN","CONNECT_ADMIN"].includes(role))return res.status(400).json({message:"Invalid administrator role"});data.role=role;}
     if(req.body?.status!==undefined){const status=String(req.body.status).toUpperCase();if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid administrator status"});if(current.id===req.admin.id&&status==="SUSPENDED")return res.status(400).json({message:"You cannot suspend your own administrator account"});data.status=status;}
     if(req.body?.password!==undefined){const password=String(req.body.password);if(password.length<10)return res.status(400).json({message:"Password must be at least 10 characters"});data.passwordHash=await bcrypt.hash(password,12);data.tokenVersion={increment:1};}
     if(current.id===req.admin.id && data.role && data.role!=="SUPER_ADMIN") return res.status(400).json({message:"You cannot remove your own Super Admin role"});
@@ -1331,7 +1634,20 @@ app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
 
 app.get("/api/announcements",async(req,res)=>{try{res.json(await prisma.announcement.findMany({where:{active:true},orderBy:{createdAt:"desc"},take:30}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load announcements"});}});
 app.get("/api/admin/announcements",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{try{res.json(await prisma.announcement.findMany({orderBy:{createdAt:"desc"},take:100}));}catch(e){res.status(500).json({message:"Unable to load announcements"});}});
-app.post("/api/admin/announcements",adminAuth,async(req,res)=>{try{const title=String(req.body?.title||"").trim().slice(0,120),body=String(req.body?.body||"").trim().slice(0,3000),category=String(req.body?.category||"UPDATE").trim().slice(0,30).toUpperCase();if(!title||!body)return res.status(400).json({message:"Title and body are required"});const a=await prisma.announcement.create({data:{title,body,category,active:req.body?.active!==false}});await logAdminAction(req,"ANNOUNCEMENT_CREATED","ANNOUNCEMENT",a.id,null,{title,category});res.status(201).json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to create announcement"});}});
+app.post("/api/admin/announcements",adminAuth,async(req,res)=>{try{
+  const title=String(req.body?.title||"").trim().slice(0,120),body=String(req.body?.body||"").trim().slice(0,3000),category=String(req.body?.category||"UPDATE").trim().slice(0,30).toUpperCase(),notifyMembers=req.body?.notifyMembers===true;
+  if(!title||!body)return res.status(400).json({message:"Title and body are required"});
+  if(notifyMembers&&!(["SUPER_ADMIN","ADMIN"].includes(req.admin.role)))return res.status(403).json({message:"Only Admin and Super Admin can send push broadcasts to members."});
+  if(notifyMembers&&req.body?.active===false)return res.status(400).json({message:"A hidden announcement cannot be broadcast. Make it visible to members first."});
+  const a=await prisma.announcement.create({data:{title,body,category,active:req.body?.active!==false}});
+  await logAdminAction(req,"ANNOUNCEMENT_CREATED","ANNOUNCEMENT",a.id,null,{title,category,notifyMembers});
+  let broadcast=null;
+  if(notifyMembers){
+    try{broadcast=await broadcastMemberNotification({title,message:body,type:"ANNOUNCEMENT",details:{announcementId:a.id,category,destinationPage:"community"}});}
+    catch(broadcastError){console.error("[ANNOUNCEMENT BROADCAST]",broadcastError.message);broadcast={recipients:0,pushSent:0,warning:"The announcement was saved, but the notification broadcast could not be completed."};}
+  }
+  res.status(201).json({...a,broadcast});
+}catch(e){console.error(e);res.status(500).json({message:"Unable to create announcement"});}});
 app.patch("/api/admin/announcements/:id",adminAuth,async(req,res)=>{try{const data={};if(req.body?.title!==undefined)data.title=String(req.body.title).trim().slice(0,120);if(req.body?.body!==undefined)data.body=String(req.body.body).trim().slice(0,3000);if(req.body?.category!==undefined)data.category=String(req.body.category).trim().slice(0,30).toUpperCase();if(req.body?.active!==undefined)data.active=Boolean(req.body.active);const a=await prisma.announcement.update({where:{id:req.params.id},data});await logAdminAction(req,"ANNOUNCEMENT_UPDATED","ANNOUNCEMENT",a.id,null,{active:a.active});res.json(a);}catch(e){console.error(e);res.status(500).json({message:"Unable to update announcement"});}});
 
 app.get("/api/member/analytics",auth,async(req,res)=>{
@@ -1358,7 +1674,7 @@ app.get("/api/member/leaderboard",auth,async(req,res)=>{
 });
 
 app.get("/api/support/tickets",auth,async(req,res)=>{try{res.json(await prisma.supportTicket.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:50}));}catch(e){console.error(e);res.status(500).json({message:"Unable to load support tickets"});}});
-app.post("/api/support/tickets",auth,async(req,res)=>{try{const subject=String(req.body?.subject||"").trim().slice(0,120);const message=String(req.body?.message||"").trim().slice(0,3000);if(!subject||!message)return res.status(400).json({message:"Subject and message are required"});const t=await prisma.supportTicket.create({data:{userId:req.user.id,subject,message}});res.status(201).json({message:"Support request submitted",ticket:t});}catch(e){console.error(e);res.status(500).json({message:"Unable to create support ticket"});}});
+app.post("/api/support/tickets",auth,async(req,res)=>{try{const subject=String(req.body?.subject||"").trim().slice(0,120);const message=String(req.body?.message||"").trim().slice(0,3000);if(!subject||!message)return res.status(400).json({message:"Subject and message are required"});const t=await prisma.supportTicket.create({data:{userId:req.user.id,subject,message}});await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"],dedupeKey:`support-ticket:${t.id}:created`,title:"New support ticket",message:`${req.user.name||req.user.email} submitted a support ticket: “${subject}”.`,type:"SUPPORT_TICKET",details:{ticketId:t.id,subject,destinationPage:"support",memberId:req.user.id,memberName:req.user.name||req.user.email}});res.status(201).json({message:"Support request submitted",ticket:t});}catch(e){console.error(e);res.status(500).json({message:"Unable to create support ticket"});}});
 
 app.patch("/api/member/profile",auth,async(req,res)=>{try{const name=String(req.body?.name||"").trim();if(name.length<2)return res.status(400).json({message:"Enter your full name"});const current=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});const country=COUNTRY_BY_CODE[current?.countryCode||"KE"]||COUNTRY_BY_CODE.KE;const supplied=String(req.body?.phone||"");const normalizedPhone=normalizePhoneForCountry(supplied,country.code);if(!isPlausibleNationalPhone(supplied,country.code))return res.status(400).json({message:`Enter a valid mobile number for ${country.name}. Only the national digits should be entered after +${country.dial}.`});const clash=await prisma.user.findFirst({where:{phone:normalizedPhone,id:{not:req.user.id}}});if(clash)return res.status(409).json({message:"That phone number is already in use"});await prisma.user.update({where:{id:req.user.id},data:{name,phone:normalizedPhone,countryCode:country.code,countryName:country.name,countryVerified:true,countrySource:"PHONE"}});res.json({message:"Profile updated successfully"});}catch(e){console.error(e);res.status(500).json({message:"Unable to update profile"});}});
 app.post("/api/member/sessions/revoke",auth,async(req,res)=>{try{const updated=await prisma.user.update({where:{id:req.user.id},data:{tokenVersion:{increment:1}}});res.json({message:"All other sessions have been signed out. This session will remain active.",token:sign(updated)});}catch(e){res.status(500).json({message:"Unable to end other sessions"});}});
@@ -1381,6 +1697,7 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
     prisma.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:amount},pendingBalance:{increment:amount}}}),
     prisma.withdrawal.create({data:{userId:req.user.id,amount,phone,reference}})
   ]);
+  await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${reference}:submitted`,title:"Withdrawal requires review",message:`${req.user.name||req.user.email} requested a KSh ${amount.toLocaleString()} withdrawal to ${phone}. Review the request and payout details before marking it paid.`,type:"WITHDRAWAL_REQUEST",details:{reference,amount,phone,memberId:req.user.id,memberName:req.user.name||req.user.email,destinationPage:"withdrawals"}});
   res.status(201).json({message:"Withdrawal request submitted",reference});
 });
 
@@ -1443,6 +1760,7 @@ app.post("/api/wallet/deposit/paybill/submit-code",auth,async(req,res)=>{
     const duplicate=recent.some(t=>t.reference!==reference&&String(t.metadata?.mpesaCode||"").toUpperCase()===mpesaCode);
     if(duplicate)return res.status(409).json({message:"This M-Pesa confirmation code was already used on another deposit."});
     await prisma.transaction.update({where:{id:tx.id},data:{metadata:{...(tx.metadata||{}),mpesaCode,codeSubmittedAt:new Date().toISOString(),awaitingVerification:true}}});
+    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`deposit-confirmation:${reference}`,title:"Wallet deposit needs verification",message:`${req.user.name||req.user.email} submitted an M-Pesa code for a KSh ${Number(tx.amount).toLocaleString()} wallet deposit. Verify the transaction before crediting the wallet.`,type:"PAYMENT_CONFIRMATION",details:{reference,transactionId:tx.id,amount:tx.amount,paymentKind:"WALLET_DEPOSIT",destinationPage:"deposits",memberId:req.user.id,memberName:req.user.name||req.user.email}});
     res.json({status:"pending_verification",reference,message:"M-Pesa code received. An administrator will verify the amount and confirmation before your wallet is credited."});
   }catch(e){console.error("[PAYBILL WALLET SUBMIT CODE]",e);res.status(500).json({message:"Unable to submit M-Pesa code"});}
 });
@@ -1665,6 +1983,7 @@ app.post('/api/service-requests',auth,async(req,res)=>{
       revisionCount:0,clientApproved:false,attachments:JSON.stringify(attachments)
     }});
     await createUserNotification(req.user.id,{title:'Project request submitted',message:'Your digital project request has been submitted successfully and is now awaiting review by the NEXORA team. We will contact you through WhatsApp or email if we need more information or have feedback.',type:'SERVICE',details:{requestId:id}});
+    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN"],dedupeKey:`project-request:${id}:submitted`,title:"New project needs attention",message:`${req.user.name||req.user.email} submitted a ${serviceType.replaceAll("_"," ").toLowerCase()} request: “${title}”. Review the scope and contact details.`,type:"PROJECT_REQUEST",details:{requestId:id,serviceType,title,budget,destinationPage:"serviceRequests",memberId:req.user.id,memberName:req.user.name||req.user.email}});
     res.status(201).json(row);
   }catch(e){console.error('[SERVICE REQUEST]',e);res.status(400).json({message:e.message||'Unable to submit project request'});}
 });
