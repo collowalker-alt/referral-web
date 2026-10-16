@@ -5428,3 +5428,9 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .nx-push-settings-copy h3{margin:0 0 5px}.nx-push-settings-copy p{margin:0 0 6px;line-height:1.55}.nx-push-settings-copy small{color:#73dcca;font-size:12px}.nx-push-settings-message{grid-column:1/-1;border-radius:10px;padding:10px 12px;background:rgba(45,212,191,.08);color:#d6fff6;font-size:13px;line-height:1.5}
 .push-notification-compact{font-size:11px!important;padding:7px 9px!important;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;margin-right:5px}
 @media(max-width:760px){.nx-push-settings{grid-template-columns:auto minmax(0,1fr)}.nx-push-settings>button{grid-column:1/-1;width:100%}.push-notification-compact{font-size:0!important;gap:0;padding:8px!important;margin-right:3px}.push-notification-compact svg{width:16px;height:16px}}
+
+/* Lightweight admin paging controls. */
+.adminpagination{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:12px 0 22px;padding:12px 2px;flex-wrap:wrap}
+.adminpagination .secondary{min-width:92px}
+.adminloading{display:flex;align-items:center;gap:10px;min-height:150px;padding:40px;color:#89a1bb;font-weight:700}
+@media(max-width:640px){.adminpagination{align-items:flex-start}.adminpagination .rowactions{width:100%;justify-content:space-between}}

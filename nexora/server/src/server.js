@@ -55,6 +55,19 @@ app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(re
 });
 
 app.use(express.json({ limit: "12mb" }));
+// Request timing for diagnosing real production bottlenecks without logging credentials or payloads.
+app.use("/api/admin", (req, res, next) => {
+  const started = process.hrtime.bigint();
+  if (String(req.path || "").includes("/realtime")) return next();
+  const originalEnd = res.end;
+  res.end = function (...args) {
+    const durationMs = Number(process.hrtime.bigint() - started) / 1e6;
+    if (!res.headersSent) res.setHeader("Server-Timing", `app;dur=${durationMs.toFixed(1)}`);
+    if (durationMs >= 500) console.warn(`[SLOW ADMIN REQUEST] ${req.method} ${req.path} ${res.statusCode} ${durationMs.toFixed(1)}ms`);
+    return originalEnd.apply(this, args);
+  };
+  next();
+});
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 80 }));
 const registerLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, message: { message: "Too many registration attempts. Please try again later." } });
 const forgotLimiter = rateLimit({ windowMs: 60*60*1000, max: 8, message: { message: "Too many password reset requests. Please try again later." } });
@@ -249,7 +262,7 @@ const adminAuth = async (req,res,next) => {
     if(!token) return res.status(401).json({message:"Admin authentication required"});
     const p=jwt.verify(token,JWT_SECRET);
     if(p.type!=="admin") return res.status(403).json({message:"Admin access required"});
-    const a=await prisma.admin.findUnique({where:{id:p.id}});
+    const a=await prisma.admin.findUnique({where:{id:p.id},select:{id:true,name:true,email:true,role:true,status:true,tokenVersion:true,twoFactorEnabled:true}});
     if(!a || a.status!=="ACTIVE") return res.status(401).json({message:"Admin account unavailable"});
     if(p.v!==undefined && Number(p.v)!==Number(a.tokenVersion||0)) return res.status(401).json({message:"Your admin session has ended. Please sign in again."});
     // A Connect Admin is intentionally isolated from the main admin console.
@@ -750,7 +763,7 @@ const openRealtimeStream = (req,res,kind) => {
     const timer=setInterval(()=>{
       if(res.writableEnded) return clearInterval(timer);
       res.write(`event: refresh\ndata: ${JSON.stringify({at:Date.now()})}\n\n`);
-    },2500);
+    },8000);
     const keepAlive=setInterval(()=>{
       if(res.writableEnded) return clearInterval(keepAlive);
       res.write(`: keepalive\n\n`);
@@ -1238,11 +1251,12 @@ app.post("/api/admin/auth/login", adminLoginLimiter, async(req,res)=>{
   try{
     const email=String(req.body?.email||"").trim().toLowerCase();
     const password=String(req.body?.password||"");
-    const admin=await prisma.admin.findUnique({where:{email}});
+    const admin=await prisma.admin.findUnique({where:{email},select:{id:true,name:true,email:true,passwordHash:true,status:true,role:true,tokenVersion:true,twoFactorEnabled:true,recoveryCodes:true}});
     const ok=Boolean(admin && admin.status==="ACTIVE" && await bcrypt.compare(password,admin.passwordHash));
-    await prisma.adminLoginEvent.create({data:{adminId:admin?.id||null,email,success:ok,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(()=>{});
+    // Keep security auditing, but do not make the user wait for non-critical audit inserts.
+    void prisma.adminLoginEvent.create({data:{adminId:admin?.id||null,email,success:ok,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(e=>console.warn("[ADMIN LOGIN AUDIT]",e.message));
     if(!ok) return res.status(401).json({message:"Invalid admin login details"});
-    await prisma.adminActivityLog.create({data:{adminId:admin.id,adminEmail:admin.email,action:"ADMIN_LOGIN_SUCCESS",targetType:"ADMIN",targetId:admin.id,targetEmail:admin.email,details:{ip:req.ip}}}).catch(()=>{});
+    void prisma.adminActivityLog.create({data:{adminId:admin.id,adminEmail:admin.email,action:"ADMIN_LOGIN_SUCCESS",targetType:"ADMIN",targetId:admin.id,targetEmail:admin.email,details:{ip:req.ip}}}).catch(e=>console.warn("[ADMIN LOGIN ACTIVITY]",e.message));
     if(admin.twoFactorEnabled){
       const challenge=jwt.sign({id:admin.id,type:"admin_2fa"},JWT_SECRET,{expiresIn:"5m"});
       return res.json({requires2fa:true,challenge,admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role},recoveryCodesAvailable:Array.isArray(admin.recoveryCodes)&&admin.recoveryCodes.length>0});
@@ -1254,13 +1268,14 @@ app.post("/api/admin/auth/verify-2fa", adminLoginLimiter, async(req,res)=>{
   try{
     const challenge=String(req.body?.challenge||"");const code=String(req.body?.code||"");
     const p=jwt.verify(challenge,JWT_SECRET);if(p.type!=="admin_2fa")return res.status(401).json({message:"Invalid 2FA challenge"});
-    const admin=await prisma.admin.findUnique({where:{id:p.id}});if(!admin||admin.status!=="ACTIVE"||!admin.twoFactorEnabled||!admin.twoFactorSecret)return res.status(401).json({message:"Administrator 2FA is unavailable"});
+    const admin=await prisma.admin.findUnique({where:{id:p.id},select:{id:true,name:true,email:true,role:true,status:true,tokenVersion:true,twoFactorEnabled:true,twoFactorSecret:true,recoveryCodes:true}});if(!admin||admin.status!=="ACTIVE"||!admin.twoFactorEnabled||!admin.twoFactorSecret)return res.status(401).json({message:"Administrator 2FA is unavailable"});
     const recoveryAttempt=Boolean(req.body?.recoveryCode);
     let verified=false;
     if(recoveryAttempt) verified=await consumeRecoveryCode(admin,req.body?.recoveryCode);
     else verified=verifyTotp(admin.twoFactorSecret,code);
     if(!verified)return res.status(401).json({message:recoveryAttempt?"Invalid or already-used recovery code":"Invalid authenticator code"});
-    await prisma.adminLoginEvent.create({data:{adminId:admin.id,email:admin.email,success:true,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(()=>{});
+    // TOTP verification is local and inexpensive; do not hold the login response for an audit insert.
+    void prisma.adminLoginEvent.create({data:{adminId:admin.id,email:admin.email,success:true,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(e=>console.warn("[ADMIN 2FA AUDIT]",e.message));
     res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:true}});
   }catch(e){res.status(401).json({message:"Invalid or expired 2FA challenge"});}
 });
@@ -1448,10 +1463,18 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
 });
 app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{
-    const q=String(req.query.q||"").trim(); const country=String(req.query.country||"").toUpperCase(); const status=String(req.query.status||"").toUpperCase();
+    const q=String(req.query.q||"").trim().slice(0,120); const country=String(req.query.country||"").toUpperCase(); const status=String(req.query.status||"").toUpperCase();
     const where={...(q?{OR:[{name:{contains:q,mode:"insensitive"}},{email:{contains:q,mode:"insensitive"}},{phone:{contains:q}},{referralCode:{contains:q,mode:"insensitive"}},{countryName:{contains:q,mode:"insensitive"}}]}:{}),...(country?{countryCode:country}:{}),...(status?{status}: {})};
-    const rows=await prisma.user.findMany({where,include:{package:true,wallet:true,referredBy:{select:{id:true,name:true,email:true,referralCode:true,countryCode:true,countryName:true}},referrals:{select:{id:true,name:true,email:true,status:true,package:{select:{name:true}},createdAt:true},take:20,orderBy:{createdAt:"desc"}}},orderBy:{createdAt:"desc"},take:300});
-    res.json(rows.map(u=>{const c=countryForUser(u);const phoneCountry=detectCountryFromPhone(u.phone);return {id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode||c.code,countryName:u.countryName||c.name,countryVerified:u.countryVerified!==false,phoneCountryCode:phoneCountry?.code||null,paymentAvailability:paymentAvailabilityForCountry(u.countryCode||c.code),status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,referralCount:u.referrals?.length||0,referrals:u.referrals,createdAt:u.createdAt,riskFlags:[...(u.countryVerified===false?["COUNTRY_MISMATCH"]:[]),...(phoneCountry&&u.countryCode&&phoneCountry.code!==u.countryCode?["PHONE_COUNTRY_MISMATCH"]:[])]};}));
+    const paged=String(req.query.paged||"") === "1";
+    const page=Math.max(1,Math.floor(Number(req.query.page)||1));
+    const pageSize=Math.max(10,Math.min(100,Math.floor(Number(req.query.pageSize)||50)));
+    const select={id:true,name:true,email:true,phone:true,countryCode:true,countryName:true,countryVerified:true,status:true,planStatus:true,referralCode:true,createdAt:true,package:true,wallet:true,referredBy:{select:{id:true,name:true,email:true,referralCode:true,countryCode:true,countryName:true}},referrals:{select:{id:true,name:true,email:true,status:true,package:{select:{name:true}},createdAt:true},take:10,orderBy:{createdAt:"desc"}},_count:{select:{referrals:true}}};
+    const [rows,total]=await Promise.all([
+      prisma.user.findMany({where,select,orderBy:{createdAt:"desc"},...(paged?{skip:(page-1)*pageSize,take:pageSize}:{take:300})}),
+      paged?prisma.user.count({where}):Promise.resolve(null)
+    ]);
+    const users=rows.map(u=>{const c=countryForUser(u);const phoneCountry=detectCountryFromPhone(u.phone);return {id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode||c.code,countryName:u.countryName||c.name,countryVerified:u.countryVerified!==false,phoneCountryCode:phoneCountry?.code||null,paymentAvailability:paymentAvailabilityForCountry(u.countryCode||c.code),status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,referralCount:u._count?.referrals??u.referrals?.length??0,referrals:u.referrals,createdAt:u.createdAt,riskFlags:[...(u.countryVerified===false?["COUNTRY_MISMATCH"]:[]),...(phoneCountry&&u.countryCode&&phoneCountry.code!==u.countryCode?["PHONE_COUNTRY_MISMATCH"]:[])]};});
+    res.json(paged?{rows:users,page,pageSize,total,pageCount:Math.max(1,Math.ceil(total/pageSize))}:users);
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
 app.post("/api/admin/users/balance",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{

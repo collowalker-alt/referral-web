@@ -103,6 +103,8 @@ model User {
   @@index([referredById])
   @@index([packageId])
   @@index([resetToken])
+  @@index([status, createdAt])
+  @@index([countryCode, status])
 }
 
 model Package {
@@ -250,6 +252,7 @@ model Withdrawal {
 
   @@index([userId])
   @@index([status])
+  @@index([status, createdAt])
 }
 model Admin {
   id           String      @id @default(cuid())
