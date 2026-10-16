@@ -5434,3 +5434,23 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .adminpagination .secondary{min-width:92px}
 .adminloading{display:flex;align-items:center;gap:10px;min-height:150px;padding:40px;color:#89a1bb;font-weight:700}
 @media(max-width:640px){.adminpagination{align-items:flex-start}.adminpagination .rowactions{width:100%;justify-content:space-between}}
+
+
+/* Navigation overflow/scroll fix: keep the sidebar surface opaque and scrollable. */
+.app aside{background:#07111e!important;overflow:hidden!important;isolation:isolate}
+.membernavscroll{flex:1 1 auto!important;width:100%;background:#07111e!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain;scrollbar-gutter:stable;position:relative;z-index:1}
+.membernavscroll>button{background-color:transparent;flex:0 0 auto;min-height:44px}
+.membernavscroll>button:hover{background:#10243a}
+.adminapp aside{background:#07111e!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;scrollbar-gutter:stable;isolation:isolate}
+.adminapp aside button{flex:0 0 auto;min-height:44px}
+.adminapp .adminnavspacer{flex:1 0 18px;min-height:18px}
+@media(max-width:760px){.app aside,.adminapp aside{overflow-y:auto!important;-webkit-overflow-scrolling:touch}.membernavscroll{padding-bottom:24px!important}}
+
+
+/* Admin mobile sidebar overlay — sits under the open drawer, above main content */
+.adminnavoverlay{display:none}
+@media(max-width:760px){
+  .adminnavoverlay{display:block;position:fixed;inset:0;border:0;background:rgba(0,0,0,.58);z-index:35;backdrop-filter:blur(2px);padding:0}
+  .adminapp aside.open{z-index:45}
+  body:has(.adminapp aside.open){overflow:hidden}
+}
