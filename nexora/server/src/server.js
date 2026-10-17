@@ -117,16 +117,29 @@ const paystackConfigured=()=>Boolean(PAYSTACK_SECRET_KEY);
 
 async function paystackRequest(pathname,{method="GET",body}={}){
   if(!paystackConfigured()) throw new Error("Paystack is not configured on the NEXORA server");
-  const r=await fetch(`${PAYSTACK_API_URL}${pathname}`,{
-    method,
-    headers:{"Authorization":`Bearer ${PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json","Accept":"application/json"},
-    ...(body!==undefined?{body:JSON.stringify(body)}:{})
-  });
-  const data=await r.json().catch(()=>({}));
-  if(!r.ok || data?.status===false){
-    console.error("[PAYSTACK API ERROR]",JSON.stringify({path:pathname,httpStatus:r.status,message:data?.message||null}));
+  let r, rawText="", data={};
+  try{
+    r=await fetch(`${PAYSTACK_API_URL}${pathname}`,{
+      method,
+      headers:{"Authorization":`Bearer ${PAYSTACK_SECRET_KEY}`,"Content-Type":"application/json","Accept":"application/json"},
+      ...(body!==undefined?{body:JSON.stringify(body)}:{}),
+      signal:AbortSignal.timeout(25000)
+    });
+    rawText=await r.text().catch(()=>"");
+    try{data=rawText?JSON.parse(rawText):{};}catch{data={message:rawText.slice(0,180)||null};}
+  }catch(e){
+    const message=(e?.name==="TimeoutError"||e?.name==="AbortError")
+      ?"Timed out waiting for Paystack; transaction status is unknown."
+      :"Network error while contacting Paystack; transaction status is unknown.";
+    console.error("[PAYSTACK API ERROR]",JSON.stringify({path:pathname,httpStatus:0,message,errorName:e?.name||"Error"}));
+    // A lost response does not mean that Paystack failed to create the charge.
+    return {httpStatus:0,ok:false,transient:true,networkError:true,data:{message}};
   }
-  return {httpStatus:r.status,ok:r.ok&&data?.status!==false,data};
+  const transient=[408,425,429].includes(r.status)||r.status>=500;
+  if(!r.ok || data?.status===false){
+    console.error("[PAYSTACK API ERROR]",JSON.stringify({path:pathname,httpStatus:r.status,message:data?.message||null,transient,bodyPreview:typeof rawText==="string"?rawText.slice(0,180):null}));
+  }
+  return {httpStatus:r.status,ok:r.ok&&data?.status!==false,transient,data};
 }
 
 async function createPaystackMpesaCharge({email,phone,amount,reference,metadata}){
@@ -144,12 +157,18 @@ async function createPaystackMpesaCharge({email,phone,amount,reference,metadata}
   return { ...result, payload, data };
 }
 
+async function getPaystackCharge(reference){
+  const result=await paystackRequest(`/charge/${encodeURIComponent(reference)}`);
+  const data=result.data?.data||{};
+  return {httpStatus:result.httpStatus,ok:result.ok,transient:Boolean(result.transient),data,status:String(data?.status||"").toLowerCase(),message:String(data?.display_text||data?.gateway_response||data?.message||result.data?.message||"")};
+}
 async function verifyPaystackTransaction(reference){
   const result=await paystackRequest(`/transaction/verify/${encodeURIComponent(reference)}`);
   const data=result.data?.data||{};
   return {
     httpStatus:result.httpStatus,
     ok:result.ok,
+    transient:Boolean(result.transient),
     data,
     status:String(data?.status||"pending").toLowerCase(),
     message:String(data?.gateway_response||data?.message||result.data?.message||"")
@@ -183,7 +202,10 @@ async function finalizeSuccessfulPaystack(reference,paystackData={}){
 
   if(tx.type==="DEPOSIT"){
     await prisma.$transaction(async db=>{
-      const claimed=await db.transaction.updateMany({where:{id:tx.id,status:"PENDING"},data:{status:"SUCCESS",metadata:updatedMeta}});
+      // Older deployments marked an ambiguous HTTP 504 as FAILED. Allow recovery only
+      // after this function has validated a successful Paystack response above.
+      const claimableStatuses=allowedPaystackRecord?["PENDING","FAILED"]:["PENDING"];
+      const claimed=await db.transaction.updateMany({where:{id:tx.id,status:{in:claimableStatuses}},data:{status:"SUCCESS",metadata:updatedMeta}});
       if(claimed.count!==1)return;
       await db.wallet.upsert({where:{userId:tx.userId},create:{userId:tx.userId,balance:tx.amount},update:{balance:{increment:tx.amount}}});
     });
@@ -207,16 +229,72 @@ async function queryAndApplyPaystackStatus(reference){
   if(!allowedPaystackRecord)throw new Error("This payment was not initiated through Paystack wallet deposits or plan purchases.");
   if(tx.status==="SUCCESS")return {status:"success",message:tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active.",data:{}};
 
-  const result=await verifyPaystackTransaction(reference);
-  const updatedMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:result.status,lastResponse:result.data,lastCheckedAt:new Date().toISOString(),display_text:result.data?.display_text||result.message||""}};
-  await prisma.transaction.update({where:{reference},data:{metadata:updatedMeta}});
+  const initializedAt=Date.parse(meta.paystack?.initializedAt||tx.createdAt||0);
+  const ageMs=Number.isFinite(initializedAt)?Date.now()-initializedAt:Infinity;
+  // Paystack explicitly advises waiting at least 10 seconds before checking a charge
+  // whose initial request returned pending or timed out.
+  if(ageMs<10000){
+    return {status:"pending",message:"Paystack has not confirmed the request yet. Wait at least 10 seconds, then check status again. Do not start another payment for this reference.",data:{reference}};
+  }
 
-  if(result.status==="success") await finalizeSuccessfulPaystack(reference,result.data);
-  else if(["failed","abandoned","reversed"].includes(result.status)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
+  let confirmedData=null, confirmedStatus="", statusMessage="";
+  const charge=await getPaystackCharge(reference);
+  if(charge.ok && charge.data?.reference===reference && charge.status){
+    confirmedData=charge.data;
+    confirmedStatus=charge.status;
+    statusMessage=charge.message;
+    const terminalChargeStatuses=["success","failed","abandoned","reversed","timeout"];
+    // For asynchronous M-PESA, Paystack recommends transaction verification if the
+    // charge is still pending after roughly the 180-second customer authorization window.
+    if(ageMs>=180000 && !terminalChargeStatuses.includes(confirmedStatus)){
+      const verified=await verifyPaystackTransaction(reference).catch(()=>null);
+      if(verified?.ok && verified.data?.reference===reference){
+        confirmedData=verified.data;
+        confirmedStatus=verified.status;
+        statusMessage=verified.message||statusMessage;
+      }
+    }
+  }else{
+    // Transaction verification is the documented fallback for asynchronous M-PESA
+    // status checks, especially if the original /charge request timed out.
+    const verified=await verifyPaystackTransaction(reference);
+    if(verified.ok && verified.data?.reference===reference){
+      confirmedData=verified.data;
+      confirmedStatus=verified.status;
+      statusMessage=verified.message;
+    }
+  }
+
+  if(!confirmedData || !confirmedStatus){
+    // A 504/connection failure is an unknown outcome, never proof of failure.
+    const latestMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:"unknown",lastCheckedAt:new Date().toISOString(),lastCheckMessage:"Paystack has not returned a verifiable status yet."}};
+    const recoverableUnknown=tx.status==="FAILED" && ["pending","unknown","initializing"].includes(String(meta.paystack?.status||"").toLowerCase());
+    await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{...(recoverableUnknown?{status:"PENDING"}:{}),metadata:latestMeta}}).catch(()=>{});
+    return {status:"pending",message:"Paystack has not returned a verifiable status yet. Keep this reference and check again shortly. Do not retry the payment until its status is confirmed.",data:{reference}};
+  }
+
+  if(confirmedStatus==="success"){
+    // GET /charge can contain the required amount/currency/reference. Prefer the
+    // verify endpoint when it is available, while retaining a valid successful charge
+    // response as a recovery path if the verify API is still temporarily unavailable.
+    if(charge.ok && charge.data?.reference===reference && charge.status==="success"){
+      const verified=await verifyPaystackTransaction(reference).catch(()=>null);
+      const successData=verified?.ok && verified.data?.status==="success" && verified.data?.reference===reference ? verified.data : charge.data;
+      await finalizeSuccessfulPaystack(reference,successData);
+    }else{
+      await finalizeSuccessfulPaystack(reference,confirmedData);
+    }
+  }else if(["failed","abandoned","reversed","timeout"].includes(confirmedStatus)){
+    await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"FAILED",metadata:{...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:confirmedStatus,lastResponse:confirmedData,lastCheckedAt:new Date().toISOString(),display_text:statusMessage||"Paystack reports that this payment did not complete."}}}});
+  }else{
+    const latestMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:confirmedStatus||"pending",lastResponse:confirmedData,lastCheckedAt:new Date().toISOString(),display_text:statusMessage||"Approve the M-PESA prompt on your phone."}};
+    await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"PENDING",metadata:latestMeta}});
+  }
 
   const finalTx=await prisma.transaction.findUnique({where:{reference}});
   const finalStatus=finalTx?.status==="SUCCESS"?"success":finalTx?.status==="FAILED"?"failed":"pending";
-  return {status:finalStatus,message:result.data?.display_text||result.message||(finalStatus==="pending"?"Payment is still pending.":finalStatus==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active."):"Payment was not completed."),data:result.data};
+  const message=statusMessage || (finalStatus==="pending"?"Your payment is still pending. Approve the M-PESA prompt if it appeared, then check again.":finalStatus==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active."):"Paystack confirmed that this payment was not completed.");
+  return {status:finalStatus,message,data:confirmedData};
 }
 
 
@@ -899,11 +977,17 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
       metadata:{source:"NEXORA_PACKAGE",userId:req.user.id,packageId:pkg.id,transactionReference:reference}
     });
     const data=charge.data||{};
-    await prisma.transaction.update({where:{reference},data:{metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:String(data.status||"pending").toLowerCase(),reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt:new Date().toISOString()},diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}}});
+    const uncertainCharge=Boolean(charge.transient)||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
+    const initialStatus=String(data.status||(uncertainCharge?"unknown":"pending")).toLowerCase();
+    const initializedAt=new Date().toISOString();
+    await prisma.transaction.update({where:{reference},data:{metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:initialStatus,reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt,lastChargeHttpStatus:charge.httpStatus},diagnostic:{initializedAt,responseMs:Date.now()-startedAt,chargeHttpStatus:charge.httpStatus,chargeTransient:uncertainCharge}}}});
 
     if(!charge.ok){
+      if(uncertainCharge){
+        return res.json({reference,status:"pending",display_text:"",message:"Paystack timed out before confirming the M-PESA request. The payment may still be processing. Do not start another payment yet; wait at least 10 seconds, then tap Check payment status.",retryAfterSeconds:10,chargeAmount});
+      }
       await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference,paystack_message:charge.data?.message||null});
+      return res.status(400).json({message:"Paystack could not start this M-PESA payment. No successful charge has been confirmed.",reference,paystack_message:charge.data?.message||null});
     }
 
     const chargeStatus=String(data.status||"pending").toLowerCase();
@@ -1166,7 +1250,9 @@ async function activatePaidPackage(reference){
   const pkg=await prisma.package.findUnique({where:{id:packageId}});
   if(!pkg) throw new Error("Package missing");
   await prisma.$transaction(async db=>{
-    const claimed=await db.transaction.updateMany({where:{id:tx.id,status:"PENDING"},data:{status:"SUCCESS"}});
+    const paystackRecord=String(meta.method||"").toUpperCase().startsWith("PAYSTACK")||String(meta.paystack?.provider||"").toUpperCase()==="PAYSTACK"||/^NX-PS(?:-DEP)?-/i.test(String(reference||""));
+    const claimableStatuses=paystackRecord?["PENDING","FAILED"]:["PENDING"];
+    const claimed=await db.transaction.updateMany({where:{id:tx.id,status:{in:claimableStatuses}},data:{status:"SUCCESS"}});
     if(claimed.count!==1)return;
     await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id,planStatus:"ACTIVE"}});
     const buyer=await db.user.findUnique({where:{id:tx.userId}});
@@ -1767,10 +1853,16 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
       metadata:{source:"NEXORA_WALLET_DEPOSIT",userId:req.user.id,transactionReference:reference}
     });
     const data=charge.data||{};
-    await prisma.transaction.update({where:{reference},data:{metadata:{method:"PAYSTACK_MPESA",phone:normalizedPhone,paystack:{provider:"PAYSTACK",status:String(data.status||"pending").toLowerCase(),reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt:new Date().toISOString()},diagnostic:{initializedAt:new Date().toISOString(),responseMs:Date.now()-startedAt}}}});
+    const uncertainCharge=Boolean(charge.transient)||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
+    const initialStatus=String(data.status||(uncertainCharge?"unknown":"pending")).toLowerCase();
+    const initializedAt=new Date().toISOString();
+    await prisma.transaction.update({where:{reference},data:{metadata:{method:"PAYSTACK_MPESA",phone:normalizedPhone,paystack:{provider:"PAYSTACK",status:initialStatus,reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt,lastChargeHttpStatus:charge.httpStatus},diagnostic:{initializedAt,responseMs:Date.now()-startedAt,chargeHttpStatus:charge.httpStatus,chargeTransient:uncertainCharge}}}});
     if(!charge.ok){
+      if(uncertainCharge){
+        return res.status(201).json({reference,status:"pending",amount,phone:normalizedPhone,display_text:"",message:"Paystack timed out before confirming the M-PESA request. The payment may still be processing. Do not start another deposit yet; wait at least 10 seconds, then tap Check payment status.",retryAfterSeconds:10});
+      }
       await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference});
+      return res.status(400).json({message:"Paystack could not start this M-PESA payment. No successful charge has been confirmed.",reference,paystack_message:charge.data?.message||null});
     }
     const chargeStatus=String(data.status||"pending").toLowerCase();
     if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);

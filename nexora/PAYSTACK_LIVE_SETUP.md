@@ -25,6 +25,8 @@ This is the webhook URL for the backend URL provided for NEXORA. Subscribe to su
 - Starts a KES Paystack M-PESA charge from the server using the member's selected Kenyan phone number.
 - Stores a pending transaction and shows the member the amount, phone, and reference.
 - Uses signed webhooks plus server-to-server verification/status checks to confirm payment.
+- Handles a Paystack `/charge` timeout/HTTP 504 as an **unknown pending result**, not a failed payment. After waiting at least 10 seconds, NEXORA checks `GET /charge/:reference`, then falls back to transaction verification if needed. It never automatically repeats the POST charge request.
+- Can recover older Paystack transactions that an earlier deployment incorrectly marked `FAILED` after an ambiguous timeout, but only after Paystack returns a successful charge with matching reference, amount and KES currency.
 - Credits a wallet deposit once, or activates a plan once, only after a successful KES payment whose amount and reference match the NEXORA transaction.
 - Leaves NEXORA Connect bundle payment and fulfillment unchanged.
 - Keeps the legacy manual Paybill endpoints for old transactions / fallback deployments; once Paystack is configured, the member payment-method endpoint prefers Paystack STK Push for Kenya.

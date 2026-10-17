@@ -5445,3 +5445,119 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .adminapp aside button{flex:0 0 auto;min-height:44px}
 .adminapp .adminnavspacer{flex:1 0 18px;min-height:18px}
 @media(max-width:760px){.app aside,.adminapp aside{overflow-y:auto!important;-webkit-overflow-scrolling:touch}.membernavscroll{padding-bottom:24px!important}}
+
+/* Paystack wallet deposit dialog: anchor to the viewport, keep the shell still,
+   and confine horizontal movement to the quick-amount selector. */
+.modalbackdrop.payment-layer.depositbackdrop{
+  position:fixed!important;inset:0!important;width:100vw;height:100vh;height:100dvh;
+  box-sizing:border-box;z-index:70000!important;display:flex!important;
+  align-items:center!important;justify-content:center!important;
+  overflow:hidden!important;overscroll-behavior:none!important;
+  padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))!important;
+  background:radial-gradient(circle at 50% 25%,rgba(37,215,176,.10),transparent 42%),rgba(2,8,16,.88)!important;
+  backdrop-filter:blur(11px) saturate(1.15)!important;
+}
+.modalbackdrop.payment-layer.depositbackdrop .modal.depositmodal{
+  position:relative!important;align-self:center!important;flex:0 1 auto!important;
+  width:min(560px,calc(100vw - 24px))!important;max-width:560px!important;
+  height:auto!important;max-height:min(760px,calc(100dvh - 28px))!important;
+  min-height:0!important;margin:0!important;padding:0!important;
+  display:flex!important;flex-direction:column!important;overflow:hidden!important;
+  overflow-x:hidden!important;overflow-y:hidden!important;
+  border:1px solid rgba(110,160,196,.25)!important;border-radius:24px!important;
+  background:linear-gradient(155deg,#0c1b2d 0%,#081321 58%,#0a1826 100%)!important;
+  box-shadow:0 32px 100px rgba(0,0,0,.58),0 0 0 1px rgba(57,215,176,.045),0 0 42px rgba(37,215,176,.055)!important;
+  color:#edf5ff!important;
+}
+.depositbackdrop .depositmodal>.modalhead{
+  flex:0 0 auto!important;position:relative!important;top:auto!important;
+  display:flex;align-items:flex-start;gap:14px;
+  padding:19px 22px 17px!important;
+  background:linear-gradient(180deg,rgba(17,36,56,.98),rgba(10,24,40,.96))!important;
+  border-bottom:1px solid rgba(132,168,201,.13)!important;
+}
+.depositbackdrop .depositmodal>.modalhead h2{font-size:clamp(20px,2.4vw,25px)!important;line-height:1.15;letter-spacing:-.035em;margin:7px 0 0!important;color:#f3f8ff}
+.depositbackdrop .depositmodal>.modalhead .pill{font-size:9px;letter-spacing:.09em}
+.depositbackdrop .depositmodal>.modalhead .iconbtn{flex:0 0 38px}
+.depositbackdrop .depositmodal>.depositbody{
+  flex:1 1 auto!important;min-height:0!important;max-height:none!important;
+  padding:18px 22px 19px!important;display:block!important;
+  overflow-y:auto!important;overflow-x:hidden!important;
+  overscroll-behavior:contain!important;-webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;scrollbar-color:#29465f transparent;
+}
+.depositbackdrop .depositbody>form{display:grid;gap:13px;min-width:0}
+.depositbackdrop .depositbody>form>p.muted{font-size:12px;line-height:1.55;margin:0 0 1px;color:#a8bacd}
+.depositbackdrop .depositamountcard{padding:16px;border-radius:18px;border-color:rgba(57,215,176,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.035),0 14px 34px rgba(0,0,0,.16)}
+.depositbackdrop .depositamounttop{margin-bottom:12px}
+.depositbackdrop .depositamounttop b{font-size:13px;line-height:1.4}
+.depositbackdrop .depositamountfield{height:70px;border-radius:15px;padding:0 14px}
+.depositbackdrop .depositamountfield input{font-size:32px!important}
+.depositbackdrop .depositquicksection{margin-top:12px;min-width:0}
+.depositbackdrop .depositquickcaption{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px;padding:0 1px}
+.depositbackdrop .depositquickcaption>span{font-size:10px;font-weight:850;color:#c4d4e5;letter-spacing:.04em}
+.depositbackdrop .depositquickcaption small{font-size:9px;color:#718aa1}
+.depositbackdrop .depositquickwrap{display:flex;align-items:center;gap:7px;min-width:0;width:100%}
+.depositbackdrop .depositquicknav{
+  display:grid;place-items:center;flex:0 0 31px;width:31px;height:35px;padding:0;
+  color:#9debd8;background:#102a38;border:1px solid rgba(57,215,176,.22);
+  border-radius:10px;cursor:pointer;box-shadow:none!important;transform:none!important;
+}
+.depositbackdrop .depositquicknav:hover{background:#153b46;border-color:rgba(57,215,176,.48);color:#fff}
+.depositbackdrop .depositquick{
+  display:flex!important;align-items:center;justify-content:flex-start;gap:8px;
+  flex:1 1 auto;min-width:0;width:0;max-width:100%;padding:4px 2px 7px!important;
+  margin:0!important;overflow-x:auto!important;overflow-y:hidden!important;
+  overscroll-behavior-x:contain!important;overscroll-behavior-y:none!important;
+  -webkit-overflow-scrolling:touch;touch-action:pan-x;scroll-snap-type:x proximity;
+  scrollbar-width:thin;scrollbar-color:rgba(84,135,160,.65) transparent;
+}
+.depositbackdrop .depositquick::-webkit-scrollbar{height:4px}
+.depositbackdrop .depositquick::-webkit-scrollbar-track{background:rgba(255,255,255,.035);border-radius:20px}
+.depositbackdrop .depositquick::-webkit-scrollbar-thumb{background:rgba(84,135,160,.65);border-radius:20px}
+.depositbackdrop .depositquick>button{
+  flex:0 0 105px;min-width:105px;width:105px;min-height:39px;padding:10px 9px;
+  display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;
+  border:1px solid #294159;border-radius:11px;background:linear-gradient(180deg,#102137,#0c1a2a);
+  color:#c5d5e5;font-size:11px;font-weight:850;scroll-snap-align:start;
+  transform:none;box-shadow:none;
+}
+.depositbackdrop .depositquick>button:hover,.depositbackdrop .depositquick>button.selected{
+  border-color:rgba(57,215,176,.62);background:linear-gradient(180deg,rgba(32,113,96,.3),rgba(12,50,48,.65));color:#8df2d8;
+}
+.depositbackdrop .depositamountfoot{font-size:10px;margin-top:9px}
+.depositbackdrop .depositamountfoot span:first-child{color:#9bb6ca}
+.depositbackdrop .fieldlabel{margin-top:0!important;font-size:12px;font-weight:800;color:#d8e6f4;display:grid!important;gap:7px!important}
+.depositbackdrop .fieldlabel input{width:100%;min-width:0;min-height:46px;padding:12px 13px!important;border:1px solid #29415b!important;border-radius:12px!important;background:#071321!important;color:#f0f7ff!important;font-size:15px!important}
+.depositbackdrop .depositbody form>.primary{width:100%;min-height:48px;justify-content:center;border-radius:13px;font-size:13px;font-weight:900}
+.depositbackdrop .depositbody .error{margin:0;padding:11px 13px;font-size:12px;line-height:1.5}
+.depositbackdrop .depositmodal>.modalfoot{
+  position:relative!important;bottom:auto!important;top:auto!important;z-index:5;
+  display:flex;justify-content:flex-end;flex:0 0 auto!important;
+  padding:12px 22px 15px!important;background:rgba(7,17,29,.97)!important;
+  border-top:1px solid rgba(132,168,201,.12)!important;
+}
+.depositbackdrop .depositmodal>.modalfoot .secondary{min-width:94px;justify-content:center;border-radius:11px;background:#10243a}
+.depositbackdrop .successbox,.depositbackdrop .paymentbody{min-width:0;overflow-wrap:anywhere}
+@media(max-width:600px){
+  .modalbackdrop.payment-layer.depositbackdrop{padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom)) 10px!important}
+  .modalbackdrop.payment-layer.depositbackdrop .modal.depositmodal{width:calc(100vw - 20px)!important;max-width:520px!important;max-height:calc(100dvh - 20px)!important;border-radius:21px!important;align-self:center!important;margin:0!important}
+  .depositbackdrop .depositmodal>.modalhead{padding:15px 16px 13px!important}
+  .depositbackdrop .depositmodal>.modalhead h2{font-size:21px!important}
+  .depositbackdrop .depositmodal>.depositbody{padding:14px 15px 15px!important}
+  .depositbackdrop .depositamountcard{padding:13px;border-radius:16px}
+  .depositbackdrop .depositamountfield{height:63px;padding:0 11px}
+  .depositbackdrop .depositamountfield input{font-size:29px!important}
+  .depositbackdrop .depositamounttop{align-items:flex-start;flex-direction:column;gap:9px}
+  .depositbackdrop .depositmethodpill{align-self:flex-start}
+  .depositbackdrop .depositquick>button{flex-basis:100px;min-width:100px;width:100px}
+  .depositbackdrop .depositmodal>.modalfoot{padding:10px 15px 12px!important}
+}
+@media(max-height:650px){
+  .modalbackdrop.payment-layer.depositbackdrop .modal.depositmodal{max-height:calc(100dvh - 16px)!important}
+  .depositbackdrop .depositmodal>.modalhead{padding-top:12px!important;padding-bottom:10px!important}
+  .depositbackdrop .depositmodal>.depositbody{padding-top:12px!important;padding-bottom:12px!important}
+  .depositbackdrop .depositamountfield{height:58px}
+  .depositbackdrop .depositamountcard{padding:12px}
+  .depositbackdrop .depositmodal>.modalfoot{padding-top:8px!important;padding-bottom:8px!important}
+}
