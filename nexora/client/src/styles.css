@@ -5445,12 +5445,3 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .adminapp aside button{flex:0 0 auto;min-height:44px}
 .adminapp .adminnavspacer{flex:1 0 18px;min-height:18px}
 @media(max-width:760px){.app aside,.adminapp aside{overflow-y:auto!important;-webkit-overflow-scrolling:touch}.membernavscroll{padding-bottom:24px!important}}
-
-
-/* Admin mobile sidebar overlay — sits under the open drawer, above main content */
-.adminnavoverlay{display:none}
-@media(max-width:760px){
-  .adminnavoverlay{display:block;position:fixed;inset:0;border:0;background:rgba(0,0,0,.58);z-index:35;backdrop-filter:blur(2px);padding:0}
-  .adminapp aside.open{z-index:45}
-  body:has(.adminapp aside.open){overflow:hidden}
-}

@@ -12,7 +12,7 @@
 - Admin console accounting remains in KES to avoid changing financial records or confusing administrative reconciliation.
 
 ## Payment rule
-- Kenya (`KE`) is the only currently enabled payment country and continues to use Co-op Bank Paybill.
+- Kenya (`KE`) is the only currently enabled payment country. Wallet deposits and membership plan purchases use Paystack M-Pesa STK Push when configured; Connect orders use their separate payment flow.
 - Every other country now shows `Payment methods coming soon` in the plan-payment modal.
 - Non-Kenya wallet deposits, withdrawals and plan purchases remain blocked server-side until a local payment provider is actually configured.
 - This is intentionally separate from currency conversion: displaying an amount in local currency does not mean a payment channel is available.

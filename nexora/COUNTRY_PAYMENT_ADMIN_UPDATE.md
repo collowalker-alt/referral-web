@@ -3,7 +3,7 @@
 ## What changed
 - Added `countryCode`, `countryName`, `countryVerified`, and `countrySource` to `User`.
 - Registration asks for an African country and verifies the selected country against the phone country code on the server.
-- Kenya keeps Co-op Bank Paybill.
+- Kenya uses Paystack M-Pesa STK Push for wallet deposits and membership plan purchases when `PAYSTACK_SECRET_KEY` is configured. NEXORA Connect bundle orders keep their separate payment flow; the legacy Co-op Paybill endpoints remain for historical/fallback handling.
 - Non-Kenya accounts cannot initiate Kenya Paybill payments, wallet Paybill deposits, or Kenya M-Pesa withdrawals.
 - Ghana and Côte d’Ivoire are marked as Paystack Mobile Money readiness, but remain unavailable until the real Paystack integration is activated.
 - Other listed African countries show payment methods as coming soon.
@@ -38,4 +38,4 @@ Then regenerate the Prisma client if needed:
 These fields have defaults, so existing users are treated as Kenya unless their records are later corrected.
 
 ## Important payment note
-Country support in the UI does not mean the corresponding Paystack channel is live. Actual payment activation still depends on the merchant account, supported channel and credentials. Kenya remains the only active payment route in this build.
+Country support in the UI does not mean the corresponding Paystack channel is live. Actual payment activation still depends on the merchant account, supported channel and credentials. Kenya is the only country payment route currently enabled; wallet deposits and membership plan purchases use Paystack M-Pesa STK Push when the live backend secret is configured. NEXORA Connect orders remain on their separate flow.

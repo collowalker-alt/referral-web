@@ -44,9 +44,10 @@ app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(re
     const expected=crypto.createHmac("sha512",secret).update(req.body).digest("hex");
     if(!signature || signature.length!==expected.length || !crypto.timingSafeEqual(Buffer.from(signature),Buffer.from(expected))) return res.sendStatus(401);
     const event=JSON.parse(req.body.toString("utf8"));
-    if(event.event==="charge.success" && event.data?.reference){
-      await finalizeSuccessfulPaystack(event.data.reference,event.data);
+    if(event.event==="charge.success" && event.data?.reference && String(event.data.status||"").toLowerCase()==="success"){
+      await finalizeSuccessfulPaystack(String(event.data.reference),event.data);
     }
+    // Acknowledge other valid Paystack events; only charge.success grants value.
     return res.sendStatus(200);
   }catch(e){
     console.error("[PAYSTACK WEBHOOK]",e);
@@ -88,7 +89,7 @@ function detectCountryFromPhone(value){
   return AFRICAN_COUNTRIES.slice().sort((a,b)=>b.dial.length-a.dial.length).find(c=>n.startsWith(c.dial)) || null;
 }
 function countryForUser(u){ return COUNTRY_BY_CODE[u?.countryCode] || detectCountryFromPhone(u?.phone) || COUNTRY_BY_CODE.KE; }
-function paymentAvailabilityForCountry(code){ return code==='KE' ? 'COOP_PAYBILL' : 'COMING_SOON'; }
+function paymentAvailabilityForCountry(code){ return code==='KE' ? (paystackConfigured() ? 'PAYSTACK_MPESA' : 'COOP_PAYBILL') : 'COMING_SOON'; }
 
 const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
 
@@ -160,14 +161,24 @@ async function finalizeSuccessfulPaystack(reference,paystackData={}){
   if(!tx) throw new Error("NEXORA payment reference not found");
   if(tx.status==="SUCCESS") return true;
 
+  const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
+  const referenceLooksPaystack=/^NX-PS(?:-DEP)?-/i.test(String(reference||""));
+  const method=String(meta.method||"").toUpperCase();
+  const provider=String(meta.paystack?.provider||"").toUpperCase();
+  const allowedPaystackRecord=method.startsWith("PAYSTACK")||provider==="PAYSTACK"||referenceLooksPaystack;
+  if(!["DEPOSIT","PACKAGE_PURCHASE"].includes(tx.type)||!allowedPaystackRecord){
+    throw new Error(`Reference ${reference} is not a NEXORA Paystack wallet deposit or plan purchase`);
+  }
+  if(String(paystackData.status||"").toLowerCase()!=="success") throw new Error(`Paystack has not confirmed a successful charge for ${reference}`);
+  if(!paystackData.reference||String(paystackData.reference)!==String(reference)) throw new Error(`Paystack reference mismatch for ${reference}`);
+
   const receivedAmount=Number(paystackData.amount);
   const expectedAmount=Math.round(Number(tx.amount)*100);
   if(!Number.isFinite(receivedAmount) || receivedAmount!==expectedAmount){
     throw new Error(`Paystack amount mismatch for ${reference}`);
   }
-  if(String(paystackData.currency||"KES").toUpperCase()!=="KES") throw new Error(`Unexpected Paystack currency for ${reference}`);
+  if(String(paystackData.currency||"").toUpperCase()!=="KES") throw new Error(`Unexpected or missing Paystack currency for ${reference}`);
 
-  const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
   const updatedMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:"success",verified:true,verifiedAt:new Date().toISOString(),id:paystackData.id||null,amount:receivedAmount,currency:"KES",channel:paystackData.channel||"mobile_money",gateway_response:paystackData.gateway_response||null}};
 
   if(tx.type==="DEPOSIT"){
@@ -188,10 +199,15 @@ async function finalizeSuccessfulPaystack(reference,paystackData={}){
 async function queryAndApplyPaystackStatus(reference){
   const tx=await prisma.transaction.findUnique({where:{reference}});
   if(!tx)throw new Error("Payment reference not found");
+  const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
+  const referenceLooksPaystack=/^NX-PS(?:-DEP)?-/i.test(String(reference||""));
+  const method=String(meta.method||"").toUpperCase();
+  const provider=String(meta.paystack?.provider||"").toUpperCase();
+  const allowedPaystackRecord=(method.startsWith("PAYSTACK")||provider==="PAYSTACK"||referenceLooksPaystack)&&["DEPOSIT","PACKAGE_PURCHASE"].includes(tx.type);
+  if(!allowedPaystackRecord)throw new Error("This payment was not initiated through Paystack wallet deposits or plan purchases.");
   if(tx.status==="SUCCESS")return {status:"success",message:tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active.",data:{}};
 
   const result=await verifyPaystackTransaction(reference);
-  const meta=(tx.metadata&&typeof tx.metadata==="object")?tx.metadata:{};
   const updatedMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:result.status,lastResponse:result.data,lastCheckedAt:new Date().toISOString(),display_text:result.data?.display_text||result.message||""}};
   await prisma.transaction.update({where:{reference},data:{metadata:updatedMeta}});
 
@@ -465,7 +481,9 @@ app.get("/api/currency/rates",async(req,res)=>{
 app.get("/api/payments/methods",auth,async(req,res)=>{
   const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
   const kenya=member?.countryCode==="KE";
-  res.json({wallet:true,countryCode:member?.countryCode||null,countryName:member?.countryName||null,paybill:kenya&&Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paybillNumber:kenya?(MPESA_PAYBILL_NUMBER||null):null,paybillAccount:kenya?(MPESA_PAYBILL_ACCOUNT||null):null,paybillName:kenya?MPESA_PAYBILL_NAME:null,stkPush:false,paymentAvailability:paymentAvailabilityForCountry(member?.countryCode||"KE"),provider:kenya&&MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT?"coopbank_paybill":"coming_soon"});
+  const stkPush=Boolean(kenya&&paystackConfigured());
+  const paybill=Boolean(kenya&&!stkPush&&MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT);
+  res.json({wallet:true,countryCode:member?.countryCode||null,countryName:member?.countryName||null,paybill,paybillNumber:paybill?(MPESA_PAYBILL_NUMBER||null):null,paybillAccount:paybill?(MPESA_PAYBILL_ACCOUNT||null):null,paybillName:paybill?MPESA_PAYBILL_NAME:null,stkPush,paymentAvailability:paymentAvailabilityForCountry(member?.countryCode||"KE"),provider:stkPush?"paystack_mpesa":paybill?"coopbank_paybill":"coming_soon",paystackMode:stkPush?paystackMode():null});
 });
 
 
@@ -859,6 +877,8 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
   const startedAt=Date.now();
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
+    const paymentMember=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
+    if(paymentMember?.countryCode!=="KE")return res.status(403).json({message:"Paystack M-Pesa STK Push is currently enabled for Kenyan accounts only."});
     const {packageId,phone}=req.body;
     const normalizedPhone=cleanPhone(phone||req.user.phone);
     if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
@@ -886,10 +906,12 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
       return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference,paystack_message:charge.data?.message||null});
     }
 
-    if(String(data.status||"").toLowerCase()==="success") await finalizeSuccessfulPaystack(reference,data);
+    const chargeStatus=String(data.status||"pending").toLowerCase();
+    if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);
+    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
     const tx=await prisma.transaction.findUnique({where:{reference}});
     const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.json({reference,status,display_text:data.display_text||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":"Paystack STK prompt sent. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",chargeAmount});
+    res.json({reference,status,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":status==="failed"?"The M-Pesa payment could not be completed. Start a new payment to try again.":"Paystack STK prompt sent. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",chargeAmount});
   }catch(e){
     console.error("[PAYSTACK STK INIT EXCEPTION]",e);
     res.status(500).json({message:e.message||"Payment initialization failed"});
@@ -1098,6 +1120,7 @@ app.post("/api/admin/payments/verify-paybill",adminAuth,requireAdminRole("SUPER_
 
     const tx=await prisma.transaction.findUnique({where:{reference},include:{user:{select:{id:true,name:true,email:true}}}});
     if(!tx) return res.status(404).json({message:"Transaction not found"});
+    if(String(tx.metadata?.method||"").toUpperCase().startsWith("PAYSTACK")||/^NX-PS(?:-DEP)?-/i.test(reference)) return res.status(400).json({message:"This is a Paystack transaction. Use Paystack server-side verification; manual Paybill approval is disabled."});
     if(tx.status==="SUCCESS") return res.json({message:"Already activated",status:"success"});
 
     if(action==="reject"){
@@ -1436,8 +1459,8 @@ app.delete("/api/admin/admins/:id",adminAuth,requireAdminRole("SUPER_ADMIN"),asy
   catch(e){console.error("Admin remove error:",e);res.status(500).json({message:"Unable to remove administrator"});}
 });
 
-app.get("/api/admin/payment-config",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{const saved=await prisma.paymentProviderConfig.findMany({orderBy:{countryName:"asc"}});const by=Object.fromEntries(saved.map(x=>[x.countryCode,x]));res.json(AFRICAN_COUNTRIES.map(c=>({countryCode:c.code,countryName:c.name,dial:c.dial,provider:by[c.code]?.provider||(c.code==="KE"?"Co-op Bank":"Paystack"),method:by[c.code]?.method||(c.payment==="COOP_PAYBILL"?"Paybill":c.payment==="PAYSTACK_MOBILE_MONEY"?"Mobile Money":"Not configured"),enabled:by[c.code]?.enabled??(c.code==="KE"&&Boolean(MPESA_PAYBILL_ACCOUNT)),settings:by[c.code]?.settings||null})));}catch(e){res.status(500).json({message:"Unable to load payment configuration"});}});
-app.patch("/api/admin/payment-config/:countryCode",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const code=String(req.params.countryCode||"").toUpperCase();const c=COUNTRY_BY_CODE[code];if(!c)return res.status(404).json({message:"Country not supported"});const provider=String(req.body?.provider||"Paystack").trim().slice(0,60);const method=String(req.body?.method||"Not configured").trim().slice(0,80);const enabled=Boolean(req.body?.enabled);if(code==="KE"&&!MPESA_PAYBILL_ACCOUNT&&enabled)return res.status(400).json({message:"Configure MPESA_PAYBILL_ACCOUNT before enabling Kenya Paybill."});const row=await prisma.paymentProviderConfig.upsert({where:{countryCode:code},update:{provider,method,enabled,settings:req.body?.settings||null,countryName:c.name,dial:c.dial},create:{countryCode:code,countryName:c.name,dial:c.dial,provider,method,enabled,settings:req.body?.settings||null}});await logAdminAction(req,"PAYMENT_CONFIG_UPDATED","PAYMENT_CONFIG",row.id,null,{countryCode:code,provider,method,enabled});res.json(row);}catch(e){res.status(500).json({message:"Unable to update payment configuration"});}});
+app.get("/api/admin/payment-config",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{const saved=await prisma.paymentProviderConfig.findMany({orderBy:{countryName:"asc"}});const by=Object.fromEntries(saved.map(x=>[x.countryCode,x]));res.json(AFRICAN_COUNTRIES.map(c=>{const paystackActive=c.code==="KE"&&paystackConfigured();return {countryCode:c.code,countryName:c.name,dial:c.dial,provider:paystackActive?"Paystack":(by[c.code]?.provider||(c.code==="KE"?"Co-op Bank":"Paystack")),method:paystackActive?"M-Pesa STK Push":(by[c.code]?.method||(c.payment==="COOP_PAYBILL"?"Paybill":c.payment==="PAYSTACK_MOBILE_MONEY"?"Mobile Money":"Not configured")),enabled:paystackActive?true:(by[c.code]?.enabled??(c.code==="KE"&&Boolean(MPESA_PAYBILL_ACCOUNT))),settings:by[c.code]?.settings||null};}));}catch(e){res.status(500).json({message:"Unable to load payment configuration"});}});
+app.patch("/api/admin/payment-config/:countryCode",adminAuth,requireAdminRole("SUPER_ADMIN"),async(req,res)=>{try{const code=String(req.params.countryCode||"").toUpperCase();const c=COUNTRY_BY_CODE[code];if(!c)return res.status(404).json({message:"Country not supported"});const provider=String(req.body?.provider||"Paystack").trim().slice(0,60);const method=String(req.body?.method||"Not configured").trim().slice(0,80);const enabled=Boolean(req.body?.enabled);if(code==="KE"&&enabled){const selectingPaystack=/paystack/i.test(provider)||/stk/i.test(method);if(selectingPaystack&&!paystackConfigured())return res.status(400).json({message:"Set PAYSTACK_SECRET_KEY on the server before enabling Kenya Paystack STK Push."});if(!selectingPaystack&&!MPESA_PAYBILL_ACCOUNT)return res.status(400).json({message:"Configure MPESA_PAYBILL_ACCOUNT before enabling Kenya Paybill."});}const row=await prisma.paymentProviderConfig.upsert({where:{countryCode:code},update:{provider,method,enabled,settings:req.body?.settings||null,countryName:c.name,dial:c.dial},create:{countryCode:code,countryName:c.name,dial:c.dial,provider,method,enabled,settings:req.body?.settings||null}});await logAdminAction(req,"PAYMENT_CONFIG_UPDATED","PAYMENT_CONFIG",row.id,null,{countryCode:code,provider,method,enabled});res.json(row);}catch(e){res.status(500).json({message:"Unable to update payment configuration"});}});
 app.get("/api/admin/users/:id/timeline",adminAuth,async(req,res)=>{try{const id=req.params.id;const [u,tx,tickets,notes,logs]=await Promise.all([prisma.user.findUnique({where:{id},select:{id:true,createdAt:true}}),prisma.transaction.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:50,select:{id:true,reference:true,type:true,amount:true,status:true,createdAt:true}}).catch(()=>[]),prisma.supportTicket.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:30,select:{id:true,subject:true,status:true,createdAt:true,updatedAt:true}}),prisma.notification.findMany({where:{userId:id},orderBy:{createdAt:"desc"},take:30,select:{id:true,title:true,type:true,createdAt:true}}),prisma.adminActivityLog.findMany({where:{targetId:id},orderBy:{createdAt:"desc"},take:50,select:{id:true,action: true,adminEmail:true,details:true,createdAt:true}})]);if(!u)return res.status(404).json({message:"Member not found"});const items=[...tx.map(x=>({kind:"TRANSACTION",title:String(x.type).replaceAll("_"," "),text:`${x.reference} · KSh ${Number(x.amount||0).toLocaleString()} · ${x.status}`,createdAt:x.createdAt})),...tickets.map(x=>({kind:"SUPPORT",title:`Support: ${x.subject}`,text:`Status: ${x.status}`,createdAt:x.createdAt})),...notes.map(x=>({kind:"NOTIFICATION",title:x.title,text:x.type,createdAt:x.createdAt})),...logs.map(x=>({kind:"ADMIN",title:x.action,text:x.adminEmail,createdAt:x.createdAt,details:x.details}))].sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));res.json(items.slice(0,150));}catch(e){console.error(e);res.status(500).json({message:"Unable to load member timeline"});}});
 
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
@@ -1616,7 +1639,7 @@ app.post("/api/admin/payments/repair",adminAuth,requireAdminRole("SUPER_ADMIN","
       return res.json({message:"Co-op Paybill payment verified and member account repaired successfully",status:"success",reference});
     }
 
-    // Legacy Paystack repair remains available for historical records while Paystack is not the active member payment method.
+    // Payment repair verifies Paystack directly; it never trusts a browser success signal or Paybill code for a Paystack record.
     if(!paystackConfigured())return res.status(503).json({message:"This is a legacy Paystack payment, but Paystack is not configured on the server."});
     const result=await queryAndApplyPaystackStatus(reference);
     if(result.status==="success"){
@@ -1730,6 +1753,8 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
   const startedAt=Date.now();
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
+    const paymentMember=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
+    if(paymentMember?.countryCode!=="KE")return res.status(403).json({message:"Paystack wallet deposits are currently enabled for Kenyan accounts only."});
     const amount=Number(req.body?.amount);
     const normalizedPhone=cleanPhone(req.body?.phone||req.user.phone);
     if(!Number.isInteger(amount)||amount<100)return res.status(400).json({message:"Minimum deposit is KSh 100"});
@@ -1747,10 +1772,12 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
       await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
       return res.status(400).json({message:"M-Pesa prompt could not be sent. Please try again or contact support.",reference});
     }
-    if(String(data.status||"").toLowerCase()==="success") await finalizeSuccessfulPaystack(reference,data);
+    const chargeStatus=String(data.status||"pending").toLowerCase();
+    if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);
+    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
     const tx=await prisma.transaction.findUnique({where:{reference}});
     const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.status(201).json({reference,status,amount,phone:normalizedPhone,display_text:data.display_text||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Deposit confirmed and your wallet has been credited.":"Paystack STK prompt sent. Enter your M-Pesa PIN, then NEXORA will confirm the deposit automatically."});
+    res.status(201).json({reference,status,amount,phone:normalizedPhone,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Deposit confirmed and your wallet has been credited.":status==="failed"?"The M-Pesa payment could not be completed. Start a new deposit to try again.":"Paystack STK prompt sent. Enter your M-Pesa PIN, then NEXORA will confirm the deposit automatically."});
   }catch(e){console.error("[PAYSTACK WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
 });
 
@@ -1816,8 +1843,10 @@ app.get("/api/wallet/deposit/status/:reference",auth,async(req,res)=>{
 
 app.get("/api/admin/wallet/deposits",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
-    const rows=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:"PENDING"},orderBy:{createdAt:"desc"},take:200,include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
-    res.json(rows.map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,paybillNumber:x.metadata?.paybillNumber||MPESA_PAYBILL_NUMBER,paybillAccount:x.metadata?.paybillAccount||MPESA_PAYBILL_ACCOUNT})));
+    const rows=await prisma.transaction.findMany({where:{type:"DEPOSIT",status:"PENDING"},orderBy:{createdAt:"desc"},take:300,include:{user:{select:{id:true,name:true,email:true,phone:true}}}});
+    // Only manual Paybill deposits belong in the admin code-review queue. Paystack
+    // deposits must be verified against Paystack, never manually credited here.
+    res.json(rows.filter(x=>String(x.metadata?.method||"").toUpperCase()==="PAYBILL"&&Boolean(x.metadata?.mpesaCode)).map(x=>({id:x.id,reference:x.reference,amount:x.amount,status:x.status,createdAt:x.createdAt,user:x.user,mpesaCode:x.metadata?.mpesaCode||null,paybillNumber:x.metadata?.paybillNumber||MPESA_PAYBILL_NUMBER,paybillAccount:x.metadata?.paybillAccount||MPESA_PAYBILL_ACCOUNT})));
   }catch(e){console.error("[ADMIN DEPOSITS]",e);res.status(500).json({message:"Unable to load pending deposits"});}
 });
 
@@ -1829,6 +1858,8 @@ app.post("/api/admin/wallet/deposits/verify",adminAuth,requireAdminRole("SUPER_A
     const confirmedAmount=req.body?.confirmedAmount!=null?Number(req.body.confirmedAmount):null;
     const tx=await prisma.transaction.findUnique({where:{reference},include:{user:{select:{id:true,name:true,email:true}}}});
     if(!tx||tx.type!=="DEPOSIT") return res.status(404).json({message:"Deposit not found"});
+    const depositMethod=String(tx.metadata?.method||"").toUpperCase();
+    if(depositMethod.startsWith("PAYSTACK")||/^NX-PS(?:-DEP)?-/i.test(reference)) return res.status(400).json({message:"This is a Paystack deposit. Verify it through Paystack status/webhook; manual approval is disabled."});
     if(tx.status==="SUCCESS") return res.json({status:"success",message:"Deposit already credited"});
     if(action==="reject"){
       await prisma.transaction.update({where:{id:tx.id},data:{status:"FAILED",metadata:{...(tx.metadata||{}),rejectedAt:new Date().toISOString(),rejectNote:note,verifiedBy:req.admin.email}}});
