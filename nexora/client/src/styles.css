@@ -5561,3 +5561,6 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
   .depositbackdrop .depositamountcard{padding:12px}
   .depositbackdrop .depositmodal>.modalfoot{padding-top:8px!important;padding-bottom:8px!important}
 }
+
+/* Make the dedicated Internet Services Admin role explanation clear in Admin Management. */
+.adminedit label small{display:block;font-size:10px;font-weight:500;line-height:1.4;margin-top:6px;color:#8ea4bb}
