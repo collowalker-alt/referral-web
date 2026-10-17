@@ -16,9 +16,9 @@ Keep the existing `JWT_SECRET`, `DATABASE_URL`, and other production environment
 
 Configure this webhook URL in the Paystack dashboard:
 
-`https://YOUR-RENDER-BACKEND-DOMAIN/api/paystack/webhook`
+`https://nexora-api-shxf.onrender.com/api/paystack/webhook`
 
-Replace `YOUR-RENDER-BACKEND-DOMAIN` with the live Render service host. Subscribe to successful charge events / `charge.success`. The endpoint checks Paystack's `x-paystack-signature` HMAC-SHA512 signature against the raw request body before processing events.
+This is the webhook URL for the backend URL provided for NEXORA. Subscribe to successful charge events / `charge.success`. The endpoint checks Paystack's `x-paystack-signature` HMAC-SHA512 signature against the raw request body before processing events.
 
 ## What the application does
 
