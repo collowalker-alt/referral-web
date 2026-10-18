@@ -58,6 +58,9 @@ jobs:
         working-directory: nexora/client
         run: npm run build
 
+      - name: Keep APK download out of the app's bundled website
+        run: if [ -f nexora/client/dist/downloads/nexora-android.apk ]; then rm -f nexora/client/dist/downloads/nexora-android.apk; fi
+
       - name: Generate Capacitor Android project
         working-directory: nexora/client
         run: npx cap add android
@@ -65,9 +68,6 @@ jobs:
       - name: Sync web assets into Android project
         working-directory: nexora/client
         run: npx cap sync android
-
-      - name: Keep APK download out of the app's bundled website
-        run: if [ -f nexora/client/dist/downloads/nexora-android.apk ]; then rm -f nexora/client/dist/downloads/nexora-android.apk; fi
 
       - name: Apply NEXORA app branding
         working-directory: nexora
