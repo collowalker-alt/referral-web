@@ -17,7 +17,12 @@ def fit_logo(source: Image.Image, size: int, background=(7, 9, 13, 255), inset=0
     canvas = Image.new("RGBA", (size, size), background)
     image = source.convert("RGBA")
     max_side = max(1, int(size * (1 - 2 * inset)))
-    image.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+    # Scale both down and up: the website favicon is intentionally 64x64,
+    # and thumbnail() alone would leave it tiny in a 192/432px launcher asset.
+    scale = min(max_side / image.width, max_side / image.height)
+    width = max(1, int(round(image.width * scale)))
+    height = max(1, int(round(image.height * scale)))
+    image = image.resize((width, height), Image.Resampling.LANCZOS)
     x = (size - image.width) // 2
     y = (size - image.height) // 2
     canvas.alpha_composite(image, (x, y))
