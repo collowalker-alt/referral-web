@@ -29,8 +29,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: nexora/client/package.json
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -44,7 +42,9 @@ jobs:
           python-version: '3.x'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android platform and build tools
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
