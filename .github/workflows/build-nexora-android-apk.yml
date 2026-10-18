@@ -67,7 +67,7 @@ jobs:
         run: npx cap sync android
 
       - name: Keep APK download out of the app's bundled website
-        run: rm -f nexora/client/dist/downloads/nexora-android.apk
+        run: if [ -f nexora/client/dist/downloads/nexora-android.apk ]; then rm -f nexora/client/dist/downloads/nexora-android.apk; fi
 
       - name: Apply NEXORA app branding
         working-directory: nexora
