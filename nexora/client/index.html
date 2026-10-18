@@ -1,25 +1,63 @@
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/png" sizes="64x64" href="/favicon.png"><link rel="apple-touch-icon" href="/nexora-logo.png"><meta name="theme-color" content="#050a12"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#0b0d12"><meta name="apple-mobile-web-app-capable" content="yes"><link rel="icon" href="/nexora-logo.png"><title>NEXORA — Connect. Grow. Earn.</title></head><body><div id="root"></div><script type="module" src="/src/main.jsx"></script><script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      const registration = await navigator.serviceWorker.register("/sw.js");
-      registration.update().catch(() => {});
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (navigator.onLine && !window.__nexoraControllerReloaded) {
-          window.__nexoraControllerReloaded = true;
-          window.location.reload();
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#07090d" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/nexora-logo.png" />
+    <link rel="icon" href="/nexora-logo.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>NEXORA — Connect. Grow. Earn.</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      (() => {
+        if (!("serviceWorker" in navigator)) return;
+
+        let reloadAfterUpdate = false;
+
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          // Reload only when a newly installed worker takes control, not on every
+          // network reconnect. This prevents reload loops and lets cached UI stay open.
+          if (navigator.onLine && reloadAfterUpdate && !window.__nexoraUpdateReloaded) {
+            window.__nexoraUpdateReloaded = true;
+            window.location.reload();
+          }
+          reloadAfterUpdate = false;
+        });
+
+        async function checkForUpdates() {
+          try {
+            const registration = await navigator.serviceWorker.getRegistration("/");
+            if (registration) {
+              reloadAfterUpdate = true;
+              await registration.update();
+            }
+          } catch {
+            // Offline checks are expected to fail quietly.
+          }
         }
-      });
-    } catch {}
-  });
-  window.addEventListener("online", () => {
-    navigator.serviceWorker.getRegistration().then(registration => {
-      if (registration) registration.update().catch(() => {});
-    }).catch(() => {});
-    // Refresh the online app shell after reconnecting so newly deployed files are picked up.
-    if (!window.__nexoraReconnectReloaded) {
-      window.__nexoraReconnectReloaded = true;
-      window.location.reload();
-    }
-  });
-}</script></body></html>
+
+        window.addEventListener("load", async () => {
+          try {
+            const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+            reloadAfterUpdate = true;
+            registration.update().catch(() => {});
+          } catch {
+            // The app should still load if service workers are unavailable.
+          }
+        });
+
+        window.addEventListener("online", () => {
+          // Check the deployed service worker; its install/activate flow replaces
+          // the cached shell safely, then controllerchange reloads the new version.
+          checkForUpdates();
+        });
+      })();
+    </script>
+  </body>
+</html>
