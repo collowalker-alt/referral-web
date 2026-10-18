@@ -20,6 +20,34 @@ const localToBase=n=>{const st=currencyState();const r=Number(st.rate||1);return
 const waShare=(text)=>{const url=`https://wa.me/?text=${encodeURIComponent(text)}`;window.open(url,"_blank","noopener,noreferrer");};
 const checklistKey=id=>`nexora-checklist-${id}`;
 
+// The workspace cache is scoped to the last signed-in member so offline data
+// is not accidentally displayed to another account on a shared device.
+const cachedWorkspaceUserId=()=>{
+  try{
+    const cached=JSON.parse(localStorage.getItem("nexora-cached-me")||"null");
+    return String(cached?.user?.id||"");
+  }catch{return ""}
+};
+const readCachedMemberData=(key,fallback)=>{
+  try{
+    const entry=JSON.parse(localStorage.getItem(`nexora-offline-${key}`)||"null");
+    const userId=cachedWorkspaceUserId();
+    return userId && entry?.userId===userId ? entry.data : fallback;
+  }catch{return fallback}
+};
+const saveCachedMemberData=(key,value,userId)=>{
+  try{
+    if(userId!==undefined&&userId!==null&&String(userId)){
+      localStorage.setItem(`nexora-offline-${key}`,JSON.stringify({userId:String(userId),data:value,updatedAt:Date.now()}));
+    }
+  }catch{}
+};
+const clearCachedMemberData=()=>{
+  try{
+    ["packages","referrals","earnings","transactions","analytics","leaderboard","announcements","tickets","notifications"].forEach(key=>localStorage.removeItem(`nexora-offline-${key}`));
+  }catch{}
+};
+
 const PHONE_RE=/^(?:0[17]\d{8}|254[17]\d{8})$/;
 const AFRICAN_COUNTRIES=[{code:"KE",name:"🇰🇪 Kenya",dial:"254",payment:"COOP_PAYBILL"},{code:"GH",name:"🇬🇭 Ghana",dial:"233",payment:"COMING_SOON"},{code:"CI",name:"🇨🇮 Côte d’Ivoire",dial:"225",payment:"COMING_SOON"},{code:"NG",name:"🇳🇬 Nigeria",dial:"234",payment:"COMING_SOON"},{code:"ZA",name:"🇿🇦 South Africa",dial:"27",payment:"COMING_SOON"},{code:"EG",name:"🇪🇬 Egypt",dial:"20",payment:"COMING_SOON"},{code:"RW",name:"🇷🇼 Rwanda",dial:"250",payment:"COMING_SOON"},{code:"TZ",name:"🇹🇿 Tanzania",dial:"255",payment:"COMING_SOON"},{code:"UG",name:"🇺🇬 Uganda",dial:"256",payment:"COMING_SOON"},{code:"ZM",name:"🇿🇲 Zambia",dial:"260",payment:"COMING_SOON"},{code:"BW",name:"🇧🇼 Botswana",dial:"267",payment:"COMING_SOON"},{code:"MZ",name:"🇲🇿 Mozambique",dial:"258",payment:"COMING_SOON"},{code:"ZW",name:"🇿🇼 Zimbabwe",dial:"263",payment:"COMING_SOON"},{code:"SN",name:"🇸🇳 Senegal",dial:"221",payment:"COMING_SOON"},{code:"CM",name:"🇨🇲 Cameroon",dial:"237",payment:"COMING_SOON"},{code:"ET",name:"🇪🇹 Ethiopia",dial:"251",payment:"COMING_SOON"},{code:"MA",name:"🇲🇦 Morocco",dial:"212",payment:"COMING_SOON"},{code:"TN",name:"🇹🇳 Tunisia",dial:"216",payment:"COMING_SOON"},{code:"MU",name:"🇲🇺 Mauritius",dial:"230",payment:"COMING_SOON"}];
 const COUNTRY_BY_CODE=Object.fromEntries(AFRICAN_COUNTRIES.map(c=>[c.code,c]));
@@ -1063,7 +1091,7 @@ function AdminApp(){
   case "connectorders":pageContent=["SUPER_ADMIN","ADMIN","CONNECT_ADMIN"].includes(admin.role)?<AdminConnectOrders rows={data.connectOrders||[]} action={action} reload={()=>load(false)}/>:<AdminOverview data={data.overview}/>;break;
   default:pageContent=<AdminOverview data={data.overview} onRefresh={()=>load(false)}/>;
  }
- return <div className="adminapp" data-busy={busy?"true":"false"}><aside className={mobile?"open":""}><div className="adminnavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>ADMIN</small></div></div>{nav.map(([id,t,I])=><button key={id} className={`${page===id?"active":""}${id==="serviceRequests"?" adminserviceitem":""}`} onClick={()=>{pageRef.current=id;setPage(id);setMobile(false)}}><I size={18}/><span className="adminnavlabel">{t}{id==="serviceRequests"&&<small>Requests · Quotes · Projects</small>}</span></button>)}<div className="adminnavspacer"/>{r!=="CONNECT_ADMIN"&&<button onClick={()=>setNotice(`Co-op Paybill is currently ${data.overview?.paymentProvider||"unconfigured"}.`)}><Settings2 size={18}/>Payment mode</button>}<button onClick={logout}><LogOut size={18}/>Logout</button></aside><main className="adminmain"><header className="adminheader"><button className="mobilemenu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button><div><b>{title}</b><div className="muted small">NEXORA administrator console</div></div><AdminNotificationCenter admin={admin} onNavigate={setPage}/><div className="adminuser"><PWAInstall compact/><ShieldCheck size={17}/><span>{admin.name} · {admin.role==="CONNECT_ADMIN"?"INTERNET SERVICES ADMIN":String(admin.role||"ADMIN").replaceAll("_"," ")}</span></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{notice&&<div className={`notice topmsg ${busy?"processingnotice":""}`}><span>{busy&&<LoaderCircle size={15} className="spin"/>}{notice}</span>{!busy&&<button onClick={()=>setNotice("")}>×</button>}</div>}{pageContent}</main></div>;
+ return <div className="adminapp" data-busy={busy?"true":"false"}><aside className={mobile?"open":""}><div className="adminnavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>ADMIN</small></div></div>{nav.map(([id,t,I])=><button key={id} className={`${page===id?"active":""}${id==="serviceRequests"?" adminserviceitem":""}`} onClick={()=>{pageRef.current=id;setPage(id);setMobile(false)}}><I size={18}/><span className="adminnavlabel">{t}{id==="serviceRequests"&&<small>Requests · Quotes · Projects</small>}</span></button>)}<div className="adminnavspacer"/>{r!=="CONNECT_ADMIN"&&<button onClick={()=>setNotice(`Co-op Paybill is currently ${data.overview?.paymentProvider||"unconfigured"}.`)}><Settings2 size={18}/>Payment mode</button>}<button onClick={logout}><LogOut size={18}/>Logout</button></aside><main className="adminmain"><header className="adminheader"><button className="mobilemenu" onClick={()=>setMobile(!mobile)}>{mobile?<X/>:<Menu/>}</button><div><b>{title}</b><div className="muted small">NEXORA administrator console</div></div><AdminNotificationCenter admin={admin} onNavigate={setPage}/><div className="adminuser"><PWAInstall compact/><ShieldCheck size={17}/><span>{admin.name} · {admin.role==="CONNECT_ADMIN"?"INTERNET SERVICES ADMIN":String(admin.role||"ADMIN").replaceAll("_"," ")}</span></div></header>{!networkOnline&&<div className="nx-offline-banner" role="status"><Wifi size={16}/><span><b>You’re offline.</b> Your saved NEXORA workspace is open. Live updates, payments and new orders will resume when you reconnect.</span><button type="button" onClick={()=>{const online=typeof navigator==="undefined"||navigator.onLine!==false;setNetworkOnline(online);if(online)load(false)}}>Check again</button></div>}{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{notice&&<div className={`notice topmsg ${busy?"processingnotice":""}`}><span>{busy&&<LoaderCircle size={15} className="spin"/>}{notice}</span>{!busy&&<button onClick={()=>setNotice("")}>×</button>}</div>}{pageContent}</main></div>;
 }
 function AdminServiceRequests({action}){const [rows,setRows]=useState([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(''),[filter,setFilter]=useState('ALL'),[query,setQuery]=useState(''),[quote,setQuote]=useState(null),[message,setMessage]=useState(null),[chat,setChat]=useState([]),[chatText,setChatText]=useState('');const load=async()=>{setLoading(true);try{setRows(await adminApi('/admin/service-requests'))}catch(e){alert(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[]);const update=async(r,actionName,extra={})=>{setSaving(r.id);try{await action(()=>adminApi(`/admin/service-requests/${r.id}`,{method:'PATCH',body:JSON.stringify({action:actionName,...extra,adminNote:r.adminNote||''})}),actionName==='PAID'?'Project marked paid':`Project updated: ${actionName}`);await load()}catch(e){alert(e.message)}finally{setSaving('')}};const openChat=async(r)=>{setMessage(r);try{setChat(await adminApi(`/admin/service-requests/${r.id}/messages`))}catch{setChat([])}};const sendChat=async()=>{if(!message||!chatText.trim())return;try{const m=await adminApi(`/admin/service-requests/${message.id}/messages`,{method:'POST',body:JSON.stringify({message:chatText})});setChat(x=>[...x,m]);setChatText('')}catch(e){alert(e.message)}};const visible=rows.filter(r=>(filter==='ALL'||r.status===filter)&&(!query||`${r.title} ${r.userName} ${r.userEmail} ${r.serviceType}`.toLowerCase().includes(query.toLowerCase())));return <section className="adminsection"><div className="adminsectionhead"><div><span className="pill">NEXORA SERVICES</span><h1>Service Requests & Projects</h1><p className="muted">Receive requests, ask for information, send quotations, manage milestones, communicate with clients and record completion/payment.</p></div><button className="secondary" onClick={load}><RefreshCw size={16}/> Refresh</button></div><div className="serviceadminstats"><span>New <b>{rows.filter(x=>x.status==='SUBMITTED').length}</b></span><span>Processing <b>{rows.filter(x=>['RECEIVED','INFO_REQUIRED','QUOTED','IN_PROGRESS'].includes(x.status)).length}</b></span><span>Completed <b>{rows.filter(x=>x.status==='COMPLETED').length}</b></span><span>Paid <b>{rows.filter(x=>x.status==='PAID').length}</b></span></div><div className="adminpanel serviceadminfilters"><div className="searchbox"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search project, member or service…"/></div><select value={filter} onChange={e=>setFilter(e.target.value)}><option value="ALL">All statuses</option>{['SUBMITTED','RECEIVED','INFO_REQUIRED','QUOTED','IN_PROGRESS','COMPLETED','PAID'].map(x=><option key={x}>{x}</option>)}</select></div><div className="adminpanel tablepanel"><div className="admintable"><div className="adminrow adminrowhead"><span>Project</span><span>Member contacts</span><span>Scope / budget</span><span>Status</span><span>Actions</span></div>{loading?<div className="adminempty">Loading project requests…</div>:visible.map(r=><div className="adminrow serviceadminrow" key={r.id}><div><b>{r.title}</b><small>{r.serviceType.replaceAll('_',' ')}</small><small>{r.description}</small>{r.attachments&&r.attachments!=='[]'&&<small>📎 Reference files attached</small>}</div><div><b>{r.userName}</b><small>{r.email}</small><small>WhatsApp: {r.whatsapp}</small></div><div><span>{r.quoteAmount?money(r.quoteAmount):r.budget?money(r.budget):'Budget not specified'}</span><small>{r.quoteStatus==='SENT'?'Quotation sent':r.milestone||'Requirements'}</small><small>Submitted {new Date(r.createdAt).toLocaleString()}</small></div><div><em className={`adminstatus ${String(r.status).toLowerCase()}`}>{r.status.replaceAll('_',' ')}</em>{r.isReceived&&<small>✓ Received</small>}{r.isDone&&<small>✓ Completed</small>}{r.isPaid&&<small>✓ Paid</small>}</div><div className="rowactions"><button className="rowaction" onClick={()=>openChat(r)}><MessageSquareText size={13}/> Chat</button>{!r.isReceived&&<button className="rowaction" disabled={saving===r.id} onClick={()=>update(r,'RECEIVE')}><Check size={13}/> Received</button>}{r.isReceived&&!r.quoteAmount&&<button className="rowaction" disabled={saving===r.id} onClick={()=>setQuote(r)}><ReceiptText size={13}/> Quote</button>}{r.status==='RECEIVED'&&<button className="rowaction" onClick={()=>update(r,'INFO',{adminNote:window.prompt('What information do you need from the client?',r.adminNote||'')||''})}><Info size={13}/> More info</button>}{r.status==='QUOTED'&&<button className="rowaction" onClick={()=>update(r,'START',{milestone:'Development'})}>Start</button>}{['RECEIVED','INFO_REQUIRED','IN_PROGRESS'].includes(r.status)&&<button className="rowaction" onClick={()=>{const m=window.prompt('Milestone / note',r.milestone||'Development');if(m)update(r,'MILESTONE',{milestone:m})}}>Milestone</button>}{r.status!=='PAID'&&r.isDone&&<button className="rowaction successaction" disabled={saving===r.id} onClick={()=>update(r,'PAID')}><CheckCheck size={13}/> Paid</button>}{!r.isDone&&r.status==='IN_PROGRESS'&&<button className="rowaction successaction" disabled={saving===r.id} onClick={()=>update(r,'DONE')}><CheckCheck size={13}/> Complete</button>}</div></div>)}{!loading&&!visible.length&&<div className="adminempty">No matching service requests.</div>}</div></div>{quote&&<div className="modalbackdrop" onClick={()=>setQuote(null)}><div className="modal quoteadminmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">SEND QUOTATION</span><h2>{quote.title}</h2><p className="muted small">Send a clear price and scope summary. The client can accept or request changes from their project page.</p></div><button className="iconbtn" onClick={()=>setQuote(null)}><X size={18}/></button></div><div className="instructionbody"><label className="fieldlabel">Quotation amount (KSh)<input id="adminQuoteAmount" type="number" min="0" step="1" defaultValue={quote.quoteAmount||quote.budget||''}/></label><label className="fieldlabel">Scope / quotation note<textarea id="adminQuoteNote" rows="7" defaultValue={quote.quoteNote||''} placeholder="What is included, delivery expectations, revisions or important conditions…"/></label><div className="notice"><ShieldCheck size={15}/> Use a clear scope and confirm the final payment arrangement with the client before work begins.</div></div><div className="modalfoot"><button className="secondary" onClick={()=>setQuote(null)}>Cancel</button><button className="primary" onClick={()=>{const amount=Number(document.getElementById('adminQuoteAmount')?.value||0);const note=document.getElementById('adminQuoteNote')?.value||'';if(!amount){alert('Enter a quotation amount.');return}setQuote(null);update(quote,'QUOTE',{quoteAmount:amount,quoteNote:note})}}><ReceiptText size={15}/> Send quotation</button></div></div></div>}{message&&<div className="modalbackdrop" onClick={()=>setMessage(null)}><div className="modal servicechatmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">PROJECT CHAT</span><h2>{message.title}</h2></div><button className="iconbtn" onClick={()=>setMessage(null)}><X size={18}/></button></div><div className="chatlog">{chat.length?chat.map(m=><div className={`chatmsg ${m.senderRole==='ADMIN'?'mine':''}`} key={m.id}><small>{m.senderName||m.senderRole} · {new Date(m.createdAt).toLocaleString()}</small><p>{m.message}</p></div>):<p className="muted">No messages yet.</p>}</div><div className="chatcomposer admin-chatcomposer"><textarea value={chatText} onChange={e=>setChatText(e.target.value)} placeholder="Write a message to the client…" rows="3" onKeyDown={e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();sendChat()}}}/><button className="primary admin-chat-send" disabled={!chatText.trim()} onClick={sendChat}><SendHorizontal size={17}/><span>Send</span></button></div></div></div>}</section>}
 
@@ -1431,7 +1459,7 @@ function App(){
  const requestedMemberPage=new URLSearchParams(window.location.search).get("page");
  const allowedMemberPages=["dashboard","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","leaderboard","challenges","support","security"];
  const memberInitialPage=allowedMemberPages.includes(requestedMemberPage)?requestedMemberPage:"dashboard";
- const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState([]),[referrals,setReferrals]=useState({direct:[],level2:[]}),[earnings,setEarnings]=useState([]),[transactions,setTransactions]=useState([]),[analytics,setAnalytics]=useState(null),[leaderboard,setLeaderboard]=useState([]),[announcements,setAnnouncements]=useState([]),[tickets,setTickets]=useState([]),[notifications,setNotifications]=useState([]),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES);
+ const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false);
  const load=async(show=true)=>{
   if(show)setLoading(true);setError("");
   try{
@@ -1441,16 +1469,16 @@ function App(){
    setLoading(false);
    const results=await Promise.allSettled([api("/payments/methods"),api("/packages"),api("/referrals"),api("/earnings"),api("/transactions"),api("/member/analytics"),api("/member/leaderboard"),api("/announcements"),api("/support/tickets"),api("/notifications")]);
    if(results[0].status==="fulfilled")setPayMethods(results[0].value);
-   if(results[1].status==="fulfilled")setPackages(results[1].value);
-   if(results[2].status==="fulfilled")setReferrals(results[2].value);
-   if(results[3].status==="fulfilled")setEarnings(results[3].value);
-   if(results[4].status==="fulfilled")setTransactions(results[4].value);
-   if(results[5].status==="fulfilled")setAnalytics(results[5].value);
-   if(results[6].status==="fulfilled")setLeaderboard(results[6].value);
-   if(results[7].status==="fulfilled")setAnnouncements(results[7].value);
-   if(results[8].status==="fulfilled")setTickets(results[8].value);
+   if(results[1].status==="fulfilled"){setPackages(results[1].value);saveCachedMemberData("packages",results[1].value,m?.user?.id)}
+   if(results[2].status==="fulfilled"){setReferrals(results[2].value);saveCachedMemberData("referrals",results[2].value,m?.user?.id)}
+   if(results[3].status==="fulfilled"){setEarnings(results[3].value);saveCachedMemberData("earnings",results[3].value,m?.user?.id)}
+   if(results[4].status==="fulfilled"){setTransactions(results[4].value);saveCachedMemberData("transactions",results[4].value,m?.user?.id)}
+   if(results[5].status==="fulfilled"){setAnalytics(results[5].value);saveCachedMemberData("analytics",results[5].value,m?.user?.id)}
+   if(results[6].status==="fulfilled"){setLeaderboard(results[6].value);saveCachedMemberData("leaderboard",results[6].value,m?.user?.id)}
+   if(results[7].status==="fulfilled"){setAnnouncements(results[7].value);saveCachedMemberData("announcements",results[7].value,m?.user?.id)}
+   if(results[8].status==="fulfilled"){setTickets(results[8].value);saveCachedMemberData("tickets",results[8].value,m?.user?.id)}
    if(results[9].status==="fulfilled"){
-    const rows=results[9].value||[];setNotifications(rows);
+    const rows=results[9].value||[];setNotifications(rows);saveCachedMemberData("notifications",rows,m?.user?.id);
     // Do not re-open account-update popups that the member has already dismissed.
     let dismissed=[];
     try{dismissed=JSON.parse(localStorage.getItem("nexora-dismissed-login-updates")||"[]")}catch{}
@@ -1458,8 +1486,18 @@ function App(){
     const unread=rows.filter(x=>!x.read&&!dismissedSet.has(String(x.id))).slice(0,8);
     setLoginUpdates(current=>current.length?current:unread);
    }
-   const failed=results.find(x=>x.status==="rejected");if(failed)setError(failed.reason?.message||"Some account data could not be loaded");
-  }catch(e){if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");setMe(null)}else setError(e.message);setLoading(false)}
+   const failed=results.find(x=>x.status==="rejected");
+   if(failed){
+    const message=String(failed.reason?.message||"Some account data could not be loaded");
+    if(typeof navigator!=="undefined"&&(navigator.onLine===false||/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(message))){setNetworkOnline(false);setError("")}
+    else setError(message);
+   }
+  }catch(e){
+   if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");clearCachedMemberData();setMe(null)}
+   else if(typeof navigator!=="undefined"&&(navigator.onLine===false||/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(String(e?.message||e)))){setNetworkOnline(false);setError("")}
+   else setError(e.message);
+   setLoading(false);
+  }
  };
  useEffect(()=>{
   if(!localStorage.getItem("token")){setLoading(false);return;}
@@ -1469,6 +1507,26 @@ function App(){
   }catch{}
   load(false);
  },[]);
+ useEffect(()=>{
+  const markOffline=()=>{
+   setNetworkOnline(false);
+   setError(current=>/failed to fetch|networkerror|network request failed|load failed|fetch failed|cannot connect|could not connect/i.test(String(current||""))?"":current);
+  };
+  const markOnline=()=>{
+   setNetworkOnline(true);
+   load(false);
+  };
+  window.addEventListener("offline",markOffline);
+  window.addEventListener("online",markOnline);
+  if(typeof navigator!=="undefined")setNetworkOnline(navigator.onLine!==false);
+  return()=>{window.removeEventListener("offline",markOffline);window.removeEventListener("online",markOnline)};
+ },[]);
+ useEffect(()=>{
+  if(networkOnline||typeof navigator==="undefined"||!navigator.onLine)return;
+  // A brief backend outage while the device still reports network access gets retried.
+  const timer=window.setInterval(()=>{if(navigator.onLine)load(false)},20000);
+  return()=>window.clearInterval(timer);
+ },[networkOnline]);
  useEffect(()=>{
   const code=me?.user?.countryCode||"KE";
   const currency=CURRENCY_BY_COUNTRY[code]||CURRENCY_BY_COUNTRY.KE;
@@ -1577,7 +1635,7 @@ function App(){
   if(ok)flashCopied("link","Referral link copied. Paste it into the app you want to share with.");
   else{setError("Sharing is blocked by your browser. Please copy the referral link manually.");try{window.prompt("Copy your referral link:",link)}catch{}}
  };
- const logout=()=>{localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
+ const logout=()=>{localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");clearCachedMemberData();setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
  const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
  return <div className="app">{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}${id==="services"?" navserviceitem":""}`} onClick={()=>{setPage(id);setMobile(false);setMsg("")}} key={id}><I size={18}/><span className="navlabel">{t}{id==="services"&&<small className="navservicesub">Websites · Mobile Apps · Web Apps · E-commerce</small>}</span>{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false)}}><BookOpen size={18}/>Instructions</button><button onClick={()=>{setPage("security");setMobile(false)}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><div className="muted small">Shop · Orders · Wallet · Seller tools</div></div><div className="memberheaderbrand"><img src="/nexora-logo.png"/><ActivityCenter me={me} tickets={tickets} notifications={notifications} goPage={setPage}/><ThemeToggle/><PWAInstall compact/><button className="avatar avatarbtn" onClick={()=>setMobile(true)} aria-label="Open account menu">{me.user.name?.[0]?.toUpperCase()||"N"}</button></div></header>{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
  <div className="nx-page-stage" key={page}>
