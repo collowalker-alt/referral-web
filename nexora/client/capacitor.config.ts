@@ -3,10 +3,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
 /**
  * NEXORA Android / iOS shell (Capacitor)
  *
- * Default: bundles the local Vite build (client/dist) into the app.
- * For faster testing on a phone without rebuilding every time, uncomment
- * the server.url line below (points at your live Render frontend).
- * For Play Store / production, keep server.url commented out.
+ * The Android app loads the live NEXORA website so deployed frontend updates
+ * become available in the installed app without reinstalling the APK.
+ * Native Android changes (plugins, permissions, icon) still require a rebuild.
  */
 const config: CapacitorConfig = {
   appId: "com.nexora.member",
@@ -14,8 +13,7 @@ const config: CapacitorConfig = {
   webDir: "dist",
   server: {
     androidScheme: "https",
-    // Uncomment to load the live site inside the app (good for testing):
-    // url: "https://nexora-referral.onrender.com",
+    url: "https://nexora-referral.onrender.com",
   },
   plugins: {
     SplashScreen: {
