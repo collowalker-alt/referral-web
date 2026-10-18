@@ -1,0 +1,89 @@
+name: Build NEXORA Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'nexora/client/**'
+      - 'nexora/server/**'
+      - 'nexora/prisma/**'
+      - 'nexora/package.json'
+      - '.github/workflows/build-nexora-android-apk.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VITE_API_URL: https://nexora-api-shxf.onrender.com/api
+    steps:
+      - name: Checkout NEXORA source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: nexora/client/package.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform and build tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Install frontend dependencies
+        working-directory: nexora/client
+        run: npm install --no-audit --no-fund
+
+      - name: Build React/Vite frontend
+        working-directory: nexora/client
+        run: npm run build
+
+      - name: Generate Capacitor Android project
+        working-directory: nexora/client
+        run: npx cap add android
+
+      - name: Sync web assets into Android project
+        working-directory: nexora/client
+        run: npx cap sync android
+
+      - name: Apply NEXORA app branding
+        working-directory: nexora
+        run: |
+          python -m pip install --disable-pip-version-check Pillow
+          python client/scripts/apply-android-branding.py \
+            --android-dir client/android \
+            --logo client/public/nexora-logo.png
+
+      - name: Build debug APK
+        working-directory: nexora/client/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Verify APK output
+        run: test -s nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-android-apk
+          path: nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
