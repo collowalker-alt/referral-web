@@ -141,18 +141,20 @@ function NexoraSplash({label="Loading your workspace…"}){
 }
 
 function PWAInstall({compact=false}){
- const [deferred,setDeferred]=useState(null);
  const [installed,setInstalled]=useState(false);
  const [showHelp,setShowHelp]=useState(false);
  const [platform,setPlatform]=useState("android");
+
  useEffect(()=>{
   try{
    const standalone=window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone===true;
    setInstalled(!!standalone);
    const ua=navigator.userAgent||"";
    setPlatform(/iPad|iPhone|iPod/.test(ua)&&!window.MSStream?"ios":"android");
-   const onBefore=e=>{e.preventDefault();setDeferred(e)};
-   const onInstalled=()=>{setInstalled(true);setDeferred(null);setShowHelp(false)};
+   // Keep the browser from auto-triggering its PWA prompt: Android selection
+   // below intentionally downloads the official NEXORA APK instead.
+   const onBefore=e=>{e.preventDefault();};
+   const onInstalled=()=>{setInstalled(true);setShowHelp(false)};
    window.addEventListener("beforeinstallprompt",onBefore);
    window.addEventListener("appinstalled",onInstalled);
    return()=>{window.removeEventListener("beforeinstallprompt",onBefore);window.removeEventListener("appinstalled",onInstalled)};
@@ -160,29 +162,27 @@ function PWAInstall({compact=false}){
  },[]);
  if(installed) return null;
 
- const openInstaller=async(e)=>{
+ const openInstaller=(e)=>{
   e?.preventDefault?.();
   e?.stopPropagation?.();
-  if(deferred){
-   try{
-    deferred.prompt();
-    const choice=await deferred.userChoice;
-    setDeferred(null);
-    if(choice&&choice.outcome==="accepted") return;
-   }catch(err){setDeferred(null)}
-  }
   setShowHelp(true);
  };
- const androidInstall=async(e)=>{
+ const androidInstall=(e)=>{
   e?.preventDefault?.();
   e?.stopPropagation?.();
-  if(deferred){
-   try{deferred.prompt();await deferred.userChoice}catch{}
-   setDeferred(null);
-   return;
-  }
   setPlatform("android");
-  setShowHelp(true);
+  try{
+   const link=document.createElement("a");
+   link.href="/downloads/nexora-android.apk";
+   link.download="NEXORA.apk";
+   link.style.display="none";
+   document.body.appendChild(link);
+   link.click();
+   link.remove();
+  }catch(err){
+   window.location.href="/downloads/nexora-android.apk";
+  }
+  setShowHelp(false);
  };
  const iosHelp=(e)=>{e?.preventDefault?.();setPlatform("ios");setShowHelp(true)};
 
@@ -193,27 +193,27 @@ function PWAInstall({compact=false}){
      <div>
       <span className="pill">NEXORA APP</span>
       <h2>Get NEXORA on your device</h2>
-      <p>Install NEXORA like an app for faster access and a home-screen icon.</p>
+      <p>Choose your device. Android downloads the official NEXORA app; iPhone and iPad use Add to Home Screen.</p>
      </div>
      <button type="button" className="iconbtn" onClick={()=>setShowHelp(false)} aria-label="Close"><X size={20}/></button>
     </div>
     <div className="pwahelpbody installbody">
      <div className={`installcard ${platform==="android"?"selected":""}`}>
       <div className="installicon androidicon">A</div>
-      <div className="installcopy"><b>Android</b><span>Chrome can install NEXORA directly on your phone.</span></div>
-      <button type="button" className="primary installaction" onClick={androidInstall}><Download size={16}/>{deferred?"Install now":"Install"}</button>
+      <div className="installcopy"><b>Android</b><span>Download the official NEXORA Android APK and install it on your phone.</span></div>
+      <button type="button" className="primary installaction" onClick={androidInstall}><Download size={16}/>Download APK</button>
      </div>
      <div className={`installcard ${platform==="ios"?"selected":""}`}>
       <div className="installicon iosicon">iOS</div>
       <div className="installcopy"><b>iPhone / iPad</b><span>Use Safari to add NEXORA to your Home Screen.</span></div>
       <button type="button" className="secondary installaction" onClick={iosHelp}><Download size={16}/>Add to Home</button>
      </div>
-     <div className="installnote"><ShieldCheck size={17}/><span>NEXORA is a secure installable web app. No separate APK or App Store download is required.</span></div>
+     <div className="installnote"><ShieldCheck size={17}/><span>Android downloads the official NEXORA APK from this website. After the download finishes, open NEXORA.apk and confirm installation when Android asks.</span></div>
      <div className="installsteps">
       <b>{platform==="ios"?"iPhone / iPad":"Android"}</b>
       {platform==="ios"
         ? <span>Open this site in <strong>Safari</strong> → tap <strong>Share</strong> → choose <strong>Add to Home Screen</strong>.</span>
-        : <span>Tap <strong>Install</strong>. If your browser does not show the install prompt, open the browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</span>}
+        : <span>Tap <strong>Download APK</strong>, open the downloaded <strong>NEXORA.apk</strong>, then tap <strong>Install</strong>. If prompted, allow your browser to install apps for this download.</span>}
      </div>
     </div>
     <div className="modalfoot"><button type="button" className="secondary" onClick={()=>setShowHelp(false)}>Close</button></div>
