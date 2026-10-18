@@ -9,8 +9,8 @@ Add this environment variable to the NEXORA backend service in Render:
 - `PAYSTACK_SECRET_KEY` = the **live secret key** from the Paystack dashboard (`sk_live_…`).
 - `PAYSTACK_TRANSFERS_ENABLED` = `true` to enable live outbound transfers.
 - `PAYSTACK_AUTO_WITHDRAWALS` = `true` to automatically send every accepted member withdrawal request to Paystack without admin approval. If it is `false`, new withdrawals are rejected before wallet funds are reserved; they are not queued for manual approval.
-- `PAYSTACK_AUTO_WITHDRAWAL_MAX` = `5000` (maximum payout per request in KSh). Requests above this limit are rejected before reservation, not sent to an admin review queue.
-- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT` = `10000` (maximum total payout amount per member over a rolling 24-hour period in KSh). Requests above this limit are rejected before reservation, not queued for admin review.
+- `PAYSTACK_AUTO_WITHDRAWAL_MAX` = `5000` (maximum total wallet deduction per request in KSh). Requests above this limit are rejected before reservation, not sent to an admin review queue.
+- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT` = `10000` (maximum total wallet deductions per member over a rolling 24-hour period in KSh). Requests above this limit are rejected before reservation, not queued for admin review.
 
 Do not add this secret to the frontend, Vite variables, source code, Git, or a client-facing configuration file. This flow does not require the Paystack public key because the frontend never calls Paystack directly.
 
@@ -60,7 +60,9 @@ NEXORA uses one stable provider reference for each withdrawal and protects walle
 
 ## Withdrawal amount and fee policy
 
-- Minimum payout requested: **KSh 10** (this is the amount the member should receive in M-PESA).
-- Withdrawal fee: **5% of the requested payout**, rounded up to the next whole KSh because the existing NEXORA wallet ledger stores whole KSh. The minimum fee is KSh 1.
-- Total wallet debit = payout amount + fee. The form shows the payout, fee, and total debit before submission. The member's wallet must cover the total debit.
-- On confirmed success, `totalWithdrawn` and the withdrawal transaction reflect the payout amount actually sent. On a confirmed failure or pre-payout cancellation, NEXORA returns the entire reserved amount, including the fee reserve.
+- Minimum amount entered: **KSh 100 total wallet deduction**.
+- The amount entered is the full debit from the member's NEXORA wallet, not the amount received in M-PESA.
+- NEXORA fee: **5% of the entered total**, rounded up to the next whole KSh (minimum KSh 1).
+- The applicable Paystack M-PESA customer-wallet fee is also deducted from the entered total: current published pricing is KSh 20 for payout amounts up to KSh 1,500; KSh 40 from KSh 1,501 to KSh 20,000; and KSh 60 above KSh 20,000. Verify the current fee schedule with Paystack before enabling the feature for all members.
+- Net M-PESA payout = total entered − NEXORA fee − Paystack fee. KSh 100 → KSh 5 + KSh 20 fees → KSh 75 payout. KSh 5,000 → KSh 250 + KSh 40 fees → **KSh 4,710 payout**.
+- New requests use `WDNET-` references and store the total debit; older pending withdrawal records continue to use their original calculation. No database schema migration is required.

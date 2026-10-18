@@ -4,11 +4,13 @@ New eligible withdrawal requests are sent to Paystack directly from the member r
 
 ## Member withdrawal rules
 
-- Kenya M-PESA accounts only; payout amount minimum KSh 10.
-- A 5% withdrawal fee is rounded up to the next whole KSh (minimum KSh 1). The payout amount is sent to M-PESA and the fee is separately charged to the NEXORA wallet.
-- The wallet must cover payout plus fee. NEXORA atomically reserves that full amount before contacting Paystack.
-- The request must be under the package limit, the configured per-request automatic limit, and the rolling 24-hour member limit. A request outside these limits is rejected before reservation; it is never left waiting for an administrator to approve it.
-- If automatic transfers are not configured or Paystack live transfers are unavailable, NEXORA rejects the new request before reserving funds.
+- Kenyan M-PESA accounts only. The minimum amount entered is **KSh 100 total wallet deduction**, not the amount sent to M-PESA.
+- NEXORA charges 5% of that entered total, rounded up to the next whole KSh (minimum KSh 1).
+- Paystack's published Kenya M-PESA customer-wallet transfer charge is included in the same total: KSh 20 for payouts up to KSh 1,500; KSh 40 for payouts from KSh 1,501 to KSh 20,000; and KSh 60 for payouts above KSh 20,000 (up to the documented wallet payout limit). Pricing can change; confirm against the live Paystack dashboard/support page.
+- The net M-PESA payout equals the entered wallet total minus the NEXORA fee minus the applicable Paystack transfer fee. Example: enter KSh 5,000 → NEXORA fee KSh 250 → Paystack fee KSh 40 → **M-PESA receives KSh 4,710**. At KSh 100, the example is KSh 5 + KSh 20 in fees and **KSh 75 sent to M-PESA**.
+- The fee preview is displayed before confirmation. NEXORA atomically reserves exactly the entered total amount from the member wallet; there is no separate fee added on top.
+- The request must be under the package limit, configured per-request automatic limit and rolling 24-hour member limit. A request outside these limits is rejected before reservation, not left waiting for admin approval.
+- If automatic transfers are not configured or Paystack live transfers are unavailable, NEXORA rejects a new request before reserving funds.
 
 ## Render backend environment variables
 
@@ -17,8 +19,8 @@ Set the following on the NEXORA backend service. Keep `PAYSTACK_SECRET_KEY` (`sk
 - `PAYSTACK_SECRET_KEY` = your live secret key.
 - `PAYSTACK_TRANSFERS_ENABLED=true`
 - `PAYSTACK_AUTO_WITHDRAWALS=true`
-- `PAYSTACK_AUTO_WITHDRAWAL_MAX=5000` (maximum payout amount per request in KSh).
-- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT=10000` (maximum total payout amount for one member in a rolling 24-hour period in KSh).
+- `PAYSTACK_AUTO_WITHDRAWAL_MAX=5000` (maximum total wallet deduction per request in KSh).
+- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT=10000` (maximum total wallet deductions for one member in a rolling 24-hour period in KSh).
 
 Those limits are risk guardrails, not approval queues. Change them deliberately in Render if you want different limits. Restart/redeploy after changing environment variables. If `PAYSTACK_AUTO_WITHDRAWALS` is still explicitly set to `false` in Render, new requests will be rejected without reserving money instead of falling back to admin approval.
 
@@ -35,9 +37,9 @@ The webhook verifies Paystack's `x-paystack-signature` HMAC-SHA512 signature aga
 
 ## Status and wallet safety
 
-- NEXORA uses one stable Paystack transfer reference per withdrawal. Ambiguous timeouts remain `PROCESSING`; the system never creates a new withdrawal to retry an uncertain result. New automatic requests use `WD5A-` references so a deployment restart before the first provider call can safely resume only new auto-payout requests; older legacy `PENDING` requests are not silently released.
+- NEXORA uses one stable Paystack transfer reference per withdrawal. Ambiguous timeouts remain `PROCESSING`; the system never creates a new withdrawal to retry an uncertain result. New automatic requests use `WDNET-` references so a deployment restart before the first provider call can safely resume them with the same fee calculation; older `WD5A-` and legacy `PENDING` requests retain their original calculation and are not silently reinterpreted.
 - The member is notified when Paystack confirms success, failure, reversal, abandonment, blocking, or rejection. Administrators receive the same final status notification with member, payout amount, fee, total wallet debit, phone, and reference. A background reconciliation worker rechecks processing records about once per minute and reuses the same reference when the provider has not recorded the transfer yet.
-- Success moves the reserved payout-plus-fee out of pending balance and updates `totalWithdrawn`. Confirmed failure returns the full reserve once. Reversal restores the reserve and reverses the withdrawn total.
+- Success moves the total wallet debit out of pending balance and increments `totalWithdrawn` by the net payout actually sent to M-PESA. Confirmed failure returns the full reserve once. Reversal restores the reserve and reverses the net payout from the withdrawn total.
 - Admin tools are status/reconciliation only; the admin UI has no payout-approval action, and an old compatibility endpoint cannot initiate a pending request.
 - If Paystack returns OTP/approval-required, the payout remains processing and admins are alerted to fix the provider's transfer-approval setting. NEXORA will not fake a success state.
 
