@@ -1464,6 +1464,7 @@ function App(){
   if(show)setLoading(true);setError("");
   try{
    const m=await api("/me");
+   setNetworkOnline(true);
    setMe(m);
    try{localStorage.setItem("nexora-cached-me",JSON.stringify(m))}catch{}
    setLoading(false);
