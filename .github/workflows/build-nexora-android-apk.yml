@@ -6,13 +6,14 @@ on:
     branches: [main, master]
     paths:
       - 'nexora/client/**'
+      - '!nexora/client/public/downloads/nexora-android.apk'
       - 'nexora/server/**'
       - 'nexora/prisma/**'
       - 'nexora/package.json'
       - '.github/workflows/build-nexora-android-apk.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-apk:
@@ -65,6 +66,9 @@ jobs:
         working-directory: nexora/client
         run: npx cap sync android
 
+      - name: Keep APK download out of the app's bundled website
+        run: rm -f nexora/client/dist/downloads/nexora-android.apk
+
       - name: Apply NEXORA app branding
         working-directory: nexora
         run: |
@@ -79,6 +83,22 @@ jobs:
 
       - name: Verify APK output
         run: test -s nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish APK for website downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p nexora/client/public/downloads
+          cp nexora/client/android/app/build/outputs/apk/debug/app-debug.apk nexora/client/public/downloads/nexora-android.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add nexora/client/public/downloads/nexora-android.apk
+          if git diff --cached --quiet; then
+            echo "The published APK is already up to date."
+          else
+            git commit -m "Publish official NEXORA Android APK [skip ci]"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
