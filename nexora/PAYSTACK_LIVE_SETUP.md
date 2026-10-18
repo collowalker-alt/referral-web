@@ -7,10 +7,10 @@ This integration uses Paystack's server-side Charge API for individual M-PESA ST
 Add this environment variable to the NEXORA backend service in Render:
 
 - `PAYSTACK_SECRET_KEY` = the **live secret key** from the Paystack dashboard (`sk_live_…`).
-- `PAYSTACK_TRANSFERS_ENABLED` = `true` to enable live payout requests from the NEXORA admin withdrawal screen.
-- `PAYSTACK_AUTO_WITHDRAWALS` = `false` initially; change to `true` only after a controlled payout test succeeds. This starts eligible withdrawals automatically.
-- `PAYSTACK_AUTO_WITHDRAWAL_MAX` = `5000` (default maximum automatic payout per request, in KSh).
-- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT` = `10000` (default maximum automatic withdrawal amount per member over a rolling 24-hour period, in KSh). Requests exceeding these limits stay in review rather than being auto-sent.
+- `PAYSTACK_TRANSFERS_ENABLED` = `true` to enable live outbound transfers.
+- `PAYSTACK_AUTO_WITHDRAWALS` = `true` to automatically send every accepted member withdrawal request to Paystack without admin approval. If it is `false`, new withdrawals are rejected before wallet funds are reserved; they are not queued for manual approval.
+- `PAYSTACK_AUTO_WITHDRAWAL_MAX` = `5000` (maximum payout per request in KSh). Requests above this limit are rejected before reservation, not sent to an admin review queue.
+- `PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT` = `10000` (maximum total payout amount per member over a rolling 24-hour period in KSh). Requests above this limit are rejected before reservation, not queued for admin review.
 
 Do not add this secret to the frontend, Vite variables, source code, Git, or a client-facing configuration file. This flow does not require the Paystack public key because the frontend never calls Paystack directly.
 
@@ -48,13 +48,19 @@ No real live payment was initiated as part of this source-code update; it requir
 
 ## Automatic M-PESA withdrawals
 
-NEXORA sends payouts from the available **Paystack business balance**, not directly from a member's NEXORA wallet ledger. Keep enough available balance to cover withdrawals and Paystack fees.
+New member withdrawals go directly to Paystack when submitted; there is no admin approval step. Administrators are notified when Paystack confirms whether the transfer succeeded, failed, or was reversed. NEXORA sends a separate configuration alert if Paystack requires per-transfer OTP/approval.
 
-1. In Render, first set `PAYSTACK_TRANSFERS_ENABLED=true` and `PAYSTACK_AUTO_WITHDRAWALS=false`, then redeploy. This enables the Admin → Withdrawals **Pay via Paystack** action without auto-paying member requests yet.
-2. In Paystack, confirm that transfers are enabled for your live business and the live balance is sufficient. Paystack's transfer recipient type for an individual Kenyan M-PESA wallet is `mobile_money`, `bank_code` `MPESA`, and currency `KES`.
-3. Initiate one small payout from Admin → Withdrawals to a phone you control. Confirm that the money actually arrives in M-PESA and NEXORA changes it to `PAID` only after the signed `transfer.success` event or server-side transfer verification.
-4. If Paystack requires transfer approval/OTP, complete the approval in Paystack and then use **Check payout status** in NEXORA. Do not manually mark a transfer paid.
-5. Only after the controlled payout succeeds, set `PAYSTACK_AUTO_WITHDRAWALS=true` in Render and redeploy. Eligible Kenyan withdrawals within the configured limits will then start automatically; larger or over-limit requests remain pending for admin review.
-6. To run fully unattended, follow Paystack's live dashboard guidance for the **Confirm transfers before sending** preference. Disabling that confirmation permits automated sending, so only do this after testing and after accepting the operational risk.
+1. In Render, set `PAYSTACK_TRANSFERS_ENABLED=true` and `PAYSTACK_AUTO_WITHDRAWALS=true`. Set the per-request and rolling 24-hour limits to values you intend to allow. Redeploy the backend after saving the variables.
+2. In Paystack, confirm outbound transfers are enabled for the live business and the Paystack balance covers the payout amounts plus Paystack fees.
+3. In Paystack Transfers settings, disable **Confirm transfers before sending** (or the corresponding manual approval setting) so Paystack can send transfers unattended. NEXORA cannot override a provider-side approval requirement.
+4. Configure the webhook URL: `https://nexora-api-shxf.onrender.com/api/paystack/webhook`. Subscribe to `charge.success`, `transfer.success`, `transfer.failed`, and `transfer.reversed`.
+5. Test a small live payout to an M-PESA number you control. Confirm that money arrives and NEXORA only marks it paid after the signed `transfer.success` event or server-side verification.
 
-NEXORA generates one stable Paystack transfer reference per withdrawal, verifies the amount/currency, handles signed transfer webhooks, prevents duplicate settlement, keeps uncertain transfer outcomes pending, and returns reserved funds only when a failure is confirmed. Paystack still controls its transfer processing and account eligibility; code changes cannot override account restrictions or fund an empty Paystack balance.
+NEXORA uses one stable provider reference for each withdrawal and protects wallet settlement against duplicate webhook delivery. Timeouts stay pending until the outcome can be verified. Requests outside the configured per-request, package, or rolling 24-hour limits are rejected before wallet funds are reserved; they do not wait for admin review.
+
+## Withdrawal amount and fee policy
+
+- Minimum payout requested: **KSh 10** (this is the amount the member should receive in M-PESA).
+- Withdrawal fee: **5% of the requested payout**, rounded up to the next whole KSh because the existing NEXORA wallet ledger stores whole KSh. The minimum fee is KSh 1.
+- Total wallet debit = payout amount + fee. The form shows the payout, fee, and total debit before submission. The member's wallet must cover the total debit.
+- On confirmed success, `totalWithdrawn` and the withdrawal transaction reflect the payout amount actually sent. On a confirmed failure or pre-payout cancellation, NEXORA returns the entire reserved amount, including the fee reserve.

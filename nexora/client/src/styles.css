@@ -5564,3 +5564,25 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 
 /* Make the dedicated Internet Services Admin role explanation clear in Admin Management. */
 .adminedit label small{display:block;font-size:10px;font-weight:500;line-height:1.4;margin-top:6px;color:#8ea4bb}
+
+/* Withdrawal fee preview: clear payout, fee, and total wallet debit. */
+.withdraw-input-label{display:grid;gap:7px;margin:12px 0 8px;font-size:12px;font-weight:800;color:#d7e7f6}
+.withdraw-input-label input{width:100%;min-width:0;min-height:45px;padding:12px 13px;border:1px solid #30475e;border-radius:12px;background:#091726;color:#f4f8fc;font:inherit;font-size:14px;outline:none}
+.withdraw-input-label input:focus{border-color:#36d8b1;box-shadow:0 0 0 3px rgba(54,216,177,.12)}
+.withdrawal-fee-preview{display:grid;gap:8px;margin:11px 0 14px;padding:14px;border:1px solid rgba(65,199,164,.24);border-radius:14px;background:linear-gradient(145deg,rgba(26,75,72,.22),rgba(9,22,37,.78))}
+.withdrawal-fee-preview>div{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.withdrawal-fee-preview span{font-size:12px;color:#a6bbce}
+.withdrawal-fee-preview strong{font-size:13px;color:#ecf5ff;text-align:right;white-space:nowrap}
+.withdrawal-fee-preview .withdrawal-total{margin-top:3px;padding-top:10px;border-top:1px solid rgba(145,178,204,.18)}
+.withdrawal-fee-preview .withdrawal-total span{font-weight:850;color:#e3f5f0}
+.withdrawal-fee-preview .withdrawal-total strong{font-size:16px;color:#62e7c1}
+.withdrawal-fee-warning{display:block;color:#ffb1aa;font-size:11px;line-height:1.45;margin-top:3px}
+.withdrawalhistory .row.simple>div:first-child{min-width:0}
+.withdrawalhistory .row.simple small{overflow-wrap:anywhere}
+.withdrawal-admin-amount{display:grid;gap:3px;justify-items:start;min-width:0}
+.withdrawal-admin-amount small{font-size:10px;color:#a1b3c5;line-height:1.35}
+@media(max-width:760px){
+  .withdrawal-fee-preview{padding:12px}
+  .withdrawal-fee-preview span{font-size:11px}
+  .withdrawal-fee-preview strong{font-size:12px}
+}

@@ -191,6 +191,19 @@ async function verifyPaystackTransaction(reference){
 }
 
 const paystackTransfersReady=()=>paystackConfigured() && paystackMode()==="live" && PAYSTACK_TRANSFERS_ENABLED;
+const MIN_WITHDRAWAL_KES = 10;
+const MAX_WITHDRAWAL_KES = 250000;
+const WITHDRAWAL_FEE_RATE = 0.05;
+// Wallet balances are stored as whole KSh. Round the 5% fee up to a whole KSh
+// so the stated fee is never under-collected; the minimum fee is KSh 1.
+const withdrawalFeeForAmount = amount => Math.max(1, Math.ceil(Math.max(0, Number(amount)||0) * WITHDRAWAL_FEE_RATE - 1e-9));
+const withdrawalTotalDebit = amount => Math.round(Math.max(0, Number(amount)||0)) + withdrawalFeeForAmount(amount);
+// Withdrawals created before the fee policy used `WD-` references and reserved
+// payout only. New fee-aware requests use `WD5-`, allowing safe reconciliation
+// of already-pending withdrawals after this deployment without over-refunding.
+const withdrawalHasFeePolicy = withdrawal => /^WD5A?-/i.test(String(withdrawal?.reference||""));
+const withdrawalFeeForRecord = withdrawal => withdrawalHasFeePolicy(withdrawal) ? withdrawalFeeForAmount(withdrawal.amount) : 0;
+const withdrawalTotalDebitForRecord = withdrawal => Math.round(Math.max(0, Number(withdrawal?.amount)||0)) + withdrawalFeeForRecord(withdrawal);
 const paystackWithdrawalReference=withdrawalId=>`nxwd_${String(withdrawalId||"").toLowerCase()}`;
 function payoutError(message,statusCode=400){ const e=new Error(message); e.statusCode=statusCode; return e; }
 function localMpesaRecipientPhone(value){
@@ -206,17 +219,19 @@ async function refundWithdrawalInTransaction(db,withdrawal,{reversed=false,proce
   if(priorStatus==="PAID" && !reversed) return false;
   const claimed=await db.withdrawal.updateMany({where:{id:withdrawal.id,status:priorStatus},data:{status:"FAILED"}});
   if(claimed.count!==1) return false;
+  const totalDebit = withdrawalTotalDebitForRecord(withdrawal);
+  const fee = withdrawalFeeForRecord(withdrawal);
   if(priorStatus==="PAID"){
-    // The payout was already counted as withdrawn; a later provider reversal
-    // restores the money and reverses the total-withdrawn statistic.
-    await db.wallet.update({where:{userId:withdrawal.userId},data:{balance:{increment:withdrawal.amount},totalWithdrawn:{decrement:withdrawal.amount}}});
+    // If the transfer is reversed, restore the full wallet debit (payout + fee)
+    // and reverse only the amount that had been counted as paid out.
+    await db.wallet.update({where:{userId:withdrawal.userId},data:{balance:{increment:totalDebit},totalWithdrawn:{decrement:withdrawal.amount}}});
   }else{
-    // Pending funds were reserved locally but never finally paid out.
-    await db.wallet.update({where:{userId:withdrawal.userId},data:{pendingBalance:{decrement:withdrawal.amount},balance:{increment:withdrawal.amount}}});
+    // Pending funds include both the requested payout and its withdrawal fee.
+    await db.wallet.update({where:{userId:withdrawal.userId},data:{pendingBalance:{decrement:totalDebit},balance:{increment:totalDebit}}});
   }
   const txRef=`WD-REFUND-${withdrawal.reference}`;
   if(!(await db.transaction.findUnique({where:{reference:txRef}}))){
-    await db.transaction.create({data:{userId:withdrawal.userId,type:"REFUND",amount:withdrawal.amount,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:withdrawal.id,processedBy,provider:"PAYSTACK",reason,reversed}}});
+    await db.transaction.create({data:{userId:withdrawal.userId,type:"REFUND",amount:totalDebit,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:withdrawal.id,processedBy,provider:"PAYSTACK",reason,reversed,payoutAmount:withdrawal.amount,withdrawalFee:fee,totalWalletDebit:totalDebit}}});
   }
   return true;
 }
@@ -234,7 +249,8 @@ async function applyPaystackWithdrawalOutcome(reference,transferData={},eventNam
   if(transferData.domain && String(transferData.domain).toLowerCase()!=="live") throw new Error(`Non-live Paystack transfer cannot settle a live NEXORA withdrawal: ${payoutRef}`);
 
   const rawStatus=String(eventName==="transfer.success"?"success":eventName==="transfer.failed"?"failed":eventName==="transfer.reversed"?"reversed":transferData.status||"").toLowerCase();
-  if(!["success","failed","reversed"].includes(rawStatus)) return {status:withdrawal.status,changed:false,message:"Paystack has not returned a final payout status yet."};
+  const finalFailureStatuses=["failed","abandoned","blocked","rejected"];
+  if(rawStatus!=="success"&&rawStatus!=="reversed"&&!finalFailureStatuses.includes(rawStatus)) return {status:withdrawal.status,changed:false,message:"Paystack has not returned a final payout status yet."};
   if(rawStatus==="success"){
     const changed=await prisma.$transaction(async db=>{
       const fresh=await db.withdrawal.findUnique({where:{id:withdrawal.id}});
@@ -242,16 +258,20 @@ async function applyPaystackWithdrawalOutcome(reference,transferData={},eventNam
       if(fresh.status!=="PROCESSING") return false;
       const claimed=await db.withdrawal.updateMany({where:{id:fresh.id,status:"PROCESSING"},data:{status:"PAID"}});
       if(claimed.count!==1) return false;
-      await db.wallet.update({where:{userId:fresh.userId},data:{pendingBalance:{decrement:fresh.amount},totalWithdrawn:{increment:fresh.amount}}});
+      const fee = withdrawalFeeForRecord(fresh);
+      const totalDebit = withdrawalTotalDebitForRecord(fresh);
+      await db.wallet.update({where:{userId:fresh.userId},data:{pendingBalance:{decrement:totalDebit},totalWithdrawn:{increment:fresh.amount}}});
       const txRef=`WD-TX-${fresh.reference}`;
       if(!(await db.transaction.findUnique({where:{reference:txRef}}))){
-        await db.transaction.create({data:{userId:fresh.userId,type:"WITHDRAWAL",amount:fresh.amount,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:fresh.id,provider:"PAYSTACK",transferReference:payoutRef,transferCode:transferData.transfer_code||null,processedAt:new Date().toISOString()}}});
+        await db.transaction.create({data:{userId:fresh.userId,type:"WITHDRAWAL",amount:fresh.amount,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:fresh.id,provider:"PAYSTACK",transferReference:payoutRef,transferCode:transferData.transfer_code||null,processedAt:new Date().toISOString(),withdrawalFee:fee,totalWalletDebit:totalDebit}}});
       }
       return true;
     });
     if(changed){
-      await createUserNotification(withdrawal.userId,{title:"Withdrawal paid",message:`Your KSh ${withdrawal.amount.toLocaleString()} withdrawal to ${withdrawal.phone} was confirmed by Paystack and marked paid.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,payoutReference:payoutRef,status:"PAID",amount:withdrawal.amount,destinationPage:"wallet"}});
-      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:paystack-paid`,title:"Paystack withdrawal completed",message:`KSh ${withdrawal.amount.toLocaleString()} was paid to ${withdrawal.phone} for ${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference:payoutRef,amount:withdrawal.amount,destinationPage:"withdrawals"}});
+      const fee = withdrawalFeeForRecord(withdrawal);
+      const totalDebit = withdrawalTotalDebitForRecord(withdrawal);
+      await createUserNotification(withdrawal.userId,{title:"Withdrawal paid",message:`Paystack confirmed KSh ${withdrawal.amount.toLocaleString()} to ${withdrawal.phone}. Withdrawal fee: KSh ${fee.toLocaleString()}; total wallet deduction: KSh ${totalDebit.toLocaleString()}.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,payoutReference:payoutRef,status:"PAID",amount:withdrawal.amount,fee,totalDebit,destinationPage:"wallet"}});
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:paystack-paid`,title:"Paystack withdrawal completed",message:`KSh ${withdrawal.amount.toLocaleString()} was paid to ${withdrawal.phone}; KSh ${fee.toLocaleString()} fee, KSh ${totalDebit.toLocaleString()} total wallet debit for ${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference:payoutRef,amount:withdrawal.amount,fee,totalDebit,destinationPage:"withdrawals"}});
     }
     return {status:changed?"PAID":(await prisma.withdrawal.findUnique({where:{id:withdrawal.id}}))?.status||withdrawal.status,changed,message:changed?"Paystack confirmed the withdrawal successfully.":"This withdrawal was already processed or is no longer eligible for settlement."};
   }
@@ -264,12 +284,15 @@ async function applyPaystackWithdrawalOutcome(reference,transferData={},eventNam
     if(!fresh || fresh.status==="FAILED") return false;
     if(isReversal && fresh.status!=="PAID" && fresh.status!=="PROCESSING") return false;
     if(!isReversal && fresh.status!=="PROCESSING") return false;
-    return await refundWithdrawalInTransaction(db,fresh,{reversed:isReversal&&fresh.status==="PAID",reason:isReversal?"Paystack transfer was reversed":"Paystack transfer failed"});
+    return await refundWithdrawalInTransaction(db,fresh,{reversed:isReversal&&fresh.status==="PAID",reason:isReversal?"Paystack transfer was reversed":`Paystack transfer ended with status ${rawStatus}`});
   });
   if(changed){
-    const copy=isReversal?"Paystack reversed this transfer, so the amount has been returned to your available NEXORA wallet balance.":"Paystack could not complete this transfer, so the amount has been returned to your available NEXORA wallet balance.";
-    await createUserNotification(withdrawal.userId,{title:isReversal?"Withdrawal reversed":"Withdrawal failed",message:`${copy} Amount: KSh ${withdrawal.amount.toLocaleString()}.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,payoutReference:payoutRef,status:"FAILED",amount:withdrawal.amount,destinationPage:"wallet"}});
-    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:paystack-${rawStatus}`,title:isReversal?"Paystack withdrawal reversed":"Paystack withdrawal failed",message:`KSh ${withdrawal.amount.toLocaleString()} payout to ${withdrawal.phone} ${isReversal?"was reversed":"failed"}; the member's wallet was reconciled.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference:payoutRef,amount:withdrawal.amount,destinationPage:"withdrawals"}});
+    const fee = withdrawalFeeForRecord(withdrawal);
+    const totalDebit = withdrawalTotalDebitForRecord(withdrawal);
+    const feePhrase=withdrawalHasFeePolicy(withdrawal)?" including the withdrawal fee":"";
+    const copy=isReversal?`Paystack reversed this transfer, so the full reserved wallet amount${feePhrase} has been returned.`:`Paystack reported status ${rawStatus} for this transfer, so the full reserved wallet amount${feePhrase} has been returned.`;
+    await createUserNotification(withdrawal.userId,{title:isReversal?"Withdrawal reversed":"Withdrawal failed",message:`${copy} Payout: KSh ${withdrawal.amount.toLocaleString()}; fee: KSh ${fee.toLocaleString()}; amount returned: KSh ${totalDebit.toLocaleString()}.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,payoutReference:payoutRef,status:"FAILED",amount:withdrawal.amount,fee,totalDebit,destinationPage:"wallet"}});
+    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:paystack-${rawStatus}`,title:isReversal?"Paystack withdrawal reversed":"Paystack withdrawal failed",message:`${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}: KSh ${withdrawal.amount.toLocaleString()} payout to ${withdrawal.phone} ${isReversal?"was reversed":"failed"}; KSh ${totalDebit.toLocaleString()} total reserved funds were reconciled.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference:payoutRef,amount:withdrawal.amount,fee,totalDebit,destinationPage:"withdrawals"}});
   }
   return {status:changed?"FAILED":(await prisma.withdrawal.findUnique({where:{id:withdrawal.id}}))?.status||"FAILED",changed,message:changed?"Paystack reported a failed or reversed payout; the wallet was reconciled.":"This withdrawal was already processed or is no longer eligible for reconciliation."};
 }
@@ -284,8 +307,12 @@ async function verifyPaystackWithdrawal(withdrawalId){
   if(result.ok && result.data?.data){
     const transfer=result.data.data;
     const normalizedStatus=String(transfer.status||"").toLowerCase();
-    if(["success","failed","reversed"].includes(normalizedStatus)) return applyPaystackWithdrawalOutcome(reference,transfer,`transfer.${normalizedStatus}`);
-    return {status:"PROCESSING",message:normalizedStatus==="otp"?"Paystack requires transfer approval/OTP. Complete that step in Paystack, then check again.":"Paystack is still processing this transfer. Check again shortly."};
+    if(["success","failed","reversed","abandoned","blocked","rejected"].includes(normalizedStatus)) return applyPaystackWithdrawalOutcome(reference,transfer,`transfer.${normalizedStatus}`);
+    if(["otp","received"].includes(normalizedStatus)){
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:provider-${normalizedStatus}-required`,title:"Paystack automatic payout needs provider configuration",message:`A KSh ${withdrawal.amount.toLocaleString()} withdrawal for ${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId} is still processing because Paystack reports status ${normalizedStatus}. Automatic payouts require per-transfer OTP/approval to be disabled or configured for automatic verification in Paystack.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference:reference,amount:withdrawal.amount,phone:withdrawal.phone,status:"PROCESSING",providerStatus:normalizedStatus,destinationPage:"withdrawals"}});
+      return {status:"PROCESSING",message:"Paystack requires an additional transfer approval step. NEXORA has alerted the administrator to the provider setting; the payout remains pending until Paystack confirms a final result."};
+    }
+    return {status:"PROCESSING",message:"Paystack is still processing this transfer. NEXORA will check again shortly."};
   }
   if(result.transient || result.httpStatus===0 || result.httpStatus>=500 || result.httpStatus===429){
     return {status:"PROCESSING",message:"Paystack status is temporarily unavailable. The payout is still marked pending; do not create a second payout."};
@@ -309,7 +336,7 @@ async function processPaystackWithdrawal(withdrawalId){
   let withdrawal=await prisma.withdrawal.findUnique({where:{id:withdrawalId},include:{user:{select:{name:true,email:true,countryCode:true}}}});
   if(!withdrawal) throw payoutError("Withdrawal not found",404);
   if(withdrawal.user?.countryCode!=="KE") throw payoutError("Paystack M-Pesa payouts are enabled only for Kenyan member accounts.",400);
-  if(withdrawal.amount<100 || withdrawal.amount>250000) throw payoutError("Paystack M-Pesa payout amount must be between KSh 100 and KSh 250,000.",400);
+  if(withdrawal.amount<MIN_WITHDRAWAL_KES || withdrawal.amount>MAX_WITHDRAWAL_KES) throw payoutError(`Paystack M-Pesa payout amount must be between KSh ${MIN_WITHDRAWAL_KES.toLocaleString()} and KSh ${MAX_WITHDRAWAL_KES.toLocaleString()}.`,400);
   if(withdrawal.status==="PAID") return {status:"PAID",message:"This withdrawal has already been paid."};
   if(withdrawal.status==="FAILED") throw payoutError("This withdrawal is closed. Submit a new request if the member still needs a payout.",409);
   const payoutReference=paystackWithdrawalReference(withdrawal.id);
@@ -335,7 +362,11 @@ async function processPaystackWithdrawal(withdrawalId){
       await refundWithdrawalInTransaction(db,fresh,{reason:"Invalid stored M-Pesa phone"});
       return true;
     });
-    if(changed) await createUserNotification(withdrawal.userId,{title:"Withdrawal could not be started",message:`The saved M-Pesa number is invalid. KSh ${withdrawal.amount.toLocaleString()} has been returned to your available wallet balance.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"FAILED",destinationPage:"wallet"}});
+    if(changed){
+      const fee=withdrawalFeeForRecord(withdrawal),totalDebit=withdrawalTotalDebitForRecord(withdrawal);
+      await createUserNotification(withdrawal.userId,{title:"Withdrawal failed",message:`The saved M-Pesa number is invalid. KSh ${totalDebit.toLocaleString()} has been returned to your available wallet balance.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"FAILED",amount:withdrawal.amount,fee,totalDebit,destinationPage:"wallet"}});
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:pretransfer-invalid-phone`,title:"Automatic withdrawal failed",message:`${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}: KSh ${withdrawal.amount.toLocaleString()} payout to ${withdrawal.phone} failed before transfer because the saved M-Pesa number was invalid. KSh ${totalDebit.toLocaleString()} was returned.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,amount:withdrawal.amount,fee,totalDebit,phone:withdrawal.phone,status:"FAILED",destinationPage:"withdrawals"}});
+    }
     throw payoutError("The saved M-Pesa number is invalid. The reserved wallet funds have been returned.",400);
   }
   const recipientResult=await paystackRequest("/transferrecipient",{method:"POST",body:{type:"mobile_money",name:String(withdrawal.user?.name||withdrawal.user?.email||"NEXORA member").slice(0,100),account_number:recipientPhone,bank_code:"MPESA",currency:"KES",description:`NEXORA withdrawal ${withdrawal.reference}`.slice(0,100)}});
@@ -347,7 +378,11 @@ async function processPaystackWithdrawal(withdrawalId){
       const fresh=await db.withdrawal.findUnique({where:{id:withdrawal.id}});
       return fresh?.status==="PROCESSING"?await refundWithdrawalInTransaction(db,fresh,{reason:"Paystack rejected M-Pesa recipient details"}):false;
     });
-    if(refunded)await createUserNotification(withdrawal.userId,{title:"Withdrawal could not be started",message:`Paystack rejected the M-Pesa recipient details. KSh ${withdrawal.amount.toLocaleString()} has been returned to your available wallet balance. Please check the phone number and contact support if needed.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"FAILED",destinationPage:"wallet"}});
+    if(refunded){
+      const fee=withdrawalFeeForRecord(withdrawal),totalDebit=withdrawalTotalDebitForRecord(withdrawal);
+      await createUserNotification(withdrawal.userId,{title:"Withdrawal failed",message:`Paystack rejected the M-Pesa recipient details. KSh ${totalDebit.toLocaleString()} has been returned to your available wallet balance. Please check the phone number and try again.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"FAILED",amount:withdrawal.amount,fee,totalDebit,destinationPage:"wallet"}});
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:recipient-rejected`,title:"Automatic withdrawal failed",message:`${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}: Paystack rejected the recipient details for KSh ${withdrawal.amount.toLocaleString()} to ${withdrawal.phone}. The transfer was not completed and KSh ${totalDebit.toLocaleString()} was returned.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,amount:withdrawal.amount,fee,totalDebit,phone:withdrawal.phone,status:"FAILED",destinationPage:"withdrawals"}});
+    }
     throw payoutError(recipientResult.data?.message||"Paystack rejected the M-Pesa recipient details; the reserved amount was returned.",400);
   }
   const recipientCode=recipientResult.data?.data?.recipient_code;
@@ -358,18 +393,42 @@ async function processPaystackWithdrawal(withdrawalId){
   if(!transferResult.ok){
     const verified=await verifyPaystackWithdrawal(withdrawal.id).catch(()=>null);
     if(verified && !verified.notFound) return {...verified,payoutReference};
-    // A timeout or even a rejection is treated conservatively if status cannot be proven.
-    // Retrying is allowed only with this exact same Paystack reference.
-    if(transferResult.transient || transferResult.httpStatus===0 || transferResult.httpStatus>=500 || transferResult.httpStatus===429 || verified?.notFound){
-      return {status:"PROCESSING",payoutReference,message:"Paystack has not confirmed the transfer request yet. The withdrawal remains pending; use Check payout status before retrying."};
+    // Network/server timeouts are ambiguous and remain reserved. A definitive
+    // non-transient provider 4xx rejection with no transfer reference is a final
+    // failure: refund once and notify both member and admin.
+    if(transferResult.transient || transferResult.httpStatus===0 || transferResult.httpStatus>=500 || transferResult.httpStatus===429){
+      return {status:"PROCESSING",payoutReference,message:"Paystack has not confirmed the transfer request yet. The withdrawal remains pending and will be reconciled automatically; do not submit it again."};
     }
-    throw payoutError(transferResult.data?.message||"Paystack rejected this transfer. Check the status before attempting it again.",400);
+    const providerMessage=String(transferResult.data?.message||"");
+    const duplicateReferenceResponse=/reference/i.test(providerMessage)&&/(already|duplicate|exists|taken|unique)/i.test(providerMessage);
+    if(duplicateReferenceResponse){
+      return {status:"PROCESSING",payoutReference,message:"Paystack indicated that this reference may already exist. NEXORA will continue checking this same reference and will not create a second withdrawal."};
+    }
+    if(verified?.notFound || (transferResult.httpStatus>=400 && transferResult.httpStatus<500)){
+      const changed=await prisma.$transaction(async db=>{
+        const fresh=await db.withdrawal.findUnique({where:{id:withdrawal.id}});
+        return fresh?.status==="PROCESSING"?await refundWithdrawalInTransaction(db,fresh,{reason:"Paystack definitively rejected the transfer request"}):false;
+      });
+      if(changed){
+        const fee=withdrawalFeeForRecord(withdrawal),totalDebit=withdrawalTotalDebitForRecord(withdrawal);
+        await createUserNotification(withdrawal.userId,{title:"Withdrawal failed",message:`Paystack rejected this payout request. KSh ${totalDebit.toLocaleString()} has been returned to your available wallet balance.`,type:"WITHDRAWAL",details:{reference:withdrawal.reference,payoutReference,status:"FAILED",amount:withdrawal.amount,fee,totalDebit,destinationPage:"wallet"}});
+        await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:transfer-rejected`,title:"Automatic withdrawal failed",message:`${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId}: Paystack rejected a KSh ${withdrawal.amount.toLocaleString()} payout to ${withdrawal.phone}. KSh ${totalDebit.toLocaleString()} was returned to the member wallet.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference,amount:withdrawal.amount,fee,totalDebit,phone:withdrawal.phone,status:"FAILED",destinationPage:"withdrawals"}});
+      }
+      return {status:"FAILED",payoutReference,message:transferResult.data?.message||"Paystack rejected this payout. The reserved amount has been returned."};
+    }
+    return {status:"PROCESSING",payoutReference,message:"Paystack's response could not be reconciled yet. The withdrawal remains pending; do not submit it again."};
   }
   const transfer=transferResult.data?.data||{};
   const verified=await verifyPaystackWithdrawal(withdrawal.id).catch(()=>null);
   if(verified && !verified.notFound) return {...verified,payoutReference};
   const responseStatus=String(transfer.status||"").toLowerCase();
-  return {status:"PROCESSING",payoutReference,message:responseStatus==="otp"?"Paystack requires transfer approval/OTP. Complete that step in Paystack, then check again.":"Paystack accepted the transfer request. The withdrawal will be marked paid only after final confirmation."};
+  if(["success","failed","reversed","abandoned","blocked","rejected"].includes(responseStatus)){
+    return await applyPaystackWithdrawalOutcome(payoutReference,transfer,`transfer.${responseStatus}`);
+  }
+  if(responseStatus==="otp"){
+    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${withdrawal.reference}:provider-otp-required`,title:"Paystack automatic payout blocked by approval setting",message:`A KSh ${withdrawal.amount.toLocaleString()} withdrawal for ${withdrawal.user?.name||withdrawal.user?.email||withdrawal.userId} is waiting because Paystack returned OTP/approval-required. Configure Paystack Transfers for unattended sending; NEXORA will not mark this paid without provider confirmation.`,type:"WITHDRAWAL_PAYOUT",details:{reference:withdrawal.reference,payoutReference,amount:withdrawal.amount,phone:withdrawal.phone,status:"PROCESSING",providerStatus:"otp",destinationPage:"withdrawals"}});
+  }
+  return {status:"PROCESSING",payoutReference,message:responseStatus==="otp"?"Paystack requires a transfer approval/OTP. NEXORA cannot bypass Paystack's account setting; configure unattended transfers in Paystack so future withdrawals do not require per-transfer approval.":"Paystack accepted the transfer request. The withdrawal will be marked paid only after final confirmation."};
 }
 
 async function finalizeSuccessfulPaystack(reference,paystackData={}){
@@ -1850,7 +1909,7 @@ app.get("/api/admin/transactions",adminAuth,requireAdminRole("SUPER_ADMIN","ADMI
   try{const rows=await prisma.transaction.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
 });
 app.get("/api/admin/withdrawals",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
-  try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows);}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
+  try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows.map(row=>({...row,fee:withdrawalFeeForRecord(row),totalDebit:withdrawalTotalDebitForRecord(row)})));}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
 });
 app.patch("/api/admin/withdrawals/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
@@ -1864,25 +1923,35 @@ app.patch("/api/admin/withdrawals/:id/status",adminAuth,requireAdminRole("SUPER_
     const changed=await prisma.$transaction(async db=>{
       const claim=await db.withdrawal.updateMany({where:{id:current.id,status:"PENDING"},data:{status:"FAILED"}});
       if(claim.count!==1)return false;
-      await db.wallet.update({where:{userId:current.userId},data:{pendingBalance:{decrement:current.amount},balance:{increment:current.amount}}});
+      const fee = withdrawalFeeForRecord(current);
+      const totalDebit = withdrawalTotalDebitForRecord(current);
+      await db.wallet.update({where:{userId:current.userId},data:{pendingBalance:{decrement:totalDebit},balance:{increment:totalDebit}}});
       const txRef=`WD-REFUND-${current.reference}`;
       if(!(await db.transaction.findUnique({where:{reference:txRef}}))){
-        await db.transaction.create({data:{userId:current.userId,type:"REFUND",amount:current.amount,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:current.id,processedBy:req.admin.id,reason:"Admin cancelled before payout initiation"}}});
+        await db.transaction.create({data:{userId:current.userId,type:"REFUND",amount:totalDebit,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:current.id,processedBy:req.admin.id,reason:"Admin cancelled before payout initiation",payoutAmount:current.amount,withdrawalFee:fee,totalWalletDebit:totalDebit}}});
       }
       return true;
     });
     if(!changed)return res.status(409).json({message:"Withdrawal status changed in another request. Refresh and try again."});
     await logAdminAction(req,"WITHDRAWAL_CANCELLED","WITHDRAWAL",current.id,null,{from:current.status,to:"FAILED",amount:current.amount,userId:current.userId,reference:current.reference});
-    await createUserNotification(current.userId,{title:"Withdrawal cancelled",message:`Your KSh ${current.amount.toLocaleString()} withdrawal was cancelled before payout; the amount has been returned to your available wallet balance.`,type:"WITHDRAWAL",details:{reference:current.reference,status:"FAILED",amount:current.amount,destinationPage:"wallet"}});
+    const cancelledFee = withdrawalFeeForRecord(current);
+    const cancelledDebit = withdrawalTotalDebitForRecord(current);
+    const feeReserveCopy=withdrawalHasFeePolicy(current)?` (including the KSh ${cancelledFee.toLocaleString()} fee reserve)`:"";
+    await createUserNotification(current.userId,{title:"Withdrawal cancelled",message:`Your KSh ${current.amount.toLocaleString()} payout request was cancelled before payout; KSh ${cancelledDebit.toLocaleString()}${feeReserveCopy} has been returned to your available wallet balance.`,type:"WITHDRAWAL",details:{reference:current.reference,status:"FAILED",amount:current.amount,fee:cancelledFee,totalDebit:cancelledDebit,destinationPage:"wallet"}});
     res.json({message:"Withdrawal cancelled and funds returned"});
   }catch(e){console.error("Admin withdrawal status error:",e);res.status(500).json({message:"Unable to update withdrawal"});}
 });
 app.post("/api/admin/withdrawals/:id/paystack",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
+  // Kept for compatibility with older frontend builds, but cannot initiate or
+  // approve a payout. Payouts begin automatically when the member submits.
   try{
-    const result=await initiatePaystackWithdrawal(req.params.id);
-    await logAdminAction(req,"WITHDRAWAL_PAYSTACK_INITIATED","WITHDRAWAL",req.params.id,null,{status:result.status,payoutReference:result.payoutReference||null});
+    const current=await prisma.withdrawal.findUnique({where:{id:req.params.id}});
+    if(!current)return res.status(404).json({message:"Withdrawal not found"});
+    if(current.status!=="PROCESSING")return res.status(409).json({message:"Member withdrawals are initiated automatically; administrators cannot initiate or approve them manually."});
+    const result=await verifyPaystackWithdrawal(req.params.id);
+    await logAdminAction(req,"WITHDRAWAL_PAYSTACK_STATUS_CHECKED","WITHDRAWAL",req.params.id,null,{status:result.status,payoutReference:paystackWithdrawalReference(req.params.id)});
     res.json(result);
-  }catch(e){console.error("[PAYSTACK WITHDRAWAL INITIATE]",e.message);res.status(e.statusCode||500).json({message:e.message||"Unable to initiate Paystack withdrawal"});}
+  }catch(e){console.error("[PAYSTACK WITHDRAWAL STATUS]",e.message);res.status(e.statusCode||500).json({message:e.message||"Unable to check Paystack withdrawal"});}
 });
 app.post("/api/admin/withdrawals/:id/check-paystack",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
@@ -1967,7 +2036,7 @@ app.get("/api/admin/export/:type",adminAuth,async(req,res)=>{
     }else if(type==="transactions"){
       rows=await prisma.transaction.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Type","Amount","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.type,x.amount,x.status,x.createdAt.toISOString()]);
     }else if(type==="withdrawals"){
-      rows=await prisma.withdrawal.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Phone","Amount","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.phone,x.amount,x.status,x.createdAt.toISOString()]);
+      rows=await prisma.withdrawal.findMany({include:{user:{select:{email:true}}},orderBy:{createdAt:"desc"}});headers=["Reference","Email","Phone","Payout Amount KES","Withdrawal Fee KES","Total Wallet Debit KES","Status","Created"];rows=rows.map(x=>[x.reference,x.user?.email||"",x.phone,x.amount,withdrawalFeeForRecord(x),withdrawalTotalDebitForRecord(x),x.status,x.createdAt.toISOString()]);
     }else return res.status(400).json({message:"Unsupported export type"});
     const esc=v=>`"${String(v??"").replace(/"/g,'""')}"`;const csv=[headers, ...rows].map(r=>r.map(esc).join(",")).join("\n");
     res.setHeader("Content-Type","text/csv; charset=utf-8");res.setHeader("Content-Disposition",`attachment; filename=nexora-${type}-${Date.now()}.csv`);res.send(csv);
@@ -2028,55 +2097,61 @@ app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(r
 app.get("/api/withdrawals",auth,async(req,res)=>{
   try{
     const rows=await prisma.withdrawal.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:20,select:{id:true,amount:true,phone:true,status:true,reference:true,createdAt:true,updatedAt:true}});
-    res.json(rows);
+    res.json(rows.map(row=>({...row,fee:withdrawalFeeForRecord(row),totalDebit:withdrawalTotalDebitForRecord(row)})));
   }catch(e){console.error("[MEMBER WITHDRAWAL HISTORY]",e);res.status(500).json({message:"Unable to load withdrawal history"});}
 });
 
 app.post("/api/withdrawals",auth,async(req,res)=>{
   try{
+    // New withdrawal requests must go straight to Paystack. Never create a
+    // request that is waiting for an administrator to approve or initiate it.
+    if(!PAYSTACK_AUTO_WITHDRAWALS) return res.status(503).json({message:"Automatic withdrawals are not enabled yet. Please try again later; no funds have been reserved."});
+    if(!paystackTransfersReady()) return res.status(503).json({message:"Paystack live M-Pesa transfers are not ready. No withdrawal was created and no funds were reserved. Please try again later."});
     const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
-    if(member?.countryCode!=="KE") return res.status(403).json({message:"Withdrawals are coming soon for your country. Kenya currently supports M-Pesa withdrawals."});
+    if(member?.countryCode!=="KE") return res.status(403).json({message:"Withdrawals are currently available for Kenyan members using M-Pesa."});
     const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
-    if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
-    if(!Number.isInteger(amount)||amount<100||amount>250000) return res.status(400).json({message:"Withdrawal amount must be between KSh 100 and KSh 250,000."});
+    if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541… ."});
+    if(!Number.isInteger(amount)||amount<MIN_WITHDRAWAL_KES||amount>MAX_WITHDRAWAL_KES) return res.status(400).json({message:`Withdrawal payout must be between KSh ${MIN_WITHDRAWAL_KES.toLocaleString()} and KSh ${MAX_WITHDRAWAL_KES.toLocaleString()}.`});
+    if(amount>PAYSTACK_AUTO_WITHDRAWAL_MAX) return res.status(400).json({message:`Automatic payout limit is KSh ${PAYSTACK_AUTO_WITHDRAWAL_MAX.toLocaleString()} per request. No funds were reserved.`});
+    const fee=withdrawalFeeForAmount(amount);
+    const totalDebit=withdrawalTotalDebit(amount);
     const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
     const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
     if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${memberWithPackage.package.name} package allows withdrawals up to KSh ${limit.toLocaleString()} per request.`});
-    const reference=`WD-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
+    const reference=`WD5A-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const since=new Date(Date.now()-24*60*60*1000);
-    const created=await prisma.$transaction(async db=>{
-      let autoEligible=Boolean(PAYSTACK_AUTO_WITHDRAWALS&&paystackTransfersReady()&&amount<=PAYSTACK_AUTO_WITHDRAWAL_MAX);
-      if(autoEligible){
-        const recent=await db.withdrawal.aggregate({where:{userId:req.user.id,createdAt:{gte:since},status:{in:["PENDING","PROCESSING","PAID"]}},_sum:{amount:true}});
-        if(Number(recent._sum.amount||0)+amount>PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT)autoEligible=false;
-      }
-      const reserve=await db.wallet.updateMany({where:{userId:req.user.id,balance:{gte:amount}},data:{balance:{decrement:amount},pendingBalance:{increment:amount}}});
-      if(reserve.count!==1) throw payoutError("Insufficient available wallet balance",400);
-      const withdrawal=await db.withdrawal.create({data:{userId:req.user.id,amount,phone,reference}});
-      return {withdrawal,autoEligible};
+    const withdrawal=await prisma.$transaction(async db=>{
+      const recent=await db.withdrawal.aggregate({where:{userId:req.user.id,createdAt:{gte:since},status:{in:["PENDING","PROCESSING","PAID"]}},_sum:{amount:true}});
+      const recentAmount=Number(recent._sum.amount||0);
+      if(recentAmount+amount>PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) throw payoutError(`Your automatic withdrawal limit is KSh ${PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT.toLocaleString()} in a rolling 24-hour period. No funds were reserved.`,429);
+      const reserve=await db.wallet.updateMany({where:{userId:req.user.id,balance:{gte:totalDebit}},data:{balance:{decrement:totalDebit},pendingBalance:{increment:totalDebit}}});
+      if(reserve.count!==1) throw payoutError(`Insufficient available wallet balance. This payout needs KSh ${totalDebit.toLocaleString()} total: KSh ${amount.toLocaleString()} payout plus KSh ${fee.toLocaleString()} fee.`,400);
+      // Keep the standard pending state for this single immediate request so
+      // the payout starter can claim it without an unnecessary initial status query.
+      // WD5A references identify new auto-payout requests if Render restarts before
+      // the first provider call; the reconciler can safely resume those only.
+      return await db.withdrawal.create({data:{userId:req.user.id,amount,phone,reference,status:"PENDING"}});
     },{isolationLevel:"Serializable"});
-    await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal:${reference}:submitted`,title:created.autoEligible?"Automatic withdrawal started":"Withdrawal requires review",message:`${req.user.name||req.user.email} requested a KSh ${amount.toLocaleString()} withdrawal to ${phone}.${created.autoEligible?" Automatic Paystack payout is being initiated.":" Review the request and use Pay via Paystack to send the M-Pesa payout."}`,type:"WITHDRAWAL_REQUEST",details:{reference,amount,phone,memberId:req.user.id,memberName:req.user.name||req.user.email,destinationPage:"withdrawals"}}).catch(e=>console.error("[WITHDRAWAL ADMIN NOTICE]",e.message));
-    if(created.autoEligible){
-      try{
-        const payout=await initiatePaystackWithdrawal(created.withdrawal.id);
-        return res.status(201).json({message:payout.message||"Withdrawal request submitted; Paystack is processing the payout.",reference,status:payout.status||"PROCESSING",automatic:true});
-      }catch(e){
-        console.error("[AUTO PAYSTACK WITHDRAWAL]",e.message);
-        const latest=await prisma.withdrawal.findUnique({where:{id:created.withdrawal.id},select:{status:true}}).catch(()=>null);
-        const currentStatus=latest?.status||"PROCESSING";
-        const message=currentStatus==="PAID"
-          ? "Paystack confirmed the payout successfully."
-          : currentStatus==="FAILED"
-            ? "Paystack could not complete this payout. The reserved amount has been returned to your available wallet balance. Check withdrawal history for the final status."
-            : "Withdrawal request saved, but Paystack has not confirmed the payout yet. It remains pending for reconciliation; do not submit a second request.";
-        return res.status(201).json({message,reference,status:currentStatus,automatic:true});
-      }
+
+    // Start the provider transfer in this request; final status notifications
+    // are emitted only when Paystack confirms success, failure, or reversal.
+    try{
+      const payout=await initiatePaystackWithdrawal(withdrawal.id);
+      return res.status(201).json({message:payout.message||"Your withdrawal was sent to Paystack automatically. It will be marked paid after Paystack confirms the result.",reference,status:payout.status||"PROCESSING",automatic:true,amount,fee,totalDebit});
+    }catch(e){
+      console.error("[AUTO PAYSTACK WITHDRAWAL]",e.message);
+      const latest=await prisma.withdrawal.findUnique({where:{id:withdrawal.id},select:{status:true}}).catch(()=>null);
+      const currentStatus=latest?.status||"PROCESSING";
+      const message=currentStatus==="PAID"
+        ? "Paystack confirmed the payout successfully."
+        : currentStatus==="FAILED"
+          ? "Paystack could not complete this payout. The reserved amount has been returned to your available wallet balance."
+          : "Your withdrawal has been sent for Paystack processing, but the final status is not yet confirmed. Do not submit it again; NEXORA will update the status when Paystack confirms it.";
+      return res.status(201).json({message,reference,status:currentStatus,automatic:true,amount,fee,totalDebit});
     }
-    const heldForReview=PAYSTACK_AUTO_WITHDRAWALS&&!created.autoEligible;
-    res.status(201).json({message:heldForReview?"Withdrawal request saved for administrator review because automatic payout limits or setup requirements were not met.":"Withdrawal request submitted. An administrator can review it and initiate the Paystack M-Pesa payout.",reference,status:"PENDING",automatic:false});
   }catch(e){
-    if(e.statusCode===400)return res.status(400).json({message:e.message});
-    if(e.code==="P2034")return res.status(409).json({message:"Another wallet operation was completed at the same time. Refresh your balance and submit the withdrawal again if no request was created."});
+    if(e.statusCode) return res.status(e.statusCode).json({message:e.message});
+    if(e.code==="P2034") return res.status(409).json({message:"Another wallet operation was completed at the same time. Refresh your balance and check withdrawal history before trying again."});
     console.error("[WITHDRAWAL REQUEST]",e);res.status(500).json({message:"Unable to submit withdrawal request"});
   }
 });
@@ -2494,6 +2569,30 @@ async function ensureResetTokenColumns(){
   }catch(e){console.error("[RESET TOKEN COLUMNS]",e.message);}
 }
 
+let autoWithdrawalReconcileBusy=false;
+let autoWithdrawalReconcileCursor="";
+async function reconcileAutomaticWithdrawals(){
+  if(autoWithdrawalReconcileBusy||!PAYSTACK_AUTO_WITHDRAWALS||!paystackTransfersReady()) return;
+  autoWithdrawalReconcileBusy=true;
+  try{
+    const rows=await prisma.withdrawal.findMany({where:{OR:[{status:"PROCESSING"},{status:"PENDING",reference:{startsWith:"WD5A-"}}]},select:{id:true},orderBy:{updatedAt:"asc"},take:100});
+    if(!rows.length)return;
+    const cursorIndex=rows.findIndex(row=>row.id===autoWithdrawalReconcileCursor);
+    const ordered=cursorIndex>=0?[...rows.slice(cursorIndex+1),...rows.slice(0,cursorIndex+1)]:rows;
+    for(const row of ordered){
+      autoWithdrawalReconcileCursor=row.id;
+      try{
+        // Reconcile or safely retry a provider reference that Paystack has not
+        // recorded yet. Same stable reference is reused for every attempt.
+        await initiatePaystackWithdrawal(row.id);
+      }catch(e){console.error("[AUTO WITHDRAWAL RECONCILIATION]",row.id,e.message);}
+    }
+  }catch(e){console.error("[AUTO WITHDRAWAL RECONCILIATION QUERY]",e.message);}
+  finally{autoWithdrawalReconcileBusy=false;}
+}
+const automaticWithdrawalReconcileTimer=setInterval(()=>{void reconcileAutomaticWithdrawals();},60000);
+automaticWithdrawalReconcileTimer.unref?.();
+
 async function startServer(){
   try{
     await ensurePackageSettingsColumns();
@@ -2507,7 +2606,7 @@ async function startServer(){
   }catch(e){
     console.error("[ADMIN] Could not initialize admin account:",e);
   }
-  app.listen(PORT,()=>console.log(`NEXORA app/API running on port ${PORT}`));
+  app.listen(PORT,()=>{console.log(`NEXORA app/API running on port ${PORT}`);setTimeout(()=>void reconcileAutomaticWithdrawals(),5000).unref?.();});
 }
 
 startServer();
