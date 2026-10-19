@@ -581,7 +581,7 @@ async function queryAndApplyPaystackStatus(reference){
       await finalizeSuccessfulPaystack(reference,confirmedData);
     }
   }else if(["failed","abandoned","reversed","timeout"].includes(confirmedStatus)){
-    await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"FAILED",metadata:{...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:confirmedStatus,lastResponse:confirmedData,lastCheckedAt:new Date().toISOString(),display_text:statusMessage||"Paystack reports that this payment did not complete."}}}});
+    await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"FAILED",metadata:{...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:confirmedStatus,lastResponse:confirmedData,lastCheckedAt:new Date().toISOString(),display_text:statusMessage||"NEXORA could not complete this payment. Please try again later."}}}});
   }else{
     const latestMeta={...meta,paystack:{...(meta.paystack&&typeof meta.paystack==="object"?meta.paystack:{}),status:confirmedStatus||"pending",lastResponse:confirmedData,lastCheckedAt:new Date().toISOString(),display_text:statusMessage||"Approve the M-PESA prompt on your phone."}};
     await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"PENDING",metadata:latestMeta}});
@@ -589,7 +589,7 @@ async function queryAndApplyPaystackStatus(reference){
 
   const finalTx=await prisma.transaction.findUnique({where:{reference}});
   const finalStatus=finalTx?.status==="SUCCESS"?"success":finalTx?.status==="FAILED"?"failed":"pending";
-  const message=statusMessage || (finalStatus==="pending"?"Your payment is still pending. Approve the M-PESA prompt if it appeared, then check again.":finalStatus==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active."):"Paystack confirmed that this payment was not completed.");
+  const message=statusMessage || (finalStatus==="pending"?"Your payment is still pending. Approve the M-PESA prompt if it appeared, then check again.":finalStatus==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and your wallet has been credited.":"Payment confirmed. Your package is active."):"NEXORA could not complete this payment. Please try again later.");
   return {status:finalStatus,message,data:confirmedData};
 }
 
@@ -1280,10 +1280,10 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
 
     if(!charge.ok){
       if(uncertainCharge){
-        return res.json({reference,status:"pending",display_text:"",message:"Paystack timed out before confirming the M-PESA request. The payment may still be processing. Do not start another payment yet; wait at least 10 seconds, then tap Check payment status.",retryAfterSeconds:10,chargeAmount});
+        return res.json({reference,status:"pending",display_text:"",message:"NEXORA is still checking your M-PESA payment. It may be processing, so please wait at least 10 seconds and then check payment status before starting another payment.",retryAfterSeconds:10,chargeAmount});
       }
       await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"Paystack could not start this M-PESA payment. No successful charge has been confirmed.",reference,paystack_message:charge.data?.message||null});
+      return res.status(400).json({message:"NEXORA could not start this M-PESA payment. No successful payment has been confirmed. Please try again later.",reference});
     }
 
     const chargeStatus=String(data.status||"pending").toLowerCase();
@@ -1291,7 +1291,7 @@ app.post("/api/payments/initialize",auth,async(req,res)=>{
     else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
     const tx=await prisma.transaction.findUnique({where:{reference}});
     const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.json({reference,status,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":status==="failed"?"The M-Pesa payment could not be completed. Start a new payment to try again.":"Paystack STK prompt sent. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",chargeAmount});
+    res.json({reference,status,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":status==="failed"?"NEXORA could not complete this payment. Please try again later.":"NEXORA sent an M-Pesa prompt to your phone. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",display_text:status==="failed"?"NEXORA could not complete this payment. Please try again later.":(data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt."),chargeAmount});
   }catch(e){
     console.error("[PAYSTACK STK INIT EXCEPTION]",e);
     res.status(500).json({message:e.message||"Payment initialization failed"});
@@ -1585,7 +1585,7 @@ app.get("/api/payments/status/:reference",auth,async(req,res)=>{
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
     if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
     const result=await queryAndApplyPaystackStatus(req.params.reference);
-    res.json({status:result.status,display_text:result.message||"",message:result.message||"",reference:req.params.reference});
+    const publicMessage=result.status==="failed"?"NEXORA could not complete this payment. Please try again later.":result.status==="success"?"Payment confirmed by NEXORA.":"Your payment is still being checked by NEXORA.";res.json({status:result.status,display_text:publicMessage,message:publicMessage,reference:req.params.reference});
   }catch(e){console.error("[PAYSTACK STATUS EXCEPTION]",e);res.status(500).json({message:e.message||"Payment status check failed"});}
 });
 app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
@@ -1593,7 +1593,7 @@ app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
     if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
     const result=await queryAndApplyPaystackStatus(req.params.reference);
-    res.json({status:result.status,display_text:result.message||"",message:result.message||"Payment status checked"});
+    const publicMessage=result.status==="failed"?"NEXORA could not complete this payment. Please try again later.":result.status==="success"?"Payment confirmed by NEXORA.":"Your payment is still being checked by NEXORA.";res.json({status:result.status,display_text:publicMessage,message:publicMessage});
   }catch(e){console.error("[PAYSTACK VERIFY EXCEPTION]",e);res.status(500).json({message:e.message||"Verification failed"});}
 });
 
@@ -2223,17 +2223,17 @@ app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
     await prisma.transaction.update({where:{reference},data:{metadata:{method:"PAYSTACK_MPESA",phone:normalizedPhone,paystack:{provider:"PAYSTACK",status:initialStatus,reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt,lastChargeHttpStatus:charge.httpStatus},diagnostic:{initializedAt,responseMs:Date.now()-startedAt,chargeHttpStatus:charge.httpStatus,chargeTransient:uncertainCharge}}}});
     if(!charge.ok){
       if(uncertainCharge){
-        return res.status(201).json({reference,status:"pending",amount,phone:normalizedPhone,display_text:"",message:"Paystack timed out before confirming the M-PESA request. The payment may still be processing. Do not start another deposit yet; wait at least 10 seconds, then tap Check payment status.",retryAfterSeconds:10});
+        return res.status(201).json({reference,status:"pending",amount,phone:normalizedPhone,display_text:"",message:"NEXORA is still checking your M-PESA deposit. It may be processing, so please wait at least 10 seconds and then check payment status before starting another deposit.",retryAfterSeconds:10});
       }
       await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"Paystack could not start this M-PESA payment. No successful charge has been confirmed.",reference,paystack_message:charge.data?.message||null});
+      return res.status(400).json({message:"NEXORA could not start this M-PESA payment. No successful payment has been confirmed. Please try again later.",reference});
     }
     const chargeStatus=String(data.status||"pending").toLowerCase();
     if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);
     else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
     const tx=await prisma.transaction.findUnique({where:{reference}});
     const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.status(201).json({reference,status,amount,phone:normalizedPhone,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Deposit confirmed and your wallet has been credited.":status==="failed"?"The M-Pesa payment could not be completed. Start a new deposit to try again.":"Paystack STK prompt sent. Enter your M-Pesa PIN, then NEXORA will confirm the deposit automatically."});
+    res.status(201).json({reference,status,amount,phone:normalizedPhone,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Deposit confirmed and your wallet has been credited.":status==="failed"?"NEXORA could not complete this deposit. Please try again later.":"NEXORA sent an M-Pesa prompt to your phone. Enter your M-Pesa PIN, then NEXORA will confirm the deposit automatically.",display_text:status==="failed"?"NEXORA could not complete this deposit. Please try again later.":(data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.")});
   }catch(e){console.error("[PAYSTACK WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
 });
 
