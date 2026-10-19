@@ -5611,3 +5611,65 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .receiptmodal .modalhead,.receiptmodal .modalfoot{flex:0 0 auto;}
 .receiptmodal .receiptbody{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
 @media(max-width:560px){.receiptmodal{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);}.modalbackdrop:has(.receiptmodal){padding:8px;}.receiptmodal .receiptbody{padding:12px;}}
+
+
+/* Receipt visibility fix v2: use the full viewport and make the receipt itself scrollable. */
+.modalbackdrop:has(> .receiptmodal){
+  position:fixed!important;inset:0!important;z-index:99999!important;
+  display:flex!important;align-items:flex-start!important;justify-content:center!important;
+  box-sizing:border-box!important;overflow-y:auto!important;overflow-x:hidden!important;
+  padding:12px!important;
+}
+.modalbackdrop > .receiptmodal{
+  position:relative!important;flex:0 0 auto!important;
+  width:min(560px,100%)!important;max-width:100%!important;
+  height:auto!important;max-height:none!important;min-height:0!important;
+  margin:auto!important;overflow:visible!important;
+  display:flex!important;flex-direction:column!important;
+}
+.receiptmodal > .receiptbody{
+  display:block!important;flex:0 1 auto!important;min-height:0!important;
+  max-height:none!important;height:auto!important;overflow:visible!important;
+  box-sizing:border-box!important;
+}
+.receiptmodal .modalhead,.receiptmodal .modalfoot{position:relative!important;flex:0 0 auto!important;}
+@media(max-height:700px){
+  .modalbackdrop:has(> .receiptmodal){align-items:flex-start!important;padding:8px!important;}
+  .modalbackdrop > .receiptmodal{margin:0 auto!important;}
+  .receiptmodal > .receiptbody{overflow:visible!important;}
+}
+@page{size:auto;margin:12mm;}
+@media print{
+  html,body,#root{height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important;}
+  body *{visibility:hidden!important;}
+  .modalbackdrop:has(> .receiptmodal){
+    position:static!important;inset:auto!important;display:block!important;
+    width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;
+    margin:0!important;padding:0!important;overflow:visible!important;
+    background:#fff!important;box-shadow:none!important;backdrop-filter:none!important;
+  }
+  .modalbackdrop > .receiptmodal,.modalbackdrop .receiptmodal,.receiptmodal{
+    visibility:visible!important;position:static!important;display:block!important;
+    width:100%!important;max-width:none!important;height:auto!important;
+    min-height:0!important;max-height:none!important;overflow:visible!important;
+    margin:0!important;padding:0!important;transform:none!important;
+    animation:none!important;box-shadow:none!important;border:0!important;
+    border-radius:0!important;background:#fff!important;color:#111!important;
+  }
+  .receiptmodal *{visibility:visible!important;overflow:visible!important;max-height:none!important;}
+  .receiptmodal .modalhead{padding:0 0 12px!important;background:#fff!important;color:#111!important;}
+  .receiptmodal .modalhead h2,.receiptmodal .receiptbody strong,.receiptmodal .receiptgrid strong{color:#111!important;}
+  .receiptmodal .receiptbody,.receiptmodal .nx-receipt{
+    display:block!important;height:auto!important;max-height:none!important;
+    overflow:visible!important;break-inside:avoid-page;
+    background:#fff!important;color:#111!important;border:1px solid #ddd!important;
+    box-shadow:none!important;padding:12px!important;
+  }
+  .receiptmodal .receiptcheck{background:#f4fbf8!important;color:#111!important;border:1px solid #ddd!important;}
+  .receiptmodal .receiptcheck span,.receiptmodal .receiptgrid span,.receiptmodal .muted{color:#444!important;}
+  .receiptmodal .receiptgrid{display:block!important;overflow:visible!important;}
+  .receiptmodal .receiptgrid>div{display:flex!important;justify-content:space-between!important;gap:16px!important;break-inside:avoid!important;border-bottom:1px solid #ddd!important;}
+  .receiptmodal .notice{background:#fff!important;color:#222!important;border:1px solid #ddd!important;}
+  .receiptmodal .modalfoot,.receiptmodal .iconbtn{display:none!important;visibility:hidden!important;}
+  .modalbackdrop::before,.receiptmodal::before,.receiptmodal::after{display:none!important;content:none!important;}
+}
