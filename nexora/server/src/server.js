@@ -113,7 +113,7 @@ const PAYSTACK_API_URL = "https://api.paystack.co";
 const PAYSTACK_TRANSFERS_ENABLED = /^(1|true|yes)$/i.test(String(process.env.PAYSTACK_TRANSFERS_ENABLED || "false"));
 const PAYSTACK_AUTO_WITHDRAWALS = /^(1|true|yes)$/i.test(String(process.env.PAYSTACK_AUTO_WITHDRAWALS || "false"));
 const PAYSTACK_AUTO_WITHDRAWAL_MAX = Number.isInteger(Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX)) && Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX) >= 100
-  ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX) : 5000;
+  ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX) : 50000;
 const PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT = Number.isInteger(Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT)) && Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) >= 100
   ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) : 10000;
 const VAPID_PUBLIC_KEY = String(process.env.VAPID_PUBLIC_KEY || "").trim();
