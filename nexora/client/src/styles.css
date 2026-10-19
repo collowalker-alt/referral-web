@@ -5603,3 +5603,11 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
   .nx-offline-banner{align-items:flex-start;margin:8px 10px;padding:10px;font-size:11px}
   .nx-offline-banner button{padding:6px 8px}
 }
+
+
+/* Receipt modal: keep header/footer visible and allow the receipt details to scroll on short screens. */
+.receiptmodal{display:flex;flex-direction:column;width:min(560px,calc(100vw - 24px));max-height:calc(100dvh - 24px);min-height:0;overflow:hidden;}
+.modalbackdrop:has(.receiptmodal){overflow-y:auto;align-items:center;justify-items:center;padding:12px;overscroll-behavior:contain;}
+.receiptmodal .modalhead,.receiptmodal .modalfoot{flex:0 0 auto;}
+.receiptmodal .receiptbody{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}
+@media(max-width:560px){.receiptmodal{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);}.modalbackdrop:has(.receiptmodal){padding:8px;}.receiptmodal .receiptbody{padding:12px;}}
