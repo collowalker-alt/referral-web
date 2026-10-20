@@ -1066,6 +1066,7 @@ function AdminApp(){
   return()=>window.removeEventListener("popstate",handlePopState);
  },[]);
  useEffect(()=>{
+  if(path==="/admin"||path.startsWith("/admin/"))return;
   if(!Capacitor.isNativePlatform())return;
   let subscription;
   CapacitorApp.addListener("backButton",({canGoBack})=>{
