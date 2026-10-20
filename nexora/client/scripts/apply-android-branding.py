@@ -154,7 +154,7 @@ def main() -> int:
     if styles_file.exists():
         styles_text = styles_file.read_text(encoding="utf-8")
         launch_style = re.search(
-            r"(<style\\s+name=['\\"]AppTheme\\.NoActionBarLaunch['\\"][^>]*>)(.*?)(</style>)",
+            r"(<style\s+name=['\"]AppTheme\.NoActionBarLaunch['\"][^>]*>)(.*?)(</style>)",
             styles_text,
             flags=re.DOTALL,
         )
@@ -165,12 +165,12 @@ def main() -> int:
                 "android:background": DARK_HEX,
             }
             for name, value in items.items():
-                pattern = rf'<item\\s+name=["\\']{re.escape(name)}["\\'][^>]*>.*?</item>'
+                pattern = rf'<item\s+name=["\']{re.escape(name)}["\'][^>]*>.*?</item>'
                 line = f'<item name="{name}">{value}</item>'
                 if re.search(pattern, body):
                     body = re.sub(pattern, line, body)
                 else:
-                    body += "\\n        " + line
+                    body += "\n        " + line
             styles_text = styles_text[:launch_style.start(2)] + body + styles_text[launch_style.end(2):]
             styles_file.write_text(styles_text, encoding="utf-8")
     else:
