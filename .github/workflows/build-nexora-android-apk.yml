@@ -90,7 +90,7 @@ jobs:
           s = p.read_text()
           build = int(os.environ['BUILD_NUMBER'])
           s, n1 = re.subn(r'versionCode\s+\d+', f'versionCode {build}', s, count=1)
-          s, n2 = re.subn(r'versionName\s+["\\'][^"\\']+["\\']', f'versionName "1.0.{build}"', s, count=1)
+          s, n2 = re.subn("versionName\\s+['\"][^'\"]+['\"]", f'versionName "1.0.{build}"', s, count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit(f'Could not set Android version (versionCode replacements={n1}, versionName replacements={n2})')
           p.write_text(s)
