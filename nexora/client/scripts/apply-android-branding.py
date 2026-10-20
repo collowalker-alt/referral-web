@@ -122,30 +122,69 @@ def main() -> int:
             encoding="utf-8",
         )
 
+    # Capacitor 6 also uses a legacy launch drawable on Android 9/10.
+    # Updating only Android 12+ theme values leaves the old white/blue splash.
+    launch_drawable = drawable_dir / "launch_splash.xml"
+    launch_drawable.write_text(
+        '''<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/nexora_launcher_background" />
+    <item>
+        <bitmap android:src="@drawable/splash" android:gravity="center" android:filter="true" />
+    </item>
+</layer-list>
+''',
+        encoding="utf-8",
+    )
+    legacy_background = drawable_dir / "launch_background.xml"
+    if legacy_background.exists():
+        legacy_background.write_text(
+            '''<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/nexora_launcher_background" />
+    <item>
+        <bitmap android:src="@drawable/splash" android:gravity="center" android:filter="true" />
+    </item>
+</layer-list>
+''',
+            encoding="utf-8",
+        )
+
     styles_file = values / "styles.xml"
     if styles_file.exists():
         styles_text = styles_file.read_text(encoding="utf-8")
         launch_style = re.search(
-            r"(<style\s+name=['\"]AppTheme\.NoActionBarLaunch['\"][^>]*>)(.*?)(</style>)",
+            r"(<style\\s+name=['\\"]AppTheme\\.NoActionBarLaunch['\\"][^>]*>)(.*?)(</style>)",
             styles_text,
             flags=re.DOTALL,
         )
         if launch_style:
             body = launch_style.group(2)
             items = {
-                "windowSplashScreenAnimatedIcon": "@drawable/splash",
-                "windowSplashScreenBackground": DARK_HEX,
+                "android:windowBackground": "@drawable/launch_splash",
                 "android:background": DARK_HEX,
             }
             for name, value in items.items():
-                pattern = rf'<item\s+name=["\']{re.escape(name)}["\'][^>]*>.*?</item>'
+                pattern = rf'<item\\s+name=["\\']{re.escape(name)}["\\'][^>]*>.*?</item>'
                 line = f'<item name="{name}">{value}</item>'
                 if re.search(pattern, body):
                     body = re.sub(pattern, line, body)
                 else:
-                    body += "\n        " + line
+                    body += "\\n        " + line
             styles_text = styles_text[:launch_style.start(2)] + body + styles_text[launch_style.end(2):]
             styles_file.write_text(styles_text, encoding="utf-8")
+    else:
+        styles_file.write_text(
+            '''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_splash</item>
+        <item name="android:background">#07090D</item>
+    </style>
+</resources>
+''',
+            encoding="utf-8",
+        )
 
     # Android 12+ draws this system splash before the webview is available.
     v31_values = res / "values-v31"
