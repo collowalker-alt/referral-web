@@ -75,7 +75,7 @@ jobs:
           python -m pip install --disable-pip-version-check Pillow
           python client/scripts/apply-android-branding.py \
             --android-dir client/android \
-            --logo client/public/favicon.png
+            --logo client/public/nexora-logo.png
 
       - name: Build debug APK
         working-directory: nexora/client/android
