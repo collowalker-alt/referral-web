@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="theme-color" content="#07090d" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/nexora-logo.png" />
@@ -12,75 +12,7 @@
     <title>NEXORA — Connect. Grow. Earn.</title>
   </head>
   <body>
-    <style>
-      :root { color-scheme: light; }
-      html, body, #root { min-height: 100%; }
-      body { margin: 0; background: #fff; }
-      #nexora-launch-splash {
-        position: fixed; inset: 0; z-index: 2147483647;
-        display: grid; place-items: center; background: #fff;
-        opacity: 1; visibility: visible;
-        transition: opacity 360ms ease, visibility 360ms ease;
-      }
-      #nexora-launch-splash.is-leaving { opacity: 0; visibility: hidden; pointer-events: none; }
-      #nexora-launch-splash img {
-        display: block; width: min(42vw, 190px); height: min(42vw, 190px);
-        max-width: 190px; max-height: 190px; object-fit: contain;
-        animation: nexora-logo-reveal 900ms cubic-bezier(.2,.75,.25,1) both,
-                   nexora-logo-breathe 2.4s ease-in-out 900ms infinite;
-        will-change: transform, opacity;
-      }
-      @keyframes nexora-logo-reveal {
-        0% { opacity: 0; transform: scale(.72) rotate(-9deg); filter: blur(5px); }
-        68% { opacity: 1; transform: scale(1.06) rotate(2deg); filter: blur(0); }
-        100% { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
-      }
-      @keyframes nexora-logo-breathe {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.035); }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        #nexora-launch-splash img { animation: none; }
-        #nexora-launch-splash { transition-duration: 120ms; }
-      }
-    </style>
-    <div id="nexora-launch-splash" aria-label="NEXORA" role="status">
-      <img src="/nexora-logo.png" alt="NEXORA" />
-    </div>
     <div id="root"></div>
-    <script>
-      (() => {
-        const splash = document.getElementById("nexora-launch-splash");
-        const root = document.getElementById("root");
-        if (!splash || !root) return;
-        let hidden = false;
-        const hideSplash = () => {
-          if (hidden) return;
-          hidden = true;
-          splash.classList.add("is-leaving");
-          window.setTimeout(() => splash.remove(), 420);
-        };
-        const startedAt = Date.now();
-        const observer = new MutationObserver(() => {
-          if (root.childElementCount && Date.now() - startedAt >= 950) {
-            observer.disconnect();
-            hideSplash();
-          }
-        });
-        observer.observe(root, { childList: true, subtree: true });
-        window.setTimeout(() => {
-          if (root.childElementCount) {
-            observer.disconnect();
-            hideSplash();
-          }
-        }, 1800);
-        // Never trap users behind a splash if the website is slow or offline.
-        window.setTimeout(() => {
-          observer.disconnect();
-          hideSplash();
-        }, 5500);
-      })();
-    </script>
     <script type="module" src="/src/main.jsx"></script>
     <script>
       (() => {
