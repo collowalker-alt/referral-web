@@ -89,8 +89,8 @@ jobs:
           p = Path('app/build.gradle')
           s = p.read_text()
           build = int(os.environ['BUILD_NUMBER'])
-          s, n1 = re.subn(r'versionCode\\s+\\d+', f'versionCode {build}', s, count=1)
-          s, n2 = re.subn(r'versionName\\s+["\\'][^"\\']+["\\']', f'versionName "1.0.{build}"', s, count=1)
+          s, n1 = re.subn(r'versionCode\s+\d+', f'versionCode {build}', s, count=1)
+          s, n2 = re.subn(r'versionName\s+["\\'][^"\\']+["\\']', f'versionName "1.0.{build}"', s, count=1)
           if n1 != 1 or n2 != 1:
               raise SystemExit(f'Could not set Android version (versionCode replacements={n1}, versionName replacements={n2})')
           p.write_text(s)
@@ -110,7 +110,9 @@ jobs:
         run: |
           mkdir -p nexora/client/public/downloads
           cp nexora/client/android/app/build/outputs/apk/debug/app-debug.apk nexora/client/public/downloads/nexora-android.apk
-          printf '{\n  "versionName": "1.0.%s",\n  "versionCode": %s,\n  "apkUrl": "/downloads/nexora-android.apk",\n  "releaseNotes": "NEXORA app update"\n}\n' "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" > nexora/client/public/app-version.json
+          # Updates are deliberately disabled until a persistent signing key is configured.
+          # Android rejects updates signed with a different key; never prompt users with an unusable APK.
+          printf '{\n  "versionName": "1.0.%s",\n  "versionCode": %s,\n  "updateReady": false,\n  "apkUrl": "/downloads/nexora-android.apk",\n  "releaseNotes": "NEXORA app update"\n}\n' "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" > nexora/client/public/app-version.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add nexora/client/public/downloads/nexora-android.apk nexora/client/public/app-version.json
