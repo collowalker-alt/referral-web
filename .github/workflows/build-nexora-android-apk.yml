@@ -115,7 +115,7 @@ jobs:
           from pathlib import Path
           p = Path('app/build.gradle')
           s = p.read_text()
-          if 'signingConfigs {\\n        nexora {' not in s:
+          if 'signingConfigs {\n        nexora {' not in s:
               marker = 'android {'
               if marker not in s:
                   raise SystemExit('Could not find android block in app/build.gradle')
@@ -130,10 +130,10 @@ jobs:
               }
           '''
               s = s.replace(marker, signing, 1)
-          match = re.search(r'buildTypes\\s*\\{', s)
+          match = re.search(r'buildTypes\s*\{', s)
           if not match:
               raise SystemExit('Could not find buildTypes block in app/build.gradle')
-          insertion = '\\n        debug { signingConfig signingConfigs.nexora }'
+          insertion = '\n        debug { signingConfig signingConfigs.nexora }'
           if 'debug { signingConfig signingConfigs.nexora }' not in s:
               s = s[:match.end()] + insertion + s[match.end():]
           p.write_text(s)
