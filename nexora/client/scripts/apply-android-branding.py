@@ -94,18 +94,18 @@ def main() -> int:
     if styles_file.exists():
         styles_text = styles_file.read_text(encoding="utf-8")
         launch_style = re.search(
-            r'(<style\\s+name=["\\']AppTheme\\.NoActionBarLaunch["\\'][^>]*>)(.*?)(</style>)',
+            r'(<style\s+name=["\']AppTheme\.NoActionBarLaunch["\'][^>]*>)(.*?)(</style>)',
             styles_text,
             flags=re.DOTALL,
         )
         if launch_style:
             body = launch_style.group(2)
             if "windowSplashScreenAnimatedIcon" not in body:
-                body += '\\n        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>'
+                body += '\n        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>'
             if "windowSplashScreenBackground" not in body:
-                body += '\\n        <item name="windowSplashScreenBackground">#0756C9</item>'
+                body += '\n        <item name="windowSplashScreenBackground">#0756C9</item>'
             if "android:background" not in body:
-                body += '\\n        <item name="android:background">#0756C9</item>'
+                body += '\n        <item name="android:background">#0756C9</item>'
             styles_text = styles_text[:launch_style.start(2)] + body + styles_text[launch_style.end(2):]
             styles_file.write_text(styles_text, encoding="utf-8")
 
@@ -115,13 +115,13 @@ def main() -> int:
     v31_values = res / "values-v31"
     v31_values.mkdir(parents=True, exist_ok=True)
     (v31_values / "styles.xml").write_text(
-        '''<?xml version="1.0" encoding="utf-8"?>\\n<resources>\\n'''
-        '    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">\\n'
-        '        <item name="windowSplashScreenBackground">#0756C9</item>\\n'
-        '        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>\\n'
-        '        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>\\n'
-        '    </style>\\n'
-        '</resources>\\n',
+        '''<?xml version="1.0" encoding="utf-8"?>\n<resources>\n'''
+        '    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">\n'
+        '        <item name="windowSplashScreenBackground">#0756C9</item>\n'
+        '        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>\n'
+        '        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>\n'
+        '    </style>\n'
+        '</resources>\n',
         encoding="utf-8",
     )
 
