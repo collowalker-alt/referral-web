@@ -18,13 +18,13 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchShowDuration: 1400,
-      backgroundColor: "#07090d",
+      backgroundColor: "#ffffff",
       showSpinner: false,
-      androidScaleType: "CENTER_CROP",
+      androidScaleType: "CENTER_INSIDE",
     },
     StatusBar: {
       style: "DARK",
-      backgroundColor: "#07090d",
+      backgroundColor: "#ffffff",
     },
   },
   android: {
