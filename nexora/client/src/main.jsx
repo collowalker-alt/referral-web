@@ -1666,6 +1666,52 @@ function App(){
   return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",refreshVisible);window.removeEventListener("nexora-refresh-data",refreshVisible)};
  },[!!me,networkOnline]);
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
+ const memberPageRef=useRef(page),memberHistoryInitializedRef=useRef(false),memberHistoryNavigationRef=useRef(false);
+ useEffect(()=>{memberPageRef.current=page},[page]);
+ useEffect(()=>{
+  const url=new URL(window.location.href);
+  url.searchParams.set("page",page);
+  if(!memberHistoryInitializedRef.current){
+   window.history.replaceState({...window.history.state,nexoraPage:page},"",url);
+   memberHistoryInitializedRef.current=true;
+   return;
+  }
+  if(memberHistoryNavigationRef.current){memberHistoryNavigationRef.current=false;return;}
+  window.history.pushState({...window.history.state,nexoraPage:page},"",url);
+ },[page]);
+ useEffect(()=>{
+  const handlePopState=()=>{
+   const requested=new URLSearchParams(window.location.search).get("page");
+   const next=allowedMemberPages.includes(requested)?requested:"dashboard";
+   if(next!==memberPageRef.current){
+    memberHistoryNavigationRef.current=true;
+    memberPageRef.current=next;
+    setPage(next);
+   }
+   setMobile(false);
+   setInstructions(false);
+   setPayment(null);
+   setReceipt(null);
+   setPhoneModal(null);
+  };
+  window.addEventListener("popstate",handlePopState);
+  return()=>window.removeEventListener("popstate",handlePopState);
+ },[]);
+ useEffect(()=>{
+  if(!Capacitor.isNativePlatform())return;
+  let subscription;
+  CapacitorApp.addListener("backButton",({canGoBack})=>{
+   if(payment){setPayment(null);return;}
+   if(receipt){setReceipt(null);return;}
+   if(phoneModal){setPhoneModal(null);return;}
+   if(instructions){setInstructions(false);return;}
+   if(mobile){setMobile(false);return;}
+   if(page!=="dashboard"){window.history.back();return;}
+   if(canGoBack)window.history.back();
+   else CapacitorApp.exitApp();
+  }).then(handle=>{subscription=handle}).catch(error=>{console.warn("NEXORA Android back handler",error)});
+  return()=>{subscription?.remove()};
+ },[page,payment,receipt,phoneModal,instructions,mobile]);
  useEffect(()=>{const fn=e=>{const page=e.detail?.page;if(page)setPage(page)};window.addEventListener("nexora-go-page",fn);return()=>window.removeEventListener("nexora-go-page",fn)},[]);
  // IMPORTANT: all App hooks above must run on every render. Route-specific returns
  // are intentionally kept after the hooks to prevent React error #310 (hook order).
