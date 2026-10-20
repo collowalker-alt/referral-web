@@ -23,6 +23,11 @@ jobs:
     timeout-minutes: 40
     env:
       VITE_API_URL: https://nexora-api-shxf.onrender.com/api
+      NEXORA_ANDROID_KEYSTORE_BASE64: ${{ secrets.NEXORA_ANDROID_KEYSTORE_BASE64 }}
+      NEXORA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.NEXORA_ANDROID_KEYSTORE_PASSWORD }}
+      NEXORA_ANDROID_KEY_ALIAS: ${{ secrets.NEXORA_ANDROID_KEY_ALIAS }}
+      NEXORA_ANDROID_KEY_PASSWORD: ${{ secrets.NEXORA_ANDROID_KEY_PASSWORD }}
+      NEXORA_AUTO_UPDATE_ENABLED: ${{ vars.NEXORA_AUTO_UPDATE_ENABLED }}
     steps:
       - name: Checkout NEXORA source
         uses: actions/checkout@v4
@@ -97,6 +102,44 @@ jobs:
           print(f'Building NEXORA 1.0.{build} (versionCode {build})')
           PY
 
+      - name: Configure persistent APK signing when a keystore is configured
+        working-directory: nexora/client/android
+        run: |
+          if [ -z "$NEXORA_ANDROID_KEYSTORE_BASE64" ]; then
+            echo "No persistent signing key configured; building a debug-signed APK. In-app APK updates stay disabled."
+            exit 0
+          fi
+          printf '%s' "$NEXORA_ANDROID_KEYSTORE_BASE64" | base64 --decode > app/nexora-upload.jks
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path('app/build.gradle')
+          s = p.read_text()
+          if 'signingConfigs {\\n        nexora {' not in s:
+              marker = 'android {'
+              if marker not in s:
+                  raise SystemExit('Could not find android block in app/build.gradle')
+              signing = '''android {
+              signingConfigs {
+                  nexora {
+                      storeFile file("nexora-upload.jks")
+                      storePassword System.getenv("NEXORA_ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("NEXORA_ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("NEXORA_ANDROID_KEY_PASSWORD")
+                  }
+              }
+          '''
+              s = s.replace(marker, signing, 1)
+          match = re.search(r'buildTypes\\s*\\{', s)
+          if not match:
+              raise SystemExit('Could not find buildTypes block in app/build.gradle')
+          insertion = '\\n        debug { signingConfig signingConfigs.nexora }'
+          if 'debug { signingConfig signingConfigs.nexora }' not in s:
+              s = s[:match.end()] + insertion + s[match.end():]
+          p.write_text(s)
+          print('Configured persistent NEXORA signing key.')
+          PY
+
       - name: Build debug APK
         working-directory: nexora/client/android
         run: ./gradlew --no-daemon assembleDebug
@@ -110,12 +153,14 @@ jobs:
         run: |
           mkdir -p nexora/client/public/downloads
           cp nexora/client/android/app/build/outputs/apk/debug/app-debug.apk nexora/client/public/downloads/nexora-android.apk
-          # Updates are deliberately disabled until a persistent signing key is configured.
-          # Android rejects updates signed with a different key; never prompt users with an unusable APK.
-          printf '{\n  "versionName": "1.0.%s",\n  "versionCode": %s,\n  "updateReady": false,\n  "apkUrl": "/downloads/nexora-android.apk",\n  "releaseNotes": "NEXORA app update"\n}\n' "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" > nexora/client/public/app-version.json
+          # Do not offer APK updates until the permanent signing key is set and the first stable-signed APK has been installed manually.
+          update_ready=false
+          if [ -n "$NEXORA_ANDROID_KEYSTORE_BASE64" ] && [ "$NEXORA_AUTO_UPDATE_ENABLED" = "true" ]; then update_ready=true; fi
+          printf '{\n  "versionName": "1.0.%s",\n  "versionCode": %s,\n  "updateReady": %s,\n  "apkUrl": "/downloads/nexora-android.apk",\n  "releaseNotes": "NEXORA app update"\n}\n' "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_NUMBER" "$update_ready" > nexora/client/public/app-version.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add nexora/client/public/downloads/nexora-android.apk nexora/client/public/app-version.json
+          if [ -f nexora/client/android/app/nexora-upload.jks ]; then rm -f nexora/client/android/app/nexora-upload.jks; fi
           if git diff --cached --quiet; then
             echo "The published APK is already up to date."
           else
