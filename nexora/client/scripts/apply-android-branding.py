@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 import sys
 
@@ -86,6 +87,43 @@ def main() -> int:
         colors_file.write_text(content, encoding="utf-8")
     else:
         colors_file.write_text('''<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nexora_launcher_background">#0756C9</color>\n</resources>\n''', encoding="utf-8")
+
+    # Wire the logo into the launch theme. Merely creating drawable/splash.png
+    # is not enough: Android 12+ displays windowSplashScreenAnimatedIcon.
+    styles_file = values / "styles.xml"
+    if styles_file.exists():
+        styles_text = styles_file.read_text(encoding="utf-8")
+        launch_style = re.search(
+            r'(<style\\s+name=["\\']AppTheme\\.NoActionBarLaunch["\\'][^>]*>)(.*?)(</style>)',
+            styles_text,
+            flags=re.DOTALL,
+        )
+        if launch_style:
+            body = launch_style.group(2)
+            if "windowSplashScreenAnimatedIcon" not in body:
+                body += '\\n        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>'
+            if "windowSplashScreenBackground" not in body:
+                body += '\\n        <item name="windowSplashScreenBackground">#0756C9</item>'
+            if "android:background" not in body:
+                body += '\\n        <item name="android:background">#0756C9</item>'
+            styles_text = styles_text[:launch_style.start(2)] + body + styles_text[launch_style.end(2):]
+            styles_file.write_text(styles_text, encoding="utf-8")
+
+    # Android 12 (API 31)+ has its own system splash-screen icon/background.
+    # Provide a version-qualified launch theme so the logo is the first thing
+    # the operating system draws, rather than the generic launcher image.
+    v31_values = res / "values-v31"
+    v31_values.mkdir(parents=True, exist_ok=True)
+    (v31_values / "styles.xml").write_text(
+        '''<?xml version="1.0" encoding="utf-8"?>\\n<resources>\\n'''
+        '    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">\\n'
+        '        <item name="windowSplashScreenBackground">#0756C9</item>\\n'
+        '        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>\\n'
+        '        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>\\n'
+        '    </style>\\n'
+        '</resources>\\n',
+        encoding="utf-8",
+    )
 
     print("Applied NEXORA launcher icons and native splash logo.")
     return 0
