@@ -8,7 +8,7 @@ from pathlib import Path
 import sys
 
 try:
-    from PIL import Image
+    from PIL import Image, ImageDraw, ImageFont
 except ImportError as exc:  # pragma: no cover - CI setup installs Pillow
     print("Pillow is required: python -m pip install Pillow", file=sys.stderr)
     raise SystemExit(2) from exc
@@ -57,7 +57,27 @@ def main() -> int:
     # splash displays it on the same near-black background as the app theme.
     drawable_dir = res / "drawable"
     drawable_dir.mkdir(parents=True, exist_ok=True)
-    splash = fit_logo(original, 512, background=(0, 0, 0, 0), inset=0.18)
+    splash = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    logo_layer = original.copy()
+    logo_layer.thumbnail((420, 330), Image.Resampling.LANCZOS)
+    splash.alpha_composite(logo_layer, ((512 - logo_layer.width) // 2, 28 + (330 - logo_layer.height) // 2))
+    draw = ImageDraw.Draw(splash)
+    font = None
+    for font_path in (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+    ):
+        try:
+            font = ImageFont.truetype(font_path, 23)
+            break
+        except OSError:
+            pass
+    if font is None:
+        font = ImageFont.load_default()
+    motto = "CONNECT. GROW. EARN."
+    bounds = draw.textbbox((0, 0), motto, font=font, stroke_width=0)
+    text_width = bounds[2] - bounds[0]
+    draw.text(((512 - text_width) // 2, 412), motto, font=font, fill=(245, 247, 255, 255))
     splash.save(drawable_dir / "splash.png", optimize=True)
 
     foreground_sizes = {"mipmap-mdpi": 108, "mipmap-hdpi": 162, "mipmap-xhdpi": 216,
