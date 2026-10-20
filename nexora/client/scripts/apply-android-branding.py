@@ -57,7 +57,8 @@ def main() -> int:
     # splash displays it on the same near-black background as the app theme.
     drawable_dir = res / "drawable"
     drawable_dir.mkdir(parents=True, exist_ok=True)
-    splash = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    # Legacy Android splash: bake the dark background into the bitmap itself so older Android versions never fall back to a blank/white window.
+    splash = Image.new("RGBA", (512, 512), DARK)
     logo_layer = original.copy()
     logo_layer.thumbnail((420, 330), Image.Resampling.LANCZOS)
     splash.alpha_composite(logo_layer, ((512 - logo_layer.width) // 2, 28 + (330 - logo_layer.height) // 2))
@@ -79,6 +80,14 @@ def main() -> int:
     text_width = bounds[2] - bounds[0]
     draw.text(((512 - text_width) // 2, 412), motto, font=font, fill=(245, 247, 255, 255))
     splash.save(drawable_dir / "splash.png", optimize=True)
+
+    # Android 12+ expects a centered icon, not the full legacy poster with a motto.
+    # Keep a separate transparent logo asset so system splash masking cannot crop away the branding.
+    splash_icon = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    icon_logo = original.copy()
+    icon_logo.thumbnail((360, 360), Image.Resampling.LANCZOS)
+    splash_icon.alpha_composite(icon_logo, ((512 - icon_logo.width) // 2, (512 - icon_logo.height) // 2))
+    splash_icon.save(drawable_dir / "splash_icon.png", optimize=True)
 
     foreground_sizes = {"mipmap-mdpi": 108, "mipmap-hdpi": 162, "mipmap-xhdpi": 216,
                         "mipmap-xxhdpi": 324, "mipmap-xxxhdpi": 432}
@@ -172,7 +181,18 @@ def main() -> int:
                 else:
                     body += "\n        " + line
             styles_text = styles_text[:launch_style.start(2)] + body + styles_text[launch_style.end(2):]
-            styles_file.write_text(styles_text, encoding="utf-8")
+        else:
+            # Fail-safe for Capacitor template variations: explicitly create the launch theme
+            # instead of silently shipping the default Capacitor blue/white splash.
+            styles_text = styles_text.replace(
+                "</resources>",
+                '''    <style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/launch_splash</item>
+        <item name="android:background">#07090D</item>
+    </style>
+</resources>''',
+            )
+        styles_file.write_text(styles_text, encoding="utf-8")
     else:
         styles_file.write_text(
             '''<?xml version="1.0" encoding="utf-8"?>
@@ -194,7 +214,7 @@ def main() -> int:
 <resources>
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#07090D</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>
