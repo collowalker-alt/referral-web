@@ -13,7 +13,7 @@ except ImportError as exc:  # pragma: no cover - CI setup installs Pillow
     raise SystemExit(2) from exc
 
 
-def fit_logo(source: Image.Image, size: int, background=(7, 9, 13, 255), inset=0.13) -> Image.Image:
+def fit_logo(source: Image.Image, size: int, background=(7, 86, 201, 255), inset=0.13) -> Image.Image:
     canvas = Image.new("RGBA", (size, size), background)
     image = source.convert("RGBA")
     max_side = max(1, int(size * (1 - 2 * inset)))
@@ -74,10 +74,10 @@ def main() -> int:
     if colors_file.exists():
         content = colors_file.read_text(encoding="utf-8")
         if "nexora_launcher_background" not in content:
-            content = content.replace("</resources>", '    <color name="nexora_launcher_background">#07090D</color>\n</resources>')
+            content = content.replace("</resources>", '    <color name="nexora_launcher_background">#0756C9</color>\n</resources>')
         colors_file.write_text(content, encoding="utf-8")
     else:
-        colors_file.write_text('''<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nexora_launcher_background">#07090D</color>\n</resources>\n''', encoding="utf-8")
+        colors_file.write_text('''<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="nexora_launcher_background">#0756C9</color>\n</resources>\n''', encoding="utf-8")
 
     print("Applied NEXORA launcher icons.")
     return 0
