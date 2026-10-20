@@ -1,6 +1,8 @@
 import React,{useEffect,useState,useRef} from "react";
 import {createRoot} from "react-dom/client";
 import {createPortal} from "react-dom";
+import {App as CapacitorApp} from "@capacitor/app";
+import {Capacitor} from "@capacitor/core";
 import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,ArrowDownLeft,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,ChevronLeft,ChevronRight,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, Info, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot,Mic,Volume2,VolumeX,SendHorizontal,ShoppingBag,MapPinned,ArrowRight,LoaderCircle,MessageSquareText,WalletMinimal,PackageSearch,BadgeCheck,Mail,Wifi,Smartphone,PhoneCall,Zap} from "lucide-react";
 import "./styles.css";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
@@ -1036,6 +1038,48 @@ function AdminApp(){
   usersFetchingRef.current=true;setUsersFetching(true);
   try{await loadSectionData("users",adminRef.current?.role,{userQuery:normalized,silent:true});}catch{}finally{if(requestId===usersRequestRef.current){usersFetchingRef.current=false;setUsersFetching(false);}}
  };
+ const historyNavigationRef=useRef(false),historyInitializedRef=useRef(false);
+ useEffect(()=>{
+  const url=new URL(window.location.href);
+  url.searchParams.set("page",page);
+  if(!historyInitializedRef.current){
+   window.history.replaceState({...window.history.state,nexoraPage:page},"",url);
+   historyInitializedRef.current=true;
+   return;
+  }
+  if(historyNavigationRef.current){historyNavigationRef.current=false;return;}
+  window.history.pushState({...window.history.state,nexoraPage:page},"",url);
+ },[page]);
+ useEffect(()=>{
+  const handlePopState=()=>{
+   const requested=new URLSearchParams(window.location.search).get("page");
+   const next=allowedMemberPages.includes(requested)?requested:"dashboard";
+   historyNavigationRef.current=true;
+   setPage(next);
+   setMobile(false);
+   setInstructions(false);
+   setPayment(null);
+   setReceipt(null);
+   setPhoneModal(null);
+  };
+  window.addEventListener("popstate",handlePopState);
+  return()=>window.removeEventListener("popstate",handlePopState);
+ },[]);
+ useEffect(()=>{
+  if(!Capacitor.isNativePlatform())return;
+  let subscription;
+  CapacitorApp.addListener("backButton",({canGoBack})=>{
+   if(payment){setPayment(null);return;}
+   if(receipt){setReceipt(null);return;}
+   if(phoneModal){setPhoneModal(null);return;}
+   if(instructions){setInstructions(false);return;}
+   if(mobile){setMobile(false);return;}
+   if(page!=="dashboard"){window.history.back();return;}
+   if(canGoBack)window.history.back();
+   else CapacitorApp.exitApp();
+  }).then(handle=>{subscription=handle}).catch(()=>{});
+  return()=>{subscription?.remove()};
+ },[page,payment,receipt,phoneModal,instructions,mobile]);
  const load=async(show=true)=>{
   const currentAdmin=adminRef.current;
   if(currentAdmin?.role){try{await loadSectionData(pageRef.current,currentAdmin.role,{silent:true});}catch{}return;}
@@ -2025,6 +2069,7 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
 }
 function GettingStartedChecklist({me,goPage,profileStrength=0}){
  const [completed,setCompleted]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-getting-started")||"{}")}catch{return {}}});
+ const [expanded,setExpanded]=useState(()=>{try{return localStorage.getItem("nexora-getting-started-expanded")==="1"}catch{return false}});
  const items=[
   {id:"profile",title:"Complete your profile",detail:"Keep your contact and account details up to date.",page:"security",auto:Number(profileStrength)>=100},
   {id:"marketplace",title:"Explore the marketplace",detail:"Discover products and learn how sellers list items.",page:"marketplace",auto:localStorage.getItem("nexora-milestone-market")==="1"},
@@ -2034,11 +2079,20 @@ function GettingStartedChecklist({me,goPage,profileStrength=0}){
  ];
  const doneCount=items.filter(x=>x.auto||completed[x.id]).length;
  const toggle=id=>{setCompleted(old=>{const next={...old,[id]:!old[id]};try{localStorage.setItem("nexora-getting-started",JSON.stringify(next))}catch{}return next})};
- return <section className="panel nx-onboarding" aria-label="Getting started checklist">
-  <div className="nx-onboarding-head"><div><span className="pill">YOUR FIRST STEPS</span><h3>Make the most of NEXORA</h3><p className="muted small">A quick checklist to help you get comfortable with your workspace.</p></div><div className="nx-onboarding-progress"><strong>{doneCount}/{items.length}</strong><span>completed</span></div></div>
-  <div className="nx-onboarding-track"><i style={{width:(doneCount/items.length*100)+"%"}}/></div>
-  <div className="nx-onboarding-list">{items.map(item=>{const done=item.auto||Boolean(completed[item.id]);return <div className={`nx-onboarding-item ${done?"done":""}`} key={item.id}><span className="nx-onboarding-check">{done?<CheckCircle2 size={17}/>:<span/>}</span><div className="nx-onboarding-copy"><b>{item.title}</b><small>{item.detail}</small></div><button type="button" className="secondary narrow" onClick={()=>goPage(item.page)}>Open</button>{!item.auto&&<button type="button" className={`nx-onboarding-mark ${done?"marked":""}`} onClick={()=>toggle(item.id)} aria-label={done?"Mark task incomplete":"Mark task complete"} title={done?"Mark incomplete":"Mark complete"}>{done?<Check size={15}/>:<span/>}</button>}</div>})}</div>
-  <div className="nx-onboarding-foot"><span className="muted small">Your checklist is saved on this device.</span><button type="button" className="secondary narrow" onClick={()=>goPage("activity")}><Activity size={14}/> Activity Centre</button></div>
+ const toggleExpanded=()=>setExpanded(old=>{const next=!old;try{localStorage.setItem("nexora-getting-started-expanded",next?"1":"0")}catch{}return next});
+ return <section className={`panel nx-onboarding ${expanded?"is-expanded":"is-collapsed"}`} aria-label="Getting started checklist">
+  <button type="button" className="nx-onboarding-toggle" onClick={toggleExpanded} aria-expanded={expanded} aria-controls="nx-onboarding-details">
+   <span className="nx-onboarding-toggle-icon"><CheckCircle2 size={18}/></span>
+   <span className="nx-onboarding-toggle-copy"><b>Getting started</b><small>{doneCount} of {items.length} steps completed</small></span>
+   <span className="nx-onboarding-mini-track"><i style={{width:(doneCount/items.length*100)+"%"}}/></span>
+   <span className="nx-onboarding-toggle-count">{doneCount}/{items.length}</span>
+   <ChevronDown className={expanded?"is-rotated":""} size={18}/>
+  </button>
+  {expanded&&<div className="nx-onboarding-details" id="nx-onboarding-details">
+   <div className="nx-onboarding-head"><div><span className="pill">YOUR FIRST STEPS</span><h3>Make the most of NEXORA</h3><p className="muted small">Choose a step to open the relevant feature. You can collapse this checklist any time.</p></div></div>
+   <div className="nx-onboarding-list">{items.map(item=>{const done=item.auto||Boolean(completed[item.id]);return <div className={`nx-onboarding-item ${done?"done":""}`} key={item.id}><span className="nx-onboarding-check">{done?<CheckCircle2 size={17}/>:<span/>}</span><div className="nx-onboarding-copy"><b>{item.title}</b><small>{item.detail}</small></div><button type="button" className="secondary narrow" onClick={()=>goPage(item.page)}>Open</button>{!item.auto&&<button type="button" className={`nx-onboarding-mark ${done?"marked":""}`} onClick={()=>toggle(item.id)} aria-label={done?"Mark task incomplete":"Mark task complete"} title={done?"Mark incomplete":"Mark complete"}>{done?<Check size={15}/>:<span/>}</button>}</div>})}</div>
+   <div className="nx-onboarding-foot"><span className="muted small">Your checklist is saved on this device.</span><button type="button" className="secondary narrow" onClick={()=>goPage("activity")}><Activity size={14}/> Activity Centre</button></div>
+  </div>}
  </section>
 }
 
