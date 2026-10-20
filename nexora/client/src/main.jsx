@@ -1469,6 +1469,39 @@ function Marketplace({me}){
 }
 
 function Community({announcements=[]}){const fallback=[["Welcome to NEXORA","Explore your member workspace, Academy, analytics, referral tools and support center.","WELCOME"],["Learn before you share","Use NEXORA Academy to understand the platform and communicate membership details clearly.","EDUCATION"],["Protect your account","Never share your password or M-Pesa PIN. NEXORA support will not ask for those credentials.","SECURITY"]];const posts=announcements.length?announcements.map(x=>[x.title,x.body,x.category]):fallback;return <section><div className="sectionhead"><div><span className="pill">NEXORA COMMUNITY</span><h1>Community & updates</h1><p className="muted">A calm place for platform announcements, learning reminders and member guidance.</p></div></div><div className="communitygrid">{posts.map(([t,d,c])=><article className="communitypost" key={t}><div className="featureicon"><Megaphone size={20}/></div><small>{c||"PLATFORM UPDATE"}</small><h3>{t}</h3><p>{d}</p><span>Platform guidance →</span></article>)}</div><div className="panel"><h3>Community principles</h3><div className="principles"><span><Check size={15}/> Be transparent</span><span><Check size={15}/> Respect other members</span><span><Check size={15}/> Avoid misleading income claims</span><span><Check size={15}/> Protect private information</span></div></div></section>}
+function ActivityCentrePage({me,transactions=[],notifications=[],tickets=[],analytics,goPage}){
+ const [academyCount,setAcademyCount]=useState(()=>{try{return Object.keys(JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")).length}catch{return 0}});
+ const pending=transactions.filter(x=>String(x.status||"").toUpperCase()==="PENDING");
+ const unread=notifications.filter(x=>!x.read);
+ const openTickets=tickets.filter(x=>String(x.status||"").toUpperCase()!=="CLOSED");
+ const recentTransactions=[...transactions].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,5);
+ const openNotification=async n=>{if(n?.id){try{await api(`/notifications/${n.id}/read`,{method:"POST"})}catch{}}openNexoraNotification(n,goPage)};
+ useEffect(()=>{const refresh=()=>{try{setAcademyCount(Object.keys(JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")).length)}catch{setAcademyCount(0)}};window.addEventListener("storage",refresh);window.addEventListener("nexora-academy-progress",refresh);return()=>{window.removeEventListener("storage",refresh);window.removeEventListener("nexora-academy-progress",refresh)}},[]);
+ return <section className="activity-page">
+  <div className="sectionhead"><div><span className="pill">YOUR NEXORA WORKSPACE</span><h1>Activity Centre</h1><p className="muted">One place to see what needs attention, track progress and jump straight to the right feature.</p></div><button type="button" className="secondary" onClick={()=>window.dispatchEvent(new CustomEvent("nexora-refresh-data"))}><RefreshCw size={15}/> Refresh activity</button></div>
+  <div className="activity-page-grid">
+   <button type="button" className="activity-page-card" onClick={()=>goPage("transactions")}><span><ReceiptText size={18}/></span><small>Pending transactions</small><strong>{pending.length}</strong><em>Review payment status</em></button>
+   <button type="button" className="activity-page-card" onClick={()=>goPage("notifications")}><span><Bell size={18}/></span><small>Unread notifications</small><strong>{unread.length}</strong><em>Read account updates</em></button>
+   <button type="button" className="activity-page-card" onClick={()=>goPage("support")}><span><LifeBuoy size={18}/></span><small>Open support requests</small><strong>{openTickets.length}</strong><em>Check your requests</em></button>
+   <button type="button" className="activity-page-card" onClick={()=>goPage("academy")}><span><GraduationCap size={18}/></span><small>Lessons completed</small><strong>{academyCount}</strong><em>Continue learning</em></button>
+  </div>
+  <div className="activity-page-columns">
+   <div className="panel activity-stream"><div className="paneltitle"><div><span className="pill">RECENT UPDATES</span><h3>Notifications</h3></div><button type="button" className="secondary narrow" onClick={()=>goPage("notifications")}>View all</button></div>
+    {notifications.length?notifications.slice(0,6).map((n,i)=><button type="button" className={`activity-stream-row ${n.read?"":"unread"}`} key={n.id||i} onClick={()=>openNotification(n)}><span className="activity-stream-icon"><Bell size={15}/></span><span className="activity-stream-copy"><b>{n.title||"NEXORA update"}</b><small>{n.message||n.body||"Open to view this update."}</small><em>{n.createdAt?new Date(n.createdAt).toLocaleString():"Account notification"}</em></span><ArrowUpRight size={15}/></button>):<div className="smartempty"><p className="muted">You're all caught up. New account updates will appear here.</p></div>}
+   </div>
+   <div className="panel activity-stream"><div className="paneltitle"><div><span className="pill">ACCOUNT RECORDS</span><h3>Recent transactions</h3></div><button type="button" className="secondary narrow" onClick={()=>goPage("transactions")}>View all</button></div>
+    {recentTransactions.length?recentTransactions.map((x,i)=><button type="button" className="activity-stream-row" key={x.id||x.reference||i} onClick={()=>goPage("transactions")}><span className="activity-stream-icon"><ReceiptText size={15}/></span><span className="activity-stream-copy"><b>{String(x.type||"Transaction").replaceAll("_"," ")}</b><small>{x.reference||"Reference unavailable"} · {String(x.status||"UNKNOWN").replaceAll("_"," ")}</small><em>{x.createdAt?new Date(x.createdAt).toLocaleString():"Date unavailable"}</em></span><strong>{money(x.amount)}</strong></button>):<div className="smartempty"><p className="muted">No transaction records yet.</p><button type="button" className="primary narrow" onClick={()=>goPage("wallet")}>Open wallet</button></div>}
+   </div>
+  </div>
+  <div className="panel activity-stream"><div className="paneltitle"><div><span className="pill">NEXT STEPS</span><h3>Items that may need your attention</h3></div></div>
+   {pending.length>0&&<button type="button" className="activity-stream-row attention" onClick={()=>goPage("transactions")}><span className="activity-stream-icon"><Clock3 size={15}/></span><span className="activity-stream-copy"><b>{pending.length} pending payment{pending.length===1?"":"s"}</b><small>Check the existing reference before retrying a payment. Pending does not mean paid.</small></span><ArrowUpRight size={15}/></button>}
+   {openTickets.length>0&&<button type="button" className="activity-stream-row attention" onClick={()=>goPage("support")}><span className="activity-stream-icon"><LifeBuoy size={15}/></span><span className="activity-stream-copy"><b>{openTickets.length} support request{openTickets.length===1?"":"s"} still open</b><small>Review the latest status or reply from the support team.</small></span><ArrowUpRight size={15}/></button>}
+   {!pending.length&&!openTickets.length&&<p className="muted">No urgent items are currently recorded. You can explore the marketplace, continue learning or review your account analytics.</p>}
+   <div className="activity-page-actions"><button type="button" className="secondary" onClick={()=>goPage("marketplace")}><Store size={15}/> Marketplace</button><button type="button" className="secondary" onClick={()=>goPage("referrals")}><TrendingUp size={15}/> Earn &amp; referrals</button><button type="button" className="secondary" onClick={()=>goPage("academy")}><GraduationCap size={15}/> Academy</button><button type="button" className="secondary" onClick={()=>goPage("security")}><Shield size={15}/> Profile &amp; security</button></div>
+  </div>
+ </section>
+}
+
 function NotificationsCenter({me,analytics,tickets}){const notes=[];if(me.package)notes.push({I:CheckCircle2,t:"Membership active",d:`Your ${me.package.name} plan is active.`});else notes.push({I:PackageIcon,t:"Explore membership",d:"Review the membership plans and benefits when you're ready."});if((analytics?.month?.directReferrals||0)<5)notes.push({I:Target,t:"Monthly activity goal",d:`${5-(analytics?.month?.directReferrals||0)} direct referral(s) remaining for the current activity goal.`});if(tickets?.some(x=>x.status!=="CLOSED"))notes.push({I:LifeBuoy,t:"Support ticket open",d:"You have an active support request. Check Help & Support for replies."});if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push({I:Clock3,t:"Payment awaiting confirmation",d:"A plan payment is still pending. Open Transactions to check it."});return <section><div className="sectionhead"><div><span className="pill">NOTIFICATION CENTER</span><h1>Stay up to date</h1><p className="muted">Useful account reminders and platform activity in one place.</p></div></div><PushNotificationToggle audience="member"/><div className="notificationcenter">{notes.map((n,i)=><div className="notification large" key={i}><n.I size={20}/><div><b>{n.t}</b><p>{n.d}</p><small>Account update</small></div></div>)}</div><div className="panel"><h3>Notification guidance</h3><p className="muted">NEXORA notifications describe recorded account activity and useful reminders. They do not represent guaranteed earnings or future financial outcomes. Phone alerts require your permission and can be switched off per device.</p></div></section>}
 
 function NexoraPageTransition({label="Opening workspace…"}){
@@ -1484,7 +1517,7 @@ function NexoraPageTransition({label="Opening workspace…"}){
 function App(){
  const path=window.location.pathname || "/";
  const requestedMemberPage=new URLSearchParams(window.location.search).get("page");
- const allowedMemberPages=["dashboard","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","leaderboard","challenges","support","security"];
+ const allowedMemberPages=["dashboard","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","activity","leaderboard","challenges","support","security"];
  const memberInitialPage=allowedMemberPages.includes(requestedMemberPage)?requestedMemberPage:"dashboard";
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false);
  const load=async(show=true)=>{
@@ -1580,6 +1613,14 @@ function App(){
   stream.addEventListener("refresh",onRefresh);
   return()=>{stream.removeEventListener("refresh",onRefresh);stream.close()};
  },[!!me]);
+ useEffect(()=>{
+  if(!me||!networkOnline)return;
+  const refreshVisible=()=>{if(document.visibilityState==="visible"&&typeof navigator!=="undefined"&&navigator.onLine)load(false)};
+  const timer=window.setInterval(refreshVisible,60000);
+  document.addEventListener("visibilitychange",refreshVisible);
+  window.addEventListener("nexora-refresh-data",refreshVisible);
+  return()=>{window.clearInterval(timer);document.removeEventListener("visibilitychange",refreshVisible);window.removeEventListener("nexora-refresh-data",refreshVisible)};
+ },[!!me,networkOnline]);
  useEffect(()=>{if(!me)return;setPageTransition(true);const timer=setTimeout(()=>setPageTransition(false),620);return()=>clearTimeout(timer)},[page]);
  useEffect(()=>{const fn=e=>{const page=e.detail?.page;if(page)setPage(page)};window.addEventListener("nexora-go-page",fn);return()=>window.removeEventListener("nexora-go-page",fn)},[]);
  // IMPORTANT: all App hooks above must run on every render. Route-specific returns
@@ -1589,7 +1630,7 @@ function App(){
  if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
  if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
  const nav=[
-  ["dashboard","Home",BarChart3],["marketplace","🛒 Shop & Marketplace",Store],["connect","NEXORA Connect",Wifi],["wallet","Wallet & Payments",WalletCards],["transfer","Send Money",SendHorizontal],["services","NEXORA Services",Wrench],["transactions","Orders & Transactions",History],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
+  ["dashboard","Home",BarChart3],["marketplace","🛒 Shop & Marketplace",Store],["connect","NEXORA Connect",Wifi],["wallet","Wallet & Payments",WalletCards],["transfer","Send Money",SendHorizontal],["services","NEXORA Services",Wrench],["transactions","Orders & Transactions",History],["activity","Activity Centre",Activity],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield]
  ];
  const primaryNavIds=new Set(["dashboard","marketplace","connect","wallet","transactions"]);
  const startPayment=async(phone,pkg)=>{
@@ -1671,7 +1712,7 @@ function App(){
  {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><button type="button" className="info-chip" onClick={()=>window.open("/membership","_blank","noopener")}>Plan required · view rules</button><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
- {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="notifications"&&<NotificationsCenter me={me} analytics={analytics} tickets={tickets}/>} 
+ {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="activity"&&<ActivityCentrePage me={me} transactions={transactions} notifications={notifications} tickets={tickets} analytics={analytics} goPage={setPage}/>} {page==="notifications"&&<NotificationsCenter me={me} analytics={analytics} tickets={tickets}/>} 
  {page==="academy"&&<Academy/>} 
  {page==="leaderboard"&&<Leaderboard rows={leaderboard}/>} 
  {page==="challenges"&&<Challenges referrals={referrals} earnings={earnings}/>} 
@@ -1982,6 +2023,25 @@ function GamificationPanel({me,analytics,goPage,profileStrength}){
  const done=milestones.filter(x=>x.value).length; const pct=Math.round(done/milestones.length*100);
  return <div className="panel gamification"><div className="paneltitle"><div><span className="pill">MEMBER MILESTONES</span><h3><Trophy size={17}/> Your progress</h3></div><strong>{done}/{milestones.length}</strong></div><div className="levelrow"><div className="levelbadge"><Crown size={18}/></div><div><b>{done>=4?"NEXORA Champion":done>=2?"NEXORA Builder":"NEXORA Starter"}</b><small>Complete useful actions to unlock milestones.</small></div><span>{pct}%</span></div><div className="progress"><i style={{width:`${pct}%`}}/></div><div className="milestonerow">{milestones.map((m,i)=><button key={i} className={`milestone ${m.value?"done":""}`} onClick={m.action}><span>{m.value?<CheckCircle2 size={15}/>:<Target size={15}/>}</span><b>{m.label}</b><ArrowUpRight size={12}/></button>)}</div></div>
 }
+function GettingStartedChecklist({me,goPage,profileStrength=0}){
+ const [completed,setCompleted]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-getting-started")||"{}")}catch{return {}}});
+ const items=[
+  {id:"profile",title:"Complete your profile",detail:"Keep your contact and account details up to date.",page:"security",auto:Number(profileStrength)>=100},
+  {id:"marketplace",title:"Explore the marketplace",detail:"Discover products and learn how sellers list items.",page:"marketplace",auto:localStorage.getItem("nexora-milestone-market")==="1"},
+  {id:"wallet",title:"Review your wallet",detail:"Understand your available balance and transaction records.",page:"wallet",auto:false},
+  {id:"academy",title:"Start a lesson",detail:"Learn the main NEXORA features in the Academy.",page:"academy",auto:false},
+  {id:"plan",title:"Review membership and earning rules",detail:"Check the current plan benefits before choosing a plan.",page:"referrals",auto:Boolean(me?.package)}
+ ];
+ const doneCount=items.filter(x=>x.auto||completed[x.id]).length;
+ const toggle=id=>{setCompleted(old=>{const next={...old,[id]:!old[id]};try{localStorage.setItem("nexora-getting-started",JSON.stringify(next))}catch{}return next})};
+ return <section className="panel nx-onboarding" aria-label="Getting started checklist">
+  <div className="nx-onboarding-head"><div><span className="pill">YOUR FIRST STEPS</span><h3>Make the most of NEXORA</h3><p className="muted small">A quick checklist to help you get comfortable with your workspace.</p></div><div className="nx-onboarding-progress"><strong>{doneCount}/{items.length}</strong><span>completed</span></div></div>
+  <div className="nx-onboarding-track"><i style={{width:(doneCount/items.length*100)+"%"}}/></div>
+  <div className="nx-onboarding-list">{items.map(item=>{const done=item.auto||Boolean(completed[item.id]);return <div className={`nx-onboarding-item ${done?"done":""}`} key={item.id}><span className="nx-onboarding-check">{done?<CheckCircle2 size={17}/>:<span/>}</span><div className="nx-onboarding-copy"><b>{item.title}</b><small>{item.detail}</small></div><button type="button" className="secondary narrow" onClick={()=>goPage(item.page)}>Open</button>{!item.auto&&<button type="button" className={`nx-onboarding-mark ${done?"marked":""}`} onClick={()=>toggle(item.id)} aria-label={done?"Mark task incomplete":"Mark task complete"} title={done?"Mark incomplete":"Mark complete"}>{done?<Check size={15}/>:<span/>}</button>}</div>})}</div>
+  <div className="nx-onboarding-foot"><span className="muted small">Your checklist is saved on this device.</span><button type="button" className="secondary narrow" onClick={()=>goPage("activity")}><Activity size={14}/> Activity Centre</button></div>
+ </section>
+}
+
 function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load,paymentConfig={}}){
  const ptrRef=usePullToRefresh(()=>load&&load(false));
  const [depositOpen,setDepositOpen]=useState(false);
@@ -2006,6 +2066,7 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
   {label:"Wallet",hint:"Balance & payments",icon:WalletCards,action:()=>goPage("wallet"),tone:"mint"},
   {label:"Transactions",hint:"Payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
   {label:"Academy",hint:"Learn marketplace skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
+  {label:"Activity Centre",hint:"Updates & next steps",icon:Activity,action:()=>goPage("activity"),tone:"indigo"},
   {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"gold"}
  ];
  const nextAction=pendingPayments
@@ -2049,6 +2110,8 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
     </div>
    </div>
   </section>
+
+  <GettingStartedChecklist me={me} goPage={goPage} profileStrength={profileStrength}/>
 
   <div className="shopcategorybar panel">
    <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
@@ -2180,7 +2243,7 @@ function Marketing({me,copy,copyCode,copiedKind,share}){
 
 function Academy(){
  const [selected,setSelected]=useState(null),[completed,setCompleted]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")}catch{return {}}}),[lessonNotice,setLessonNotice]=useState("");
- const finishLesson=(lesson)=>{const next={...completed,[lesson.title]:new Date().toISOString()};setCompleted(next);try{localStorage.setItem("nexora-academy-completed",JSON.stringify(next))}catch{}setSelected(null);setLessonNotice(`Lesson finished: ${lesson.title}`);};
+ const finishLesson=(lesson)=>{const next={...completed,[lesson.title]:new Date().toISOString()};setCompleted(next);try{localStorage.setItem("nexora-academy-completed",JSON.stringify(next))}catch{}window.dispatchEvent(new CustomEvent("nexora-academy-progress"));setSelected(null);setLessonNotice(`Lesson finished: ${lesson.title}`);};
  const lessons=[
   {title:'NEXORA & your member workspace',level:'START HERE',time:'5 min',text:'Learn how the main areas of NEXORA fit together and where to find the information you need.',sections:[['What you will learn','How Dashboard, Earn (plans & referrals), Analytics, Marketing Center, Wallet, Transactions, Support and Security work together.'],['Your first steps','Complete your profile, review your plan information, check your wallet and learn where your transaction records appear.'],['Good habit','Read the platform information before taking action. Keep your login details private and contact Support when something is unclear.']],takeaway:'Use NEXORA as a workspace for learning, tracking activity and managing your account—not as a promise of income.'},
   {title:'NEXORA Marketplace: buy & sell',level:'MARKETPLACE',time:'9 min',text:'Learn how to list products, shop safely, manage orders and communicate with buyers or sellers.',sections:[['Create a strong listing','Use clear photos, an accurate title, detailed description, price, stock and pickup/delivery location.'],['Buying','Search by product, category or location, add products to your cart, confirm delivery details and choose an available payment method.'],['Selling responsibly','Only list items you are authorized to sell. Be honest about condition, stock, warranties and delivery. Never upload prohibited or counterfeit goods.'],['Order management','Use Orders to track purchases and customer orders. Update statuses as an order moves from pending to confirmed, processing, shipped and delivered. Buyers can review completed purchases and report an order issue through the dispute process.']],takeaway:'A trustworthy marketplace depends on accurate listings, clear communication, secure payments and reliable fulfillment.'},
