@@ -94,7 +94,7 @@ def main() -> int:
     if styles_file.exists():
         styles_text = styles_file.read_text(encoding="utf-8")
         launch_style = re.search(
-            r'(<style\s+name=["\']AppTheme\.NoActionBarLaunch["\'][^>]*>)(.*?)(</style>)',
+            r"(<style\s+name=['\"]AppTheme\.NoActionBarLaunch['\"][^>]*>)(.*?)(</style>)",
             styles_text,
             flags=re.DOTALL,
         )
