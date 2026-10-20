@@ -1560,6 +1560,39 @@ function NexoraPageTransition({label="Opening workspace…"}){
 }
 
 function App(){
+ // Check the published APK manifest on native installs. Installation is offered only after signing is configured.
+ useEffect(()=>{
+  if(!Capacitor.isNativePlatform())return;
+  let cancelled=false;
+  const checkForAppUpdate=async()=>{
+   try{
+    const [info,response]=await Promise.all([
+     CapacitorApp.getInfo(),
+     fetch(`/app-version.json?check=${Date.now()}`,{cache:"no-store",headers:{"Cache-Control":"no-cache"}})
+    ]);
+    if(!response.ok)return;
+    const latest=await response.json();
+    if(cancelled||!latest||latest.updateReady!==true||!Number.isFinite(Number(latest.versionCode)))return;
+    const installedBuild=Number(info.build||0);
+    const latestBuild=Number(latest.versionCode);
+    if(latestBuild<=installedBuild)return;
+    const dismissedKey=`nexora-update-dismissed-${latestBuild}`;
+    if(sessionStorage.getItem(dismissedKey)==="1")return;
+    const accepted=window.confirm(`A new NEXORA update (version ${latest.versionName||latestBuild}) is available.\\n\\nDownload it now? Android may ask you to approve installation.`);
+    if(!accepted){sessionStorage.setItem(dismissedKey,"1");return;}
+    const apkUrl=new URL(latest.apkUrl||"/downloads/nexora-android.apk",window.location.origin).href;
+    const link=document.createElement("a");
+    link.href=apkUrl;link.download="NEXORA-update.apk";link.rel="noopener";link.style.display="none";
+    document.body.appendChild(link);link.click();link.remove();
+    window.setTimeout(()=>window.alert("If the APK downloaded, open it and tap Install to complete the update. Android may ask you to allow installs from your download app."),900);
+   }catch(err){console.warn("NEXORA update check unavailable",err);}
+  };
+  checkForAppUpdate();
+  const timer=window.setInterval(checkForAppUpdate,6*60*60*1000);
+  const onVisible=()=>{if(document.visibilityState==="visible")checkForAppUpdate();};
+  document.addEventListener("visibilitychange",onVisible);
+  return()=>{cancelled=true;window.clearInterval(timer);document.removeEventListener("visibilitychange",onVisible);};
+ },[]);
  const path=window.location.pathname || "/";
  const requestedMemberPage=new URLSearchParams(window.location.search).get("page");
  const allowedMemberPages=["dashboard","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","activity","leaderboard","challenges","support","security"];
