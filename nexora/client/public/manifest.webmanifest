@@ -7,8 +7,8 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#07090d",
-  "theme_color": "#0b0d12",
+  "background_color": "#0756C9",
+  "theme_color": "#0756C9",
   "lang": "en",
   "categories": ["business", "education", "productivity"],
   "icons": [
