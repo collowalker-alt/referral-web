@@ -5673,3 +5673,35 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
   .receiptmodal .modalfoot,.receiptmodal .iconbtn{display:none!important;visibility:hidden!important;}
   .modalbackdrop::before,.receiptmodal::before,.receiptmodal::after{display:none!important;content:none!important;}
 }
+
+
+/* Searchable, page-aware NEXORA tutorial centre */
+.modal.instructions{width:min(1040px,96vw);max-width:1040px;max-height:92vh;overflow:hidden}
+.modal.instructions .modalhead{flex-shrink:0}
+.tutorial-search{display:flex;align-items:center;gap:10px;margin:0 18px 12px;padding:11px 13px;border:1px solid #29405e;border-radius:12px;background:#0b182a;color:#91a7c3}
+.tutorial-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#edf5ff;font:inherit}
+.tutorial-search input::placeholder{color:#8195af}
+.tutorial-layout{display:grid;grid-template-columns:minmax(205px, .75fr) minmax(0,1.7fr);gap:14px;min-height:0;overflow:hidden;padding:0 18px 14px}
+.tutorial-list{display:flex;flex-direction:column;gap:6px;min-height:0;max-height:55vh;overflow:auto;padding-right:4px}
+.tutorial-topic{display:flex;align-items:center;gap:9px;text-align:left;width:100%;border:1px solid transparent;border-radius:10px;padding:10px;background:rgba(15,34,57,.68);color:#dce8f7;cursor:pointer;font:inherit;font-size:13px}
+.tutorial-topic span:nth-child(2){flex:1}
+.tutorial-topic.active{border-color:#4188e8;background:rgba(37,99,235,.18);color:#fff}
+.tutorial-content{min-height:0;max-height:55vh;overflow:auto;border:1px solid #203854;border-radius:14px;padding:18px;background:rgba(7,19,34,.62)}
+.tutorial-content h3{margin:12px 0 7px;font-size:21px}
+.tutorial-content ol{display:flex;flex-direction:column;gap:12px;padding:0;margin:18px 0;list-style:none}
+.tutorial-content li{display:flex;align-items:flex-start;gap:11px;line-height:1.55;color:#dce8f7}
+.tutorial-step-number{display:inline-flex;align-items:center;justify-content:center;flex:0 0 27px;width:27px;height:27px;border-radius:50%;background:#173c67;color:#cfe5ff;font-weight:800;font-size:12px}
+.tutorial-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
+.tutorial-actions button{display:inline-flex;align-items:center;gap:8px}
+.modal.instructions .modalfoot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+@media(max-width:680px){
+ .modal.instructions{width:96vw;max-height:94dvh}
+ .tutorial-layout{grid-template-columns:minmax(0,1fr);gap:10px;padding:0 12px 12px}
+ .tutorial-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:22vh;gap:6px}
+ .tutorial-topic{padding:9px 8px;font-size:12px;gap:6px}
+ .tutorial-topic svg{display:none}
+ .tutorial-content{max-height:42vh;padding:14px}
+ .tutorial-content h3{font-size:18px}
+ .tutorial-search{margin:0 12px 10px}
+ .modal.instructions .modalfoot{padding:12px}
+}
