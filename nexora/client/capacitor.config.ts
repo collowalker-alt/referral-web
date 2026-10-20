@@ -5,7 +5,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
  *
  * The Android app loads the live NEXORA website so deployed frontend updates
  * become available in the installed app without reinstalling the APK.
- * Native Android changes (plugins, permissions, icon) still require a rebuild.
+ * Native Android changes (plugins, permissions, icon and launch screen) require a rebuild.
  */
 const config: CapacitorConfig = {
   appId: "com.nexora.member",
@@ -17,19 +17,19 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1400,
-      backgroundColor: "#0756C9",
+      launchShowDuration: 1800,
+      backgroundColor: "#07090D",
       showSpinner: false,
       androidScaleType: "CENTER",
     },
     StatusBar: {
       style: "LIGHT",
-      backgroundColor: "#0756C9",
+      backgroundColor: "#07090D",
     },
   },
   android: {
     allowMixedContent: false,
-    backgroundColor: "#0756C9",
+    backgroundColor: "#07090D",
   },
 };
 
