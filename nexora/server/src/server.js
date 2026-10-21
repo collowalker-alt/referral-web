@@ -1838,7 +1838,7 @@ app.get("/api/admin/reconciliation",adminAuth,requireAdminRole("SUPER_ADMIN","AD
     res.json({ok:true,readOnly:true,generatedAt:now.toISOString(),periods:{today:dayStart.toISOString(),last24Hours:last24h.toISOString(),last7Days:last7d.toISOString()},transactionsToday:todayTransactions.map(x=>({status:x.status,type:x.type,count:Number(x._count?._all||0),amount:Number(x._sum?.amount||0)})),transactionsLast24Hours:sumRows(dayTransactions),withdrawalsToday:withdrawalGroups.map(x=>({status:x.status,count:Number(x._count?._all||0),amount:Number(x._sum?.amount||0)})),commissionsToday:{count:Number(commissionTotal._count?._all||0),amount:Number(commissionTotal._sum?.amount||0)},growth:{newMembersLast7Days:last7dUsers,successfulPackagePurchasesLast7Days:Number(last7dPackages._count?._all||0),successfulPackageAmountLast7Days:Number(last7dPackages._sum?.amount||0)},disclaimer:"Internal database snapshot only. This does not prove provider settlement or bank balance; match provider statements and wallet ledger before making adjustments."});
   }catch(e){console.error("[DAILY RECONCILIATION]",e);res.status(500).json({message:"Unable to build the reconciliation snapshot."});}
 });
-app.get("/api/admin/universal-search",adminAuth,async(req,res)=>{
+app.get("/api/admin/universal-search",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const q=String(req.query.q||"").trim().slice(0,100);
     if(q.length<2)return res.json({query:q,results:[]});
