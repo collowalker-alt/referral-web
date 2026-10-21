@@ -79,7 +79,13 @@ app.use("/api/admin", (req, res, next) => {
 app.use("/api/auth", rateLimit({ windowMs: 15*60*1000, max: 80 }));
 const registerLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, message: { message: "Too many registration attempts. Please try again later." } });
 const forgotLimiter = rateLimit({ windowMs: 60*60*1000, max: 8, message: { message: "Too many password reset requests. Please try again later." } });
-const adminLoginLimiter = rateLimit({ windowMs: 15*60*1000, max: 12, message: { message: "Too many administrator login attempts. Please wait before trying again." } });
+const adminLoginLimiter = rateLimit({ windowMs: 15*60*1000, max: 12, standardHeaders: true, legacyHeaders: false, message: { message: "Too many administrator login attempts. Please wait before trying again." } });
+// Independent throttles protect money-moving and user-generated-content endpoints from bursts.
+const memberLoginLimiter = rateLimit({ windowMs: 15*60*1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { message: "Too many sign-in attempts. Please wait a few minutes before trying again." } });
+const paymentActionLimiter = rateLimit({ windowMs: 10*60*1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { message: "Too many payment attempts in a short period. Check your transaction history before trying again." } });
+const adSubmissionLimiter = rateLimit({ windowMs: 60*60*1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { message: "Too many advertising submissions. Please try again later." } });
+const serviceRequestLimiter = rateLimit({ windowMs: 60*60*1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { message: "Too many project requests. Please try again later." } });
+const listingLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, standardHeaders: true, legacyHeaders: false, message: { message: "Too many product listings. Please try again later." } });
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || "change-me";
@@ -890,7 +896,7 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
   } catch(e){ console.error(e); res.status(500).json({message:"Registration failed"}); }
 });
 
-app.post("/api/auth/login", async (req,res)=>{
+app.post("/api/auth/login", memberLoginLimiter, async (req,res)=>{
   try {
     const {email,password}=req.body;
     const user=await prisma.user.findUnique({where:{email:String(email||"").toLowerCase()}});
@@ -981,8 +987,8 @@ app.get("/api/ad-products",auth,async(req,res)=>{
   try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Products & Advertising is available only to Premium members."});res.json(await prisma.adProduct.findMany({where:{active:true},orderBy:{createdAt:"desc"}}));}
   catch(e){console.error(e);res.status(500).json({message:"Unable to load advertising products"});}
 });
-app.post("/api/ad-products/:id/submit",auth,async(req,res)=>{
-  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Only Premium members can submit advertising campaigns."});const product=await prisma.adProduct.findFirst({where:{id:req.params.id,active:true}});if(!product)return res.status(404).json({message:"Advertising product not found"});const postUrl=String(req.body?.postUrl||"").trim(),proofUrl=String(req.body?.proofUrl||"").trim()||null,postMediaData=String(req.body?.postMediaData||"").trim()||null,postMediaName=String(req.body?.postMediaName||"").trim()||null,postMediaType=String(req.body?.postMediaType||"").trim()||null,views=Math.max(0,Math.floor(Number(req.body?.views||0))),engagements=Math.max(0,Math.floor(Number(req.body?.engagements||0)));if(!/^https?:\/\//i.test(postUrl))return res.status(400).json({message:"Enter a valid public post or status URL."});if(!Number.isFinite(views)||!Number.isFinite(engagements))return res.status(400).json({message:"Views and engagements must be valid numbers."});if(postMediaData && postMediaData.length>11000000)return res.status(400).json({message:"Post media is too large. Please use an image/video under 8 MB."});if(postMediaData && !/^data:(image\/|video\/)/i.test(postMediaData))return res.status(400).json({message:"Post media must be an image or video."});const calculatedPay=Math.floor((views/1000)*Number(product.viewRatePer1000||0)+(engagements*Number(product.engagementRate||0)));const sub=await prisma.adSubmission.create({data:{userId:u.id,productId:product.id,postUrl,postMediaData,postMediaName,postMediaType,proofUrl,views,engagements,calculatedPay}});res.json({message:"Advertising performance submitted for review. Approved payouts are processed on Friday.",submission:sub});}
+app.post("/api/ad-products/:id/submit",auth,adSubmissionLimiter,async(req,res)=>{
+  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Only Premium members can submit advertising campaigns."});const product=await prisma.adProduct.findFirst({where:{id:req.params.id,active:true}});if(!product)return res.status(404).json({message:"Advertising product not found"});const postUrl=String(req.body?.postUrl||"").trim(),proofUrl=String(req.body?.proofUrl||"").trim()||null,postMediaData=String(req.body?.postMediaData||"").trim()||null,postMediaName=String(req.body?.postMediaName||"").trim()||null,postMediaType=String(req.body?.postMediaType||"").trim()||null,views=Math.max(0,Math.floor(Number(req.body?.views||0))),engagements=Math.max(0,Math.floor(Number(req.body?.engagements||0)));if(!/^https?:\/\//i.test(postUrl))return res.status(400).json({message:"Enter a valid public post or status URL."});if(!Number.isFinite(views)||!Number.isFinite(engagements))return res.status(400).json({message:"Views and engagements must be valid numbers."});if(postMediaData && postMediaData.length>11000000)return res.status(400).json({message:"Post media is too large. Please use an image/video under 8 MB."});if(postMediaData && !/^data:(image\/|video\/)/i.test(postMediaData))return res.status(400).json({message:"Post media must be an image or video."});if(views>10000000||engagements>1000000)return res.status(400).json({message:"The submitted performance figures are unusually high. Please check them and contact support if they are correct."});if(!postMediaData&&!proofUrl)return res.status(400).json({message:"Please attach the post media or provide a proof link along with the public post URL."});const weekAgo=new Date(Date.now()-7*24*60*60*1000);const recentSubmissions=await prisma.adSubmission.findMany({where:{userId:u.id,submittedAt:{gte:weekAgo}},select:{postUrl:true},take:10});if(recentSubmissions.length>=2)return res.status(429).json({message:"Advertising submissions are limited to two per rolling 7-day period. Your next submission will be available after an earlier submission leaves that window."});if(recentSubmissions.some(row=>String(row.postUrl).replace(/\\/$/,"")===postUrl.replace(/\\/$/,"")))return res.status(409).json({message:"This post URL has already been submitted recently. Please check your advertising history."});const calculatedPay=Math.floor((views/1000)*Number(product.viewRatePer1000||0)+(engagements*Number(product.engagementRate||0)));const sub=await prisma.adSubmission.create({data:{userId:u.id,productId:product.id,postUrl,postMediaData,postMediaName,postMediaType,proofUrl,views,engagements,calculatedPay}});res.json({message:"Advertising performance submitted for review. Approved payouts are processed on Friday.",submission:sub});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to submit advertising performance"});}
 });
 app.get("/api/ad-submissions",auth,async(req,res)=>{try{res.json(await prisma.adSubmission.findMany({where:{userId:req.user.id},include:{product:true},orderBy:{submittedAt:"desc"},take:50}));}catch(e){res.status(500).json({message:"Unable to load advertising submissions"});}});
@@ -1023,7 +1029,7 @@ app.get("/api/marketplace/products",auth,async(req,res)=>{
   }catch(e){console.error(e);res.status(500).json({message:"Unable to load marketplace products"});}
 });
 app.get("/api/marketplace/my-products",auth,async(req,res)=>{try{res.json(await prisma.product.findMany({where:{sellerId:req.user.id},orderBy:{createdAt:"desc"}}));}catch(e){res.status(500).json({message:"Unable to load your products"});}});
-app.post("/api/marketplace/products",auth,async(req,res)=>{
+app.post("/api/marketplace/products",auth,listingLimiter,async(req,res)=>{
   try{
     const title=cleanMarketplaceText(req.body?.title,120),description=cleanMarketplaceText(req.body?.description,5000),category=cleanMarketplaceText(req.body?.category,80)||"Other",location=cleanMarketplaceText(req.body?.location,160),phone=cleanMarketplaceText(req.body?.phone,20)||req.user.phone,price=Math.floor(Number(req.body?.price)),stock=Math.floor(Number(req.body?.stock||1));
     const images=Array.isArray(req.body?.images)?req.body.images.filter(marketplaceImageOk).slice(0,6):[];
@@ -1247,7 +1253,7 @@ app.get("/api/transactions",auth,async(req,res)=>{
   catch(e){console.error(e);res.status(500).json({message:"Unable to load transactions"});}
 });
 
-app.post("/api/payments/initialize",auth,async(req,res)=>{
+app.post("/api/payments/initialize",auth,paymentActionLimiter,async(req,res)=>{
   const startedAt=Date.now();
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
@@ -1358,7 +1364,7 @@ app.post("/api/payments/wallet-purchase",auth,async(req,res)=>{
 
 
 // Start a paybill payment: creates PENDING tx and returns paybill instructions
-app.post("/api/payments/paybill/initiate",auth,async(req,res)=>{
+app.post("/api/payments/paybill/initiate",auth,paymentActionLimiter,async(req,res)=>{
   try{
     const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
     if(member?.countryCode!=="KE") return res.status(403).json({message:"Payment methods are coming soon for your country. Kenya accounts currently use Co-op Bank Paybill."});
@@ -1557,7 +1563,9 @@ async function activatePaidPackage(reference){
     if(parent){
       if(!parent.packageId || (await db.package.findUnique({where:{id:parent.packageId}}))?.tier >= pkg.tier){
         const c1=pkg.directCommission;
-        await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:`C1-${reference}`}});
+        const commissionRef=`C1-${reference}`;
+        await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:commissionRef}});
+        await db.transaction.create({data:{userId:parent.id,type:"COMMISSION",amount:c1,status:"SUCCESS",reference:`LEDGER-${commissionRef}`,metadata:{commissionReference:commissionRef,sourceUserId:buyer.id,source:"REFERRAL",level:1,qualifyingPurchaseReference:reference}}});
         await db.wallet.update({where:{userId:parent.id},data:{balance:{increment:c1},totalEarned:{increment:c1}}});
       }
     }
@@ -1566,7 +1574,9 @@ async function activatePaidPackage(reference){
       const grandPkg=grand?.packageId?await db.package.findUnique({where:{id:grand.packageId}}):null;
       if(grand&&grandPkg&&grandPkg.tier>=pkg.tier){
         const c2=pkg.level2Commission;
-        await db.commission.create({data:{receiverId:grand.id,sourceUserId:buyer.id,level:2,amount:c2,reference:`C2-${reference}`}});
+        const commissionRef=`C2-${reference}`;
+        await db.commission.create({data:{receiverId:grand.id,sourceUserId:buyer.id,level:2,amount:c2,reference:commissionRef}});
+        await db.transaction.create({data:{userId:grand.id,type:"COMMISSION",amount:c2,status:"SUCCESS",reference:`LEDGER-${commissionRef}`,metadata:{commissionReference:commissionRef,sourceUserId:buyer.id,source:"REFERRAL",level:2,qualifyingPurchaseReference:reference}}});
         await db.wallet.update({where:{userId:grand.id},data:{balance:{increment:c2},totalEarned:{increment:c2}}});
       }
     }
@@ -2147,7 +2157,7 @@ app.get("/api/withdrawals",auth,async(req,res)=>{
   }catch(e){console.error("[MEMBER WITHDRAWAL HISTORY]",e);res.status(500).json({message:"Unable to load withdrawal history"});}
 });
 
-app.post("/api/withdrawals",auth,async(req,res)=>{
+app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
   try{
     // The amount typed by a member is the TOTAL removed from their wallet.
     // NEXORA's 5% fee and Paystack's applicable M-PESA transfer fee are both
@@ -2205,7 +2215,7 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
 });
 
 // Wallet deposits via Paystack M-Pesa STK Push.
-app.post("/api/wallet/deposit/initiate",auth,async(req,res)=>{
+app.post("/api/wallet/deposit/initiate",auth,paymentActionLimiter,async(req,res)=>{
   const startedAt=Date.now();
   try{
     if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
@@ -2472,7 +2482,7 @@ app.get('/api/service-requests',auth,async(req,res)=>{
   catch(e){res.status(500).json({message:'Unable to load your service requests'});}
 });
 
-app.post('/api/service-requests',auth,async(req,res)=>{
+app.post('/api/service-requests',auth,serviceRequestLimiter,async(req,res)=>{
   try{
     // Repair/verify the legacy ServiceRequest table immediately before an insert.
     // This protects deployments whose database was created by an older NEXORA build.
