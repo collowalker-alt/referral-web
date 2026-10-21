@@ -62,6 +62,7 @@ model User {
   commissionsFrom   Commission[] @relation("CommissionSource")
   withdrawals       Withdrawal[]
   supportTickets    SupportTicket[]
+  announcementReads AnnouncementRead[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   adSubmissions     AdSubmission[]
@@ -201,10 +202,30 @@ model Announcement {
   body      String
   category  String   @default("UPDATE")
   active    Boolean  @default(true)
+  priority  String   @default("GENERAL")
+  requiresAcknowledgement Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  reads     AnnouncementRead[]
 
   @@index([active, createdAt])
+  @@index([priority, active])
+}
+
+model AnnouncementRead {
+  id             String   @id @default(cuid())
+  announcementId String
+  userId         String
+  openedAt       DateTime?
+  acknowledgedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, openedAt])
+  @@index([announcementId, acknowledgedAt])
 }
 
 
