@@ -3,6 +3,7 @@ import {createRoot} from "react-dom/client";
 import {createPortal} from "react-dom";
 import {App as CapacitorApp} from "@capacitor/app";
 import {Capacitor} from "@capacitor/core";
+import {SplashScreen} from "@capacitor/splash-screen";
 import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,ArrowDownLeft,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,ChevronLeft,ChevronRight,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, Info, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot,Mic,Volume2,VolumeX,SendHorizontal,ShoppingBag,MapPinned,ArrowRight,LoaderCircle,MessageSquareText,WalletMinimal,PackageSearch,BadgeCheck,Mail,Wifi,Smartphone,PhoneCall,Zap} from "lucide-react";
 import "./styles.css";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
@@ -3020,11 +3021,18 @@ function NativeLaunchSplash(){
  const [visible,setVisible]=useState(()=>Capacitor.isNativePlatform());
  useEffect(()=>{
   if(!Capacitor.isNativePlatform())return;
-  // Native Android's system splash ends as soon as the WebView starts. Keep a
-  // branded hand-off visible briefly while the first React frame settles.
-  const started=Date.now();
+  let cancelled=false;
+  // Keep Android's native launch screen covering the WebView while the page
+  // loads. This branded React layer is already mounted before we release it.
+  const handoff=async()=>{
+   try{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    if(!cancelled)await SplashScreen.hide({fadeOutDuration:220});
+   }catch(error){try{console.warn("NEXORA native splash handoff",error);}catch{}}
+  };
+  handoff();
   const timer=window.setTimeout(()=>setVisible(false),2600);
-  return ()=>window.clearTimeout(timer);
+  return ()=>{cancelled=true;window.clearTimeout(timer);};
  },[]);
  if(!visible)return null;
  return <div className="nx-native-launch-splash" role="status" aria-label="NEXORA is starting">
