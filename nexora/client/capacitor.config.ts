@@ -18,6 +18,8 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchShowDuration: 1800,
+      // Keep the native branded launch screen visible until the React hand-off is ready.
+      launchAutoHide: false,
       backgroundColor: "#07090D",
       showSpinner: false,
       androidScaleType: "CENTER",
