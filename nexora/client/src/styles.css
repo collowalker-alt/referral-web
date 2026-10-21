@@ -5847,3 +5847,16 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .admin-referrer-candidate button{flex:0 0 auto}
 .admin-referrer-footer{display:flex;justify-content:space-between;gap:10px;margin-top:15px;padding-top:13px;border-top:1px solid rgba(125,160,190,.18)}
 @media(max-width:560px){.admin-referrer-modal{padding:15px}.admin-referrer-candidate{align-items:flex-start;padding:10px}.admin-referrer-candidate button{padding:8px;font-size:11px}.admin-referrer-footer button{font-size:11px;padding:9px}}
+
+
+/* Keep tutorial step text wrapping correctly on narrow and older mobile browsers. */
+.modal.instructions .tutorial-content,
+.modal.instructions .tutorial-content * { box-sizing: border-box; }
+.modal.instructions .tutorial-content li { width: 100%; min-width: 0; }
+.modal.instructions .tutorial-content li > span:last-child { display: block; flex: 1 1 0%; min-width: 0; max-width: 100%; white-space: normal; overflow-wrap: anywhere; word-break: normal; line-height: 1.6; }
+.modal.instructions .tutorial-step-number { flex: 0 0 27px; }
+@media (max-width: 680px) {
+ .modal.instructions .tutorial-content { width: 100%; min-width: 0; }
+ .modal.instructions .tutorial-content ol { width: 100%; min-width: 0; }
+ .modal.instructions .tutorial-content li { gap: 9px; align-items: flex-start; }
+}
