@@ -70,6 +70,39 @@ jobs:
       - name: Build React/Vite frontend
         working-directory: nexora/client
         run: npm run build
+ 
+      - name: Verify release artifacts and critical route contracts
+        working-directory: nexora/client
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          root = Path("dist")
+          index = root / "index.html"
+          if not index.is_file() or index.stat().st_size == 0:
+              raise SystemExit("Release gate failed: dist/index.html is missing or empty")
+          html = index.read_text()
+          assets = re.findall(r'(?:src|href)="(/[^"]+\.(?:js|mjs|css))"', html)
+          if not assets:
+              raise SystemExit("Release gate failed: no built JS/CSS assets referenced by index.html")
+          missing = [asset for asset in assets if not (root / asset.lstrip("/")).is_file()]
+          if missing:
+              raise SystemExit("Release gate failed: missing built assets: " + ", ".join(missing))
+          server = Path("../server/src/server.js").read_text()
+          client = Path("src/main.jsx").read_text()
+          required_server = ["/api/admin/reliability", "/api/admin/reconciliation", "/api/admin/universal-search", "/api/admin/users/:id/referrer"]
+          required_client = ["AdminMissionControl", "nexora-service-draft:", "/admin/universal-search"]
+          missing_contracts = [x for x in required_server if x not in server] + [x for x in required_client if x not in client]
+          if missing_contracts:
+              raise SystemExit("Release gate failed: critical route/UI contracts missing: " + ", ".join(missing_contracts))
+          files = [p for p in root.rglob("*") if p.is_file() and p.suffix in (".js", ".mjs", ".css")]
+          total = sum(p.stat().st_size for p in files)
+          largest = sorted(files, key=lambda p: p.stat().st_size, reverse=True)[:5]
+          print(f"Release artifact check passed: {len(assets)} entry assets; {len(files)} JS/CSS files; {total/1024:.1f} KiB total.")
+          print("Largest bundles:")
+          for p in largest:
+              print(f"  {p.stat().st_size/1024:.1f} KiB  {p}")
+          PY
 
       - name: Keep APK download out of the app's bundled website
         run: if [ -f nexora/client/dist/downloads/nexora-android.apk ]; then rm -f nexora/client/dist/downloads/nexora-android.apk; fi
