@@ -1999,6 +1999,42 @@ function DigitalServices({me}){
  const sendMessage=async()=>{if(!selected||!chat.trim())return;setChatBusy(true);try{const m=await api(`/service-requests/${selected.id}/messages`,{method:'POST',body:JSON.stringify({message:chat})});setMessages(x=>[...x,m]);setChat('')}catch(e){setErr(e.message)}finally{setChatBusy(false)}};
  const statusSteps=[['SUBMITTED','Submitted'],['RECEIVED','Received & Processing'],['INFO_REQUIRED','Information / Feedback'],['QUOTED','Quotation'],['IN_PROGRESS','In Progress'],['COMPLETED','Completed'],['PAID','Paid']]; const rank=x=>({SUBMITTED:0,RECEIVED:1,INFO_REQUIRED:2,QUOTED:3,IN_PROGRESS:4,COMPLETED:5,PAID:6})[x]??0;
  return <section><div className="serviceshero"><div><span className="pill">NEXORA SERVICES</span><h1>Build your next digital idea.</h1><p className="muted serviceslead">Websites, mobile apps, e-commerce, custom software, automation, design, integrations and ongoing digital support — tell NEXORA what you need and we’ll guide the next step.</p><div className="servicechips"><span>Websites</span><span>Mobile apps</span><span>Web apps</span><span>E-commerce</span><span>AI & automation</span><span>Design</span><span>Integrations</span><span>Support</span></div></div><div className="servicesheroart"><div className="orbitlogo"><img src="/nexora-logo.png"/></div><span>IDEA → DESIGN → BUILD → LAUNCH</span></div></div>
+ <section className="panel balloon-ventures-card" style={{margin:"22px 0",padding:"clamp(18px,3vw,30px)",border:"1px solid rgba(20,155,110,.28)",background:"linear-gradient(135deg,rgba(13,111,82,.12),rgba(20,155,110,.04) 55%,rgba(255,255,255,.015))",borderRadius:22}}>
+  <div style={{display:"flex",flexWrap:"wrap",gap:24,alignItems:"flex-start",justifyContent:"space-between"}}>
+   <div style={{flex:"1 1 340px",minWidth:0}}>
+    <span className="pill">SME GROWTH FUNDING · KENYA</span>
+    <h2 style={{fontSize:"clamp(25px,3vw,36px)",lineHeight:1.12,margin:"12px 0 8px"}}>Balloon Ventures</h2>
+    <p style={{fontSize:16,fontWeight:650,margin:"0 0 10px"}}>Every SME that Can Grow should Grow</p>
+    <p className="muted" style={{maxWidth:720,margin:"0 0 18px"}}>An impact-focused SME lender combining growth finance with practical business support to help established businesses expand, strengthen operations and create quality jobs across East Africa.</p>
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(135px,1fr))",gap:10,marginBottom:18}}>
+     <div style={{padding:14,borderRadius:14,background:"rgba(128,128,128,.09)"}}><small className="muted">Indicative loan size</small><div style={{fontWeight:750,fontSize:18}}>KSh 750K–20M</div><small className="muted">Enquire from KSh 1M+</small></div>
+     <div style={{padding:14,borderRadius:14,background:"rgba(128,128,128,.09)"}}><small className="muted">Repayment period</small><div style={{fontWeight:750,fontSize:18}}>12–36 months</div><small className="muted">Based on assessment</small></div>
+     <div style={{padding:14,borderRadius:14,background:"rgba(128,128,128,.09)"}}><small className="muted">Published rate</small><div style={{fontWeight:750,fontSize:18}}>12–14% p.a.</div><small className="muted">Confirm current offer</small></div>
+    </div>
+    <h3 style={{margin:"0 0 8px"}}>What the opportunity may include</h3>
+    <ul style={{paddingLeft:20,margin:"0 0 18px",display:"grid",gap:7}}>
+     <li>Working-capital and asset-financing support for growing businesses.</li>
+     <li>Up to six months of tailored, face-to-face business support.</li>
+     <li>Repayments structured with the business cash flow in mind.</li>
+     <li>Possible follow-on funding after repaying part of an initial loan, subject to eligibility.</li>
+     <li>Collateral may include real estate, equipment or other business assets, depending on the application.</li>
+    </ul>
+    <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:14}}>
+     <a className="primary" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,textDecoration:"none"}} href="https://wa.me/254703265774?text=Hello%2C%20I%20would%20like%20to%20enquire%20about%20Balloon%20Ventures%20SME%20growth%20funding%20through%20NEXORA." target="_blank" rel="noreferrer"><MessageCircle size={17}/> WhatsApp to enquire</a>
+     <a className="secondary" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,textDecoration:"none"}} href="tel:+254703265774"><PhoneCall size={17}/> Call +254 703 265 774</a>
+     <a className="secondary" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:8,textDecoration:"none"}} href="https://balloonventures.com/kenya/" target="_blank" rel="noreferrer"><ExternalLink size={16}/> Official Kenya details</a>
+    </div>
+    <p className="muted small" style={{margin:0}}>Eligibility note: Balloon Ventures’ published Kenya criteria say a business should be registered and operating for at least one year in a secondary town or city. All applications, due diligence, rates, collateral requirements and approval decisions are handled by Balloon Ventures.</p>
+   </div>
+   <div style={{flex:"0 1 250px",minWidth:220,padding:18,borderRadius:18,background:"rgba(128,128,128,.08)"}}>
+    <div style={{fontSize:12,letterSpacing:1.2,fontWeight:750,opacity:.8,marginBottom:8}}>BALLOON VENTURES</div>
+    <div style={{fontSize:22,fontWeight:800,lineHeight:1.15,marginBottom:12}}>Grow the business. Strengthen the team. Create good jobs.</div>
+    <p className="muted small">Designed for established small and growing businesses with a clear growth plan—not personal consumer borrowing.</p>
+    <a href="https://balloonventures.com/" target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:6,fontWeight:700,textDecoration:"none"}}>Learn more on their website <ArrowRight size={15}/></a>
+   </div>
+  </div>
+  <div className="notice" style={{marginTop:18}}><ShieldCheck size={16}/><span><b>Important:</b> This is an information and enquiry listing, not a loan offer or a guarantee of approval. Balloon Ventures’ Kenya website currently lists KSh 750,000–20 million and 12–14% annual interest; terms can change, so confirm the exact offer directly before committing. NEXORA is not presenting itself as the lender.</span></div>
+ </section>
  <div className="serviceintro"><div><span className="pill">WHAT WE CAN BUILD</span><h2>Choose a starting point</h2><p className="muted">You don’t need to know the technical solution. Tell us the outcome you want and NEXORA can help shape the project.</p></div></div>
  <div className="servicefeaturegrid">{[['Website',Store,'Business sites, landing pages & portfolios'],['Mobile app',CreditCard,'Android, iOS & cross-platform apps'],['Web app',Activity,'Dashboards, portals & SaaS systems'],['E-commerce',ShoppingCart,'Online stores, catalogues & checkout'],['Automation',Sparkles,'Business workflows, AI & automation'],['API integration',Link2,'Payments, WhatsApp & third-party systems']].map(([x,I,desc])=><button type="button" className={`servicefeature ${form.serviceType===serviceMap[x]?'selected':''}`} key={x} onClick={()=>chooseService(x)}><I size={20}/><span><b>{x}</b><small>{desc}</small></span><ArrowRight size={15}/></button>)}</div>
  <div className="serviceextra"><div><b>Also available</b><span>UI/UX · Branding · Maintenance · Hosting & domains · Custom software</span></div><button className="secondary" type="button" onClick={()=>chooseService('Other')}>Tell us something else <ArrowRight size={15}/></button></div>
