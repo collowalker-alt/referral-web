@@ -1639,16 +1639,6 @@ function App(){
  useEffect(()=>{if(!me?.user?.id)return;let alive=true;const refresh=async()=>{try{const rows=await api("/announcements");if(alive){setAnnouncements(rows);saveCachedMemberData("announcements",rows,me.user.id)}}catch{}};const timer=window.setInterval(refresh,20000);return()=>{alive=false;window.clearInterval(timer)}},[me?.user?.id]);
  useEffect(()=>{if(page!=="community"||!announcements.length)return;const unseen=announcements.filter(a=>a?.id&&!a.opened);if(!unseen.length)return;let alive=true;Promise.all(unseen.map(a=>api("/announcements/"+encodeURIComponent(a.id)+"/open",{method:"POST"}).catch(()=>null))).then(()=>{if(alive)setAnnouncements(rows=>{const next=rows.map(a=>({...a,opened:true}));if(me?.user?.id)saveCachedMemberData("announcements",next,me.user.id);return next})});return()=>{alive=false}},[page,announcements]);
  useEffect(()=>{
-  if(!me?.user?.id||!localStorage.getItem("token"))return;
-  let alive=true;
-  const pollAnnouncements=async()=>{
-   if(document.visibilityState!=="visible")return;
-   try{const rows=await api("/announcements");if(!alive)return;setAnnouncements(rows);saveCachedMemberData("announcements",rows,me.user.id)}catch{}
-  };
-  const timer=window.setInterval(pollAnnouncements,30000);
-  return()=>{alive=false;window.clearInterval(timer)};
- },[me?.user?.id]);
- useEffect(()=>{
   if(!localStorage.getItem("token")){setLoading(false);return;}
   try{
    const cached=JSON.parse(localStorage.getItem("nexora-cached-me")||"null");
