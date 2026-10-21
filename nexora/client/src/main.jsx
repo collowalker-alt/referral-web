@@ -2015,7 +2015,7 @@ function openNexoraNotification(n,goPage){
  const type=String(n.type||"ACCOUNT").toUpperCase();
  const details=n.details||{};
  let page="notifications";
- if(type==="SERVICE"){page="services";if(details.requestId){try{sessionStorage.setItem("nexora-open-service-request",String(details.requestId))}catch{}}}
+ if(type==="SERVICE"||type==="PROJECT_REQUEST"||type==="PROJECT_CHAT"){page="services";if(details.requestId){try{sessionStorage.setItem("nexora-open-service-request",String(details.requestId))}catch{}}}
  else if(type==="PAYMENT") page="transactions";
  else if(type==="WALLET") page=details.reference?"wallet":"transfer";
  else if(type==="WITHDRAWAL") page="wallet";
@@ -2984,7 +2984,7 @@ function DepositModal({onClose,load,countryCode="KE",countryName="Kenya",default
 
 function Wallet({me,load,paymentConfig={}}){
  const [tab,setTab]=useState("balance"),[depositOpen,setDepositOpen]=useState(false);const [amount,setAmount]=useState(""),[phone,setPhone]=useState(me.user.phone||""),[msg,setMsg]=useState(""),[busy,setBusy]=useState(false),[withdrawals,setWithdrawals]=useState([]);
- const loadWithdrawals=async()=>{try{setWithdrawals(await api("/withdrawals"))}catch{setWithdrawals([])}};
+ const loadWithdrawals=async()=>{try{const next=await api("/withdrawals");const changed=withdrawals.some(old=>next.some(row=>row.id===old.id&&String(row.status)!==String(old.status)));setWithdrawals(next);if(changed)await load()}catch{}};
  useEffect(()=>{loadWithdrawals()},[me.user.id]);
  useEffect(()=>{if(!withdrawals.some(w=>["PENDING","PROCESSING"].includes(String(w.status||"").toUpperCase())))return;const timer=window.setInterval(()=>{loadWithdrawals()},15000);return()=>window.clearInterval(timer)},[withdrawals]);
  const withdraw=async()=>{setMsg("");const n=Number(amount);if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole wallet withdrawal amount of at least KSh 100.");const calc=withdrawalBreakdown(n);if(!calc.valid)return setMsg("This amount does not fit the current Paystack M-PESA fee calculation. Adjust it slightly and review the updated payout preview before submitting.");if(n>Number(me.wallet?.balance||0))return setMsg(`Your available wallet balance must cover the total deduction of ${money(n)}.`);if(calc.payoutAmount<10)return setMsg("After fees, the M-PESA payout must be at least KSh 10.");if(!validPhone(phone))return setMsg("Enter a valid Kenyan phone number: 07…, 01…, 2547… or 2541…. ");setBusy(true);try{const d=await api("/withdrawals",{method:"POST",body:JSON.stringify({amount:n,phone:cleanPhone(phone)})});setMsg(`${d.message} Wallet debit: ${money(d.totalDebit??n)}; NEXORA fee: ${money(d.fee??calc.fee)}; Paystack fee: ${money(d.paystackFee??calc.paystackFee)}; M-PESA payout: ${money(d.payoutAmount??d.amount??calc.payoutAmount)}. Reference: ${d.reference}`);setAmount("");await load();await loadWithdrawals()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
