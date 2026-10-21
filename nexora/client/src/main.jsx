@@ -601,7 +601,8 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
   const [resetToken,setResetToken]=useState(initialResetToken||"");
   const [devResetToken,setDevResetToken]=useState("");
   const modalRef=React.useRef(null);
-  const ref=new URLSearchParams(location.search).get("ref")||"";
+  const rawRef=(new URLSearchParams(location.search).get("ref")||"").trim().toUpperCase();
+  const ref=["UNDEFINED","NULL","NONE","N/A"].includes(rawRef)?"":rawRef;
 
   useEffect(()=>{setMode(onMode);setErr("");setSuccessMsg("");setDevResetToken("");if(onMode==="reset"&&initialResetToken)setResetToken(initialResetToken);},[onMode,initialResetToken]);
   useEffect(()=>{
@@ -653,7 +654,7 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
     setBusy(true);
     try{
       if(mode==="login"||mode==="register"){
-        const body={...f,phone:mode==="register"?phoneClean:f.phone,referralCode:(f.referralCode||ref||"").toUpperCase(),website:""};
+        const rawReferral=(f.referralCode||ref||"").trim().toUpperCase();const body={...f,phone:mode==="register"?phoneClean:f.phone,referralCode:["UNDEFINED","NULL","NONE","N/A"].includes(rawReferral)?"":rawReferral,website:""};
         const d=await api(`/auth/${mode==="login"?"login":"register"}`,{method:"POST",body:JSON.stringify(body)});
         if(mode==="register"){
           setSuccessMsg("Account created successfully. Opening your workspace…");
