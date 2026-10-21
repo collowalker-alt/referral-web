@@ -2261,7 +2261,7 @@ app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(r
 
 app.get("/api/withdrawals",auth,async(req,res)=>{
   try{
-    const rows=await prisma.withdrawal.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:20,select:{id:true,amount:true,phone:true,status:true,reference:true,createdAt:true,updatedAt:true}});
+    const rows=await prisma.withdrawal.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:20,select:{id:true,amount:true,phone:true,status:true,reference:true,reviewRequired:true,reviewReason:true,amountConfirmed:true,createdAt:true,updatedAt:true}});
     res.json(rows.map(withdrawalPublicRecord));
   }catch(e){console.error("[MEMBER WITHDRAWAL HISTORY]",e);res.status(500).json({message:"Unable to load withdrawal history"});}
 });
@@ -2283,9 +2283,17 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
     const {fee,paystackFee,payoutAmount,totalDebit,valid}=breakdown;
     if(!valid) return res.status(400).json({message:"This amount does not fit the current Paystack M-PESA fee calculation. Please adjust it slightly and review the updated payout preview before submitting."});
     if(payoutAmount<MIN_M_PESA_PAYOUT_KES) return res.status(400).json({message:`After the fees, the M-PESA payout must be at least KSh ${MIN_M_PESA_PAYOUT_KES.toLocaleString()}.`});
-    const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
+    const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true,wallet:true}});
     const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
     if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${memberWithPackage.package.name} package allows total wallet withdrawals up to KSh ${limit.toLocaleString()} per request.`});
+    if(req.body?.amountConfirmed!==true) return res.status(400).json({message:"Please review and confirm the exact withdrawal amount, fees, and M-PESA payout before submitting."});
+    const availableBalance=Number(memberWithPackage?.wallet?.balance||0);
+    const riskReasons=[];
+    if(amount>=10000) riskReasons.push("large withdrawal amount");
+    if(availableBalance>=5000 && amount>=5000 && amount>=availableBalance*0.75) riskReasons.push("withdrawal uses at least 75% of the available wallet balance");
+    const reviewRequired=riskReasons.length>0;
+    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed abuse may lead to membership or account restrictions after investigation.",requestedAmount:amount});
+    const reviewReason=reviewRequired?riskReasons.join("; "):null;
     const reference=`WDNET-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const since=new Date(Date.now()-24*60*60*1000);
     const withdrawal=await prisma.$transaction(async db=>{
@@ -2296,10 +2304,18 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
       if(reserve.count!==1) throw payoutError(`Insufficient available wallet balance. This withdrawal deducts KSh ${totalDebit.toLocaleString()} total: M-PESA payout ${payoutAmount.toLocaleString()}, NEXORA fee ${fee.toLocaleString()}, and Paystack fee ${paystackFee.toLocaleString()}.`,400);
       // WDNET stores the total wallet deduction, so recovery/reconciliation can
       // calculate the same net payout after a Render restart.
-      const created=await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING"}});
+      const created=await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING",reviewRequired,reviewReason,amountConfirmed:true}});
       await db.transaction.create({data:{userId:req.user.id,type:"WITHDRAWAL",amount:payoutAmount,status:"PENDING",reference:`WD-TX-${reference}`,metadata:{withdrawalId:created.id,provider:"PAYSTACK",withdrawalReference:reference,requestedAt:new Date().toISOString(),withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit}}});
       return created;
     },{isolationLevel:"Serializable"});
+
+    if(reviewRequired){
+      const reviewMessage=`A withdrawal request for KSh ${amount.toLocaleString()} from ${memberWithPackage?.name||req.user.email} was confirmed by the member but flagged for manual review (${reviewReason}). No Paystack transfer has been started. Review the request before paying.`;
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal-review:${withdrawal.reference}`,title:"Withdrawal requires risk review",message:reviewMessage,type:"WITHDRAWAL_REVIEW",details:{reference:withdrawal.reference,withdrawalId:withdrawal.id,userId:req.user.id,amount,reviewReason,destinationPage:"withdrawals"}});
+      await createUserNotification(req.user.id,{title:"Withdrawal awaiting review",message:"You confirmed this large withdrawal amount. For your protection, the request is reserved and awaiting a manual review before any payout is started. Do not submit another request for the same amount.",type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"PENDING",reviewRequired:true,reviewReason,destinationPage:"wallet"}});
+      const actual=withdrawalPublicRecord(withdrawal);
+      return res.status(201).json({message:"Your amount was confirmed. This large withdrawal is awaiting a manual review; Paystack has not been instructed to send the money yet.",reference,status:"PENDING",automatic:false,reviewRequired:true,reviewReason,amount:actual.payoutAmount,payoutAmount:actual.payoutAmount,requestedAmount:amount,fee:actual.fee,paystackFee:actual.paystackFee,totalDebit:actual.totalDebit});
+    }
 
     try{
       const payout=await initiatePaystackWithdrawal(withdrawal.id);
