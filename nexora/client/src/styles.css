@@ -5832,3 +5832,18 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
  .nx-offline-banner small{font-size:10px}
  .nx-offline-banner>button{padding:7px;font-size:10px}
 }
+
+
+/* Admin referral assignment */
+.admin-referrer-modal{width:min(680px,calc(100vw - 24px));max-height:min(86vh,850px);overflow:auto}
+.admin-referrer-modal>p{font-size:12px;line-height:1.55}
+.admin-referrer-search{display:grid;gap:7px;margin:15px 0;font-size:12px;font-weight:700}
+.admin-referrer-search input{width:100%;min-width:0;padding:12px;border:1px solid var(--border,rgba(125,160,190,.3));border-radius:10px;background:var(--input-bg,rgba(3,12,24,.7));color:inherit;font:inherit}
+.admin-referrer-results{display:grid;gap:8px;max-height:38vh;overflow:auto;padding-right:2px}
+.admin-referrer-candidate{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid rgba(125,160,190,.2);border-radius:12px;background:rgba(8,22,38,.45)}
+.admin-referrer-candidate>div{display:grid;gap:4px;flex:1;min-width:0}
+.admin-referrer-candidate b{font-size:13px;overflow-wrap:anywhere}
+.admin-referrer-candidate small{font-size:11px;color:var(--muted,#9aafc3);overflow-wrap:anywhere}
+.admin-referrer-candidate button{flex:0 0 auto}
+.admin-referrer-footer{display:flex;justify-content:space-between;gap:10px;margin-top:15px;padding-top:13px;border-top:1px solid rgba(125,160,190,.18)}
+@media(max-width:560px){.admin-referrer-modal{padding:15px}.admin-referrer-candidate{align-items:flex-start;padding:10px}.admin-referrer-candidate button{padding:8px;font-size:11px}.admin-referrer-footer button{font-size:11px;padding:9px}}
