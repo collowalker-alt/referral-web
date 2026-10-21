@@ -2146,17 +2146,17 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
     // The amount typed by a member is the TOTAL removed from their wallet.
     // NEXORA's 5% fee and Paystack's applicable M-PESA transfer fee are both
     // deducted from it; only the remaining net payout is sent to the member.
-    if(!PAYSTACK_AUTO_WITHDRAWALS) return res.status(503).json({message:"Automatic withdrawals are not enabled yet. Please try again later; no funds have been reserved."});
-    if(!paystackTransfersReady()) return res.status(503).json({message:"Paystack live M-PESA transfers are not ready. No withdrawal was created and no funds were reserved. Please try again later."});
+    if(!PAYSTACK_AUTO_WITHDRAWALS) return res.status(503).json({message:"Withdrawals are temporarily unavailable while payout processing is being configured. Your request has not been submitted. Please try again later or contact NEXORA support."});
+    if(!paystackTransfersReady()) return res.status(503).json({message:"Withdrawals are temporarily unavailable while Paystack payout processing is being configured. Your request has not been submitted. Please try again later or contact NEXORA support."});
     const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
     if(member?.countryCode!=="KE") return res.status(403).json({message:"Withdrawals are currently available for Kenyan members using M-PESA."});
     const amount=Number(req.body.amount), phone=cleanPhone(req.body.phone||req.user.phone);
     if(!PHONE_RE.test(phone)) return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541… ."});
     if(!Number.isInteger(amount)||amount<MIN_WITHDRAWAL_KES||amount>MAX_WITHDRAWAL_KES) return res.status(400).json({message:`Total wallet withdrawal must be between KSh ${MIN_WITHDRAWAL_KES.toLocaleString()} and KSh ${MAX_WITHDRAWAL_KES.toLocaleString()}.`});
-    if(amount>PAYSTACK_AUTO_WITHDRAWAL_MAX) return res.status(400).json({message:`Automatic withdrawal limit is KSh ${PAYSTACK_AUTO_WITHDRAWAL_MAX.toLocaleString()} total wallet deduction per request. No funds were reserved.`});
+    if(amount>PAYSTACK_AUTO_WITHDRAWAL_MAX) return res.status(400).json({message:`The maximum withdrawal request is KSh ${PAYSTACK_AUTO_WITHDRAWAL_MAX.toLocaleString()} per request. Please adjust the amount and try again.`});
     const breakdown=withdrawalBreakdownForTotal(amount);
     const {fee,paystackFee,payoutAmount,totalDebit,valid}=breakdown;
-    if(!valid) return res.status(400).json({message:"This amount falls on a Paystack M-PESA transfer-fee boundary. Please adjust the withdrawal amount slightly and review the fee preview again; no funds were reserved."});
+    if(!valid) return res.status(400).json({message:"This amount does not fit the current Paystack M-PESA fee calculation. Please adjust it slightly and review the updated payout preview before submitting."});
     if(payoutAmount<MIN_M_PESA_PAYOUT_KES) return res.status(400).json({message:`After the fees, the M-PESA payout must be at least KSh ${MIN_M_PESA_PAYOUT_KES.toLocaleString()}.`});
     const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
     const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
@@ -2166,7 +2166,7 @@ app.post("/api/withdrawals",auth,async(req,res)=>{
     const withdrawal=await prisma.$transaction(async db=>{
       const recent=await db.withdrawal.findMany({where:{userId:req.user.id,createdAt:{gte:since},status:{in:["PENDING","PROCESSING","PAID"]}},select:{amount:true,reference:true}});
       const recentAmount=recent.reduce((sum,row)=>sum+withdrawalTotalDebitForRecord(row),0);
-      if(recentAmount+amount>PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) throw payoutError(`Your automatic withdrawal limit is KSh ${PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT.toLocaleString()} in a rolling 24-hour period. No funds were reserved.`,429);
+      if(recentAmount+amount>PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) throw payoutError(`You have reached the automatic withdrawal limit of KSh ${PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT.toLocaleString()} in the last 24 hours. Please try again after the limit resets.`,429);
       const reserve=await db.wallet.updateMany({where:{userId:req.user.id,balance:{gte:totalDebit}},data:{balance:{decrement:totalDebit},pendingBalance:{increment:totalDebit}}});
       if(reserve.count!==1) throw payoutError(`Insufficient available wallet balance. This withdrawal deducts KSh ${totalDebit.toLocaleString()} total: M-PESA payout ${payoutAmount.toLocaleString()}, NEXORA fee ${fee.toLocaleString()}, and Paystack fee ${paystackFee.toLocaleString()}.`,400);
       // WDNET stores the total wallet deduction, so recovery/reconciliation can
