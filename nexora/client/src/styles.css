@@ -5781,6 +5781,47 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 .statushint{display:block;max-width:220px;color:#9aabc1;font-size:10px;line-height:1.35;text-align:right;white-space:normal}.transactionright{min-width:0}.transactionright .txstatus{line-height:1.35}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid #58e7c1;outline-offset:3px}button,a{-webkit-tap-highlight-color:transparent}@media(max-width:520px){.statushint{max-width:150px;font-size:9px}.transactionright{overflow-wrap:anywhere}.row.simple{align-items:start}.row.simple>div:first-child{min-width:0;overflow-wrap:anywhere}.row.simple>div:first-child small{white-space:normal;overflow-wrap:anywhere}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
 
+
+/* Fix Growth Path task text wrapping: keep titles horizontal even in narrow mobile cards. */
+.nx-growth-step,
+.nx-growth-step > div,
+.nx-growth-step > div > b,
+.nx-growth-step > div > small {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed;
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  hyphens: none;
+}
+.nx-growth-step > div {
+  display: block !important;
+  flex: 1 1 0%;
+  min-width: 0;
+  max-width: 100%;
+}
+.nx-growth-step > div > b {
+  display: block;
+  width: 100%;
+  white-space: normal !important;
+  line-height: 1.4;
+}
+.nx-growth-step > div > small {
+  display: block;
+  margin-top: 4px;
+  white-space: normal !important;
+  line-height: 1.45;
+}
+.nx-growth-step > button {
+  max-width: 82px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+@media (max-width: 520px) {
+  .nx-growth-step { align-items: flex-start; }
+  .nx-growth-step > div > b { font-size: 12px; }
+  .nx-growth-step > div > small { font-size: 10px; }
+}
+
 /* Smart Guide, practical Growth Path, and safe offline mode */
 .nx-smart-guide{display:flex;align-items:center;gap:15px;margin:14px 0 18px;padding:17px;border:1px solid rgba(91,194,176,.26);background:linear-gradient(120deg,rgba(15,43,59,.96),rgba(8,23,38,.96))}
 .nx-smart-guide-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:13px;background:rgba(67,214,177,.13);color:#7ce8ca}
