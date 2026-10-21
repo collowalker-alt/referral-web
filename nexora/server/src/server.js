@@ -999,7 +999,7 @@ app.get("/api/ad-products",auth,async(req,res)=>{
   catch(e){console.error(e);res.status(500).json({message:"Unable to load advertising products"});}
 });
 app.post("/api/ad-products/:id/submit",auth,adSubmissionLimiter,async(req,res)=>{
-  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium")return res.status(403).json({message:"Only Premium members can submit advertising campaigns."});const product=await prisma.adProduct.findFirst({where:{id:req.params.id,active:true}});if(!product)return res.status(404).json({message:"Advertising product not found"});const postUrl=String(req.body?.postUrl||"").trim(),proofUrl=String(req.body?.proofUrl||"").trim()||null,postMediaData=String(req.body?.postMediaData||"").trim()||null,postMediaName=String(req.body?.postMediaName||"").trim()||null,postMediaType=String(req.body?.postMediaType||"").trim()||null,views=Math.max(0,Math.floor(Number(req.body?.views||0))),engagements=Math.max(0,Math.floor(Number(req.body?.engagements||0)));if(!/^https?:\/\//i.test(postUrl))return res.status(400).json({message:"Enter a valid public post or status URL."});if(!Number.isFinite(views)||!Number.isFinite(engagements))return res.status(400).json({message:"Views and engagements must be valid numbers."});if(postMediaData && postMediaData.length>11000000)return res.status(400).json({message:"Post media is too large. Please use an image/video under 8 MB."});if(postMediaData && !/^data:(image\/|video\/)/i.test(postMediaData))return res.status(400).json({message:"Post media must be an image or video."});if(views>10000000||engagements>1000000)return res.status(400).json({message:"The submitted performance figures are unusually high. Please check them and contact support if they are correct."});if(!postMediaData&&!proofUrl)return res.status(400).json({message:"Please attach the post media or provide a proof link along with the public post URL."});const weekAgo=new Date(Date.now()-7*24*60*60*1000);const recentSubmissions=await prisma.adSubmission.findMany({where:{userId:u.id,submittedAt:{gte:weekAgo}},select:{postUrl:true},take:10});if(recentSubmissions.length>=2)return res.status(429).json({message:"Advertising submissions are limited to two per rolling 7-day period. Your next submission will be available after an earlier submission leaves that window."});if(recentSubmissions.some(row=>String(row.postUrl).trim().toLowerCase()===postUrl.trim().toLowerCase()))return res.status(409).json({message:"This post URL has already been submitted recently. Please check your advertising history."});const calculatedPay=Math.floor((views/1000)*Number(product.viewRatePer1000||0)+(engagements*Number(product.engagementRate||0)));const sub=await prisma.adSubmission.create({data:{userId:u.id,productId:product.id,postUrl,postMediaData,postMediaName,postMediaType,proofUrl,views,engagements,calculatedPay}});res.json({message:"Advertising performance submitted for review. Approved payouts are processed on Friday.",submission:sub});}
+  try{const u=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});if(!u?.package||u.package.name!=="Premium"||u.planStatus!=="ACTIVE")return res.status(403).json({message:"Only members with an active Premium plan can submit advertising campaigns."});const product=await prisma.adProduct.findFirst({where:{id:req.params.id,active:true}});if(!product)return res.status(404).json({message:"Advertising product not found"});const postUrl=String(req.body?.postUrl||"").trim(),proofUrl=String(req.body?.proofUrl||"").trim()||null,postMediaData=String(req.body?.postMediaData||"").trim()||null,postMediaName=String(req.body?.postMediaName||"").trim()||null,postMediaType=String(req.body?.postMediaType||"").trim()||null,views=Math.max(0,Math.floor(Number(req.body?.views||0))),engagements=Math.max(0,Math.floor(Number(req.body?.engagements||0)));if(!/^https?:\/\//i.test(postUrl))return res.status(400).json({message:"Enter a valid public post or status URL."});if(!Number.isFinite(views)||!Number.isFinite(engagements))return res.status(400).json({message:"Views and engagements must be valid numbers."});if(postMediaData && postMediaData.length>11000000)return res.status(400).json({message:"Post media is too large. Please use an image/video under 8 MB."});if(postMediaData && !/^data:(image\/|video\/)/i.test(postMediaData))return res.status(400).json({message:"Post media must be an image or video."});if(views>10000000||engagements>1000000)return res.status(400).json({message:"The submitted performance figures are unusually high. Please check them and contact support if they are correct."});if(!postMediaData&&!proofUrl)return res.status(400).json({message:"Please attach the post media or provide a proof link along with the public post URL."});const weekAgo=new Date(Date.now()-7*24*60*60*1000);const recentSubmissions=await prisma.adSubmission.findMany({where:{userId:u.id,submittedAt:{gte:weekAgo}},select:{postUrl:true},take:10});if(recentSubmissions.length>=2)return res.status(429).json({message:"Advertising submissions are limited to two per rolling 7-day period. Your next submission will be available after an earlier submission leaves that window."});if(recentSubmissions.some(row=>String(row.postUrl).trim().toLowerCase()===postUrl.trim().toLowerCase()))return res.status(409).json({message:"This post URL has already been submitted recently. Please check your advertising history."});const calculatedPay=Math.floor((views/1000)*Number(product.viewRatePer1000||0)+(engagements*Number(product.engagementRate||0)));const sub=await prisma.adSubmission.create({data:{userId:u.id,productId:product.id,postUrl,postMediaData,postMediaName,postMediaType,proofUrl,views,engagements,calculatedPay}});res.json({message:"Advertising performance submitted for review. Approved payouts are processed on Friday.",submission:sub});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to submit advertising performance"});}
 });
 app.get("/api/ad-submissions",auth,async(req,res)=>{try{res.json(await prisma.adSubmission.findMany({where:{userId:req.user.id},include:{product:true},orderBy:{submittedAt:"desc"},take:50}));}catch(e){res.status(500).json({message:"Unable to load advertising submissions"});}});
@@ -1242,7 +1242,7 @@ app.get("/api/me",auth,async(req,res)=>{
   const level1=await prisma.user.findMany({where:{referredById:u.id},select:{id:true}});
   const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
   const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
-  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,paymentAvailability:paymentAvailabilityForCountry(u.countryCode),referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,planStatus:u.planStatus,paymentAvailability:paymentAvailabilityForCountry(u.countryCode),referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
 });
 
 app.get("/api/referrals",auth,async(req,res)=>{
@@ -2074,6 +2074,20 @@ app.get("/api/admin/transactions",adminAuth,requireAdminRole("SUPER_ADMIN","ADMI
 app.get("/api/admin/withdrawals",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows.map(withdrawalPublicRecord));}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
 });
+app.post("/api/admin/withdrawals/:id/approve-review",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
+  try{
+    const current=await prisma.withdrawal.findUnique({where:{id:req.params.id},include:{user:{select:{id:true,email:true,name:true}}}});
+    if(!current)return res.status(404).json({message:"Withdrawal not found"});
+    if(current.status!=="PENDING"||!current.reviewRequired)return res.status(409).json({message:"Only a pending withdrawal flagged for safety review can be approved here."});
+    // Keep the review flag until Paystack accepts the transfer initiation.
+    const result=await initiatePaystackWithdrawal(current.id);
+    await prisma.withdrawal.update({where:{id:current.id},data:{reviewRequired:false,reviewReason:null}});
+    await logAdminAction(req,"WITHDRAWAL_RISK_REVIEW_APPROVED","WITHDRAWAL",current.id,current.user?.email,{reference:current.reference,reviewReason:current.reviewReason,approvedStatus:result.status||"PROCESSING"});
+    await createUserNotification(current.userId,{title:"Withdrawal review completed",message:"NEXORA reviewed your withdrawal request and approved it for Paystack processing. The payout is not considered complete until Paystack confirms it.",type:"WITHDRAWAL",details:{reference:current.reference,status:result.status||"PROCESSING",destinationPage:"wallet"}});
+    res.json({message:result.message||"Safety review approved; Paystack processing has started.",status:result.status||"PROCESSING",reference:current.reference});
+  }catch(e){console.error("[WITHDRAWAL RISK REVIEW]",e.message);res.status(e.statusCode||500).json({message:e.message||"Unable to approve this withdrawal review"});}
+});
+
 app.patch("/api/admin/withdrawals/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const status=String(req.body?.status||"").toUpperCase();
@@ -2261,7 +2275,7 @@ app.post("/api/member/password",auth,async(req,res)=>{try{const current=String(r
 
 app.get("/api/withdrawals",auth,async(req,res)=>{
   try{
-    const rows=await prisma.withdrawal.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:20,select:{id:true,amount:true,phone:true,status:true,reference:true,createdAt:true,updatedAt:true}});
+    const rows=await prisma.withdrawal.findMany({where:{userId:req.user.id},orderBy:{createdAt:"desc"},take:20,select:{id:true,amount:true,phone:true,status:true,reference:true,reviewRequired:true,reviewReason:true,amountConfirmed:true,createdAt:true,updatedAt:true}});
     res.json(rows.map(withdrawalPublicRecord));
   }catch(e){console.error("[MEMBER WITHDRAWAL HISTORY]",e);res.status(500).json({message:"Unable to load withdrawal history"});}
 });
@@ -2283,9 +2297,17 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
     const {fee,paystackFee,payoutAmount,totalDebit,valid}=breakdown;
     if(!valid) return res.status(400).json({message:"This amount does not fit the current Paystack M-PESA fee calculation. Please adjust it slightly and review the updated payout preview before submitting."});
     if(payoutAmount<MIN_M_PESA_PAYOUT_KES) return res.status(400).json({message:`After the fees, the M-PESA payout must be at least KSh ${MIN_M_PESA_PAYOUT_KES.toLocaleString()}.`});
-    const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true}});
+    const memberWithPackage=await prisma.user.findUnique({where:{id:req.user.id},include:{package:true,wallet:true}});
     const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
     if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${memberWithPackage.package.name} package allows total wallet withdrawals up to KSh ${limit.toLocaleString()} per request.`});
+    if(req.body?.amountConfirmed!==true) return res.status(400).json({message:"Please review and confirm the exact withdrawal amount, fees, and M-PESA payout before submitting."});
+    const availableBalance=Number(memberWithPackage?.wallet?.balance||0);
+    const riskReasons=[];
+    if(amount>=10000) riskReasons.push("large withdrawal amount");
+    if(availableBalance>=5000 && amount>=5000 && amount>=availableBalance*0.75) riskReasons.push("withdrawal uses at least 75% of the available wallet balance");
+    const reviewRequired=riskReasons.length>0;
+    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed misuse may lead to a plan downgrade or account restrictions after investigation.",requestedAmount:amount});
+    const reviewReason=reviewRequired?riskReasons.join("; "):null;
     const reference=`WDNET-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const since=new Date(Date.now()-24*60*60*1000);
     const withdrawal=await prisma.$transaction(async db=>{
@@ -2296,10 +2318,18 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
       if(reserve.count!==1) throw payoutError(`Insufficient available wallet balance. This withdrawal deducts KSh ${totalDebit.toLocaleString()} total: M-PESA payout ${payoutAmount.toLocaleString()}, NEXORA fee ${fee.toLocaleString()}, and Paystack fee ${paystackFee.toLocaleString()}.`,400);
       // WDNET stores the total wallet deduction, so recovery/reconciliation can
       // calculate the same net payout after a Render restart.
-      const created=await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING"}});
+      const created=await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING",reviewRequired,reviewReason,amountConfirmed:true}});
       await db.transaction.create({data:{userId:req.user.id,type:"WITHDRAWAL",amount:payoutAmount,status:"PENDING",reference:`WD-TX-${reference}`,metadata:{withdrawalId:created.id,provider:"PAYSTACK",withdrawalReference:reference,requestedAt:new Date().toISOString(),withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit}}});
       return created;
     },{isolationLevel:"Serializable"});
+
+    if(reviewRequired){
+      const reviewMessage=`A withdrawal request for KSh ${amount.toLocaleString()} from ${memberWithPackage?.name||req.user.email} was confirmed by the member but flagged for manual review (${reviewReason}). No Paystack transfer has been started. Review the request before paying.`;
+      await createAdminNotifications({roles:["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"],dedupeKey:`withdrawal-review:${withdrawal.reference}`,title:"Withdrawal requires risk review",message:reviewMessage,type:"WITHDRAWAL_REVIEW",details:{reference:withdrawal.reference,withdrawalId:withdrawal.id,userId:req.user.id,amount,reviewReason,destinationPage:"withdrawals"}});
+      await createUserNotification(req.user.id,{title:"Withdrawal awaiting review",message:"You confirmed this large withdrawal amount. For your protection, the request is reserved and awaiting a manual review before any payout is started. Do not submit another request for the same amount.",type:"WITHDRAWAL",details:{reference:withdrawal.reference,status:"PENDING",reviewRequired:true,reviewReason,destinationPage:"wallet"}});
+      const actual=withdrawalPublicRecord(withdrawal);
+      return res.status(201).json({message:"Your amount was confirmed. This large withdrawal is awaiting a manual review; Paystack has not been instructed to send the money yet.",reference,status:"PENDING",automatic:false,reviewRequired:true,reviewReason,amount:actual.payoutAmount,payoutAmount:actual.payoutAmount,requestedAmount:amount,fee:actual.fee,paystackFee:actual.paystackFee,totalDebit:actual.totalDebit});
+    }
 
     try{
       const payout=await initiatePaystackWithdrawal(withdrawal.id);
