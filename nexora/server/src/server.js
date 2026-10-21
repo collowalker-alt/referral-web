@@ -1847,13 +1847,19 @@ app.get("/api/admin/users/:id/timeline",adminAuth,async(req,res)=>{try{const id=
 
 app.get("/api/admin/overview",adminAuth,async(req,res)=>{
   try{
-    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned,countries,flaggedUsers,recentFailedLogins,openTickets]=await Promise.all([
+    // Surface unresolved payment records so admins can investigate them quickly.
+    const staleBefore=new Date(Date.now()-15*60*1000);
+    const dayAgo=new Date(Date.now()-24*60*60*1000);
+    const [users,activeUsers,packages,transactions,pendingPayments,failedPayments,stalePendingPayments,stalePendingWithdrawals,recentFailedPayments,successfulPayments,withdrawals,pendingWithdrawals,totalEarned,countries,flaggedUsers,recentFailedLogins,openTickets]=await Promise.all([
       prisma.user.count(),
       prisma.user.count({where:{status:"ACTIVE"}}),
       prisma.package.count({where:{active:true}}),
       prisma.transaction.count(),
       prisma.transaction.count({where:{status:"PENDING"}}),
       prisma.transaction.count({where:{status:"FAILED"}}),
+      prisma.transaction.count({where:{status:"PENDING",type:{in:["DEPOSIT","PACKAGE_PURCHASE"]},createdAt:{lt:staleBefore}}}),
+      prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]},createdAt:{lt:staleBefore}}}),
+      prisma.transaction.count({where:{status:"FAILED",createdAt:{gte:dayAgo}}}),
       prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS"},_sum:{amount:true}}),
       prisma.withdrawal.count(),
       prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
@@ -1863,7 +1869,7 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
       prisma.adminLoginEvent.count({where:{success:false,createdAt:{gte:new Date(Date.now()-24*60*60*1000)}}}),
       prisma.supportTicket.count({where:{status:{in:["OPEN","IN_PROGRESS"]}}})
     ]);
-    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,recentFailedLogins,openTickets,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
+    res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,stalePendingPayments,stalePendingWithdrawals,recentFailedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,recentFailedLogins,openTickets,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
 app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
