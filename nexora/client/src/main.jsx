@@ -1081,6 +1081,7 @@ function AdminApp(){
   window.addEventListener("popstate",handlePopState);
   return()=>window.removeEventListener("popstate",handlePopState);
  },[]);
+ const unreadAnnouncementCount=announcements.filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const load=async(show=true)=>{
   const currentAdmin=adminRef.current;
   if(currentAdmin?.role){try{await loadSectionData(pageRef.current,currentAdmin.role,{silent:true});}catch{}return;}
