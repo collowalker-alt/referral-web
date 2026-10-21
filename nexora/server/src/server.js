@@ -1819,6 +1819,45 @@ app.patch("/api/admin/connect/orders/:id",adminAuth,requireAdminRole("SUPER_ADMI
 });
 
 app.post("/api/admin/auth/logout-all",adminAuth,async(req,res)=>{try{const updated=await prisma.admin.update({where:{id:req.admin.id},data:{tokenVersion:{increment:1}}});await logAdminAction(req,"ADMIN_LOGOUT_ALL_SESSIONS","ADMIN",req.admin.id,req.admin.email,{});res.json({message:"All other administrator sessions have been signed out.",token:signAdmin(updated)});}catch(e){res.status(500).json({message:"Unable to end administrator sessions"});}});
+app.get("/api/admin/reconciliation",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
+  try{
+    const now=new Date();
+    const dayStart=new Date(now);dayStart.setHours(0,0,0,0);
+    const last24h=new Date(now.getTime()-24*60*60*1000);
+    const last7d=new Date(now.getTime()-7*24*60*60*1000);
+    const [todayTransactions,dayTransactions,last7dUsers,last7dPackages,withdrawalGroups,commissionTotal]=await Promise.all([
+      prisma.transaction.groupBy({by:["status","type"],where:{createdAt:{gte:dayStart}},_sum:{amount:true},_count:{_all:true}}),
+      prisma.transaction.groupBy({by:["status","type"],where:{createdAt:{gte:last24h}},_sum:{amount:true},_count:{_all:true}}),
+      prisma.user.count({where:{createdAt:{gte:last7d}}}),
+      prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS",createdAt:{gte:last7d}},_sum:{amount:true},_count:{_all:true}}),
+      prisma.withdrawal.groupBy({by:["status"],where:{createdAt:{gte:dayStart}},_sum:{amount:true},_count:{_all:true}}),
+      prisma.commission.aggregate({where:{createdAt:{gte:dayStart}},_sum:{amount:true},_count:{_all:true}})
+    ]);
+    const sumRows=rows=>rows.reduce((acc,row)=>{const key=String(row.status||"UNKNOWN");if(!acc[key])acc[key]={count:0,amount:0};acc[key].count+=Number(row._count?._all||0);acc[key].amount+=Number(row._sum?.amount||0);return acc;},{});
+    res.set("Cache-Control","no-store");
+    res.json({ok:true,readOnly:true,generatedAt:now.toISOString(),periods:{today:dayStart.toISOString(),last24Hours:last24h.toISOString(),last7Days:last7d.toISOString()},transactionsToday:todayTransactions.map(x=>({status:x.status,type:x.type,count:Number(x._count?._all||0),amount:Number(x._sum?.amount||0)})),transactionsLast24Hours:sumRows(dayTransactions),withdrawalsToday:withdrawalGroups.map(x=>({status:x.status,count:Number(x._count?._all||0),amount:Number(x._sum?.amount||0)})),commissionsToday:{count:Number(commissionTotal._count||0),amount:Number(commissionTotal._sum?.amount||0)},growth:{newMembersLast7Days:last7dUsers,successfulPackagePurchasesLast7Days:Number(last7dPackages._count||0),successfulPackageAmountLast7Days:Number(last7dPackages._sum?.amount||0)},disclaimer:"Internal database snapshot only. This does not prove provider settlement or bank balance; match provider statements and wallet ledger before making adjustments."});
+  }catch(e){console.error("[DAILY RECONCILIATION]",e);res.status(500).json({message:"Unable to build the reconciliation snapshot."});}
+});
+app.get("/api/admin/universal-search",adminAuth,async(req,res)=>{
+  try{
+    const q=String(req.query.q||"").trim().slice(0,100);
+    if(q.length<2)return res.json({query:q,results:[]});
+    const contains={contains:q,mode:"insensitive"};
+    const [users,transactions,projects,tickets]=await Promise.all([
+      prisma.user.findMany({where:{OR:[{name:contains},{email:contains},{phone:{contains:q}},{referralCode:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,phone:true,referralCode:true}}),
+      prisma.transaction.findMany({where:{OR:[{reference:contains},{type:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,reference:true,type:true,status:true,amount:true,userId:true,createdAt:true}}),
+      prisma.serviceRequest.findMany({where:{OR:[{title:contains},{email:contains},{whatsapp:{contains:q}},{serviceType:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true,serviceType:true,email:true,createdAt:true}}).catch(()=>[]),
+      prisma.supportTicket.findMany({where:{OR:[{subject:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,subject:true,status:true,userId:true,createdAt:true}})
+    ]);
+    const results=[
+      ...users.map(x=>({kind:"Member",id:x.id,title:x.name||x.email,subtitle:[x.email,x.phone,x.referralCode].filter(Boolean).join(" · "),page:"users"})),
+      ...transactions.map(x=>({kind:"Transaction",id:x.id,title:x.reference||x.type,subtitle:String(x.type)+" · "+String(x.status)+" · KSh "+Number(x.amount||0).toLocaleString(),page:"transactions",userId:x.userId})),
+      ...projects.map(x=>({kind:"Service request",id:x.id,title:x.title,subtitle:String(x.serviceType).replaceAll("_"," ")+" · "+x.status,page:"serviceRequests"})),
+      ...tickets.map(x=>({kind:"Support ticket",id:x.id,title:x.subject,subtitle:"Status: "+x.status,page:"support",userId:x.userId}))
+    ].slice(0,24);
+    res.set("Cache-Control","no-store");res.json({query:q,results});
+  }catch(e){console.error("[ADMIN UNIVERSAL SEARCH]",e);res.status(500).json({message:"Search is temporarily unavailable."});}
+});
 app.get("/api/admin/reliability",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{
     const staleBefore=new Date(Date.now()-15*60*1000);
