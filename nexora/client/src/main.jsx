@@ -1039,49 +1039,29 @@ function AdminApp(){
   usersFetchingRef.current=true;setUsersFetching(true);
   try{await loadSectionData("users",adminRef.current?.role,{userQuery:normalized,silent:true});}catch{}finally{if(requestId===usersRequestRef.current){usersFetchingRef.current=false;setUsersFetching(false);}}
  };
- const historyNavigationRef=useRef(false),historyInitializedRef=useRef(false);
+ const adminHistoryRef=useRef(false),adminHistoryInitializedRef=useRef(false);
  useEffect(()=>{
   const url=new URL(window.location.href);
-  url.searchParams.set("page",page);
-  if(!historyInitializedRef.current){
-   window.history.replaceState({...window.history.state,nexoraPage:page},"",url);
-   historyInitializedRef.current=true;
+  url.searchParams.set("adminPage",page);
+  if(!adminHistoryInitializedRef.current){
+   window.history.replaceState({...window.history.state,nexoraAdminPage:page},"",url);
+   adminHistoryInitializedRef.current=true;
    return;
   }
-  if(historyNavigationRef.current){historyNavigationRef.current=false;return;}
-  window.history.pushState({...window.history.state,nexoraPage:page},"",url);
+  if(adminHistoryRef.current){adminHistoryRef.current=false;return;}
+  window.history.pushState({...window.history.state,nexoraAdminPage:page},"",url);
  },[page]);
  useEffect(()=>{
   const handlePopState=()=>{
-   const requested=new URLSearchParams(window.location.search).get("page");
-   const next=allowedMemberPages.includes(requested)?requested:"dashboard";
-   historyNavigationRef.current=true;
-   setPage(next);
+   const requested=new URLSearchParams(window.location.search).get("adminPage");
+   const valid=["overview","users","transactions","deposits","paybillverify","withdrawals","packages","advertising","marketplace","serviceRequests","announcements","support","activity","paymentconfig","health","loginactivity","security","admins","connectorders"];
+   adminHistoryRef.current=true;
+   setPage(valid.includes(requested)?requested:"overview");
    setMobile(false);
-   setInstructions(false);
-   setPayment(null);
-   setReceipt(null);
-   setPhoneModal(null);
   };
   window.addEventListener("popstate",handlePopState);
   return()=>window.removeEventListener("popstate",handlePopState);
  },[]);
- useEffect(()=>{
-  if(path==="/admin"||path.startsWith("/admin/"))return;
-  if(!Capacitor.isNativePlatform())return;
-  let subscription;
-  CapacitorApp.addListener("backButton",({canGoBack})=>{
-   if(payment){setPayment(null);return;}
-   if(receipt){setReceipt(null);return;}
-   if(phoneModal){setPhoneModal(null);return;}
-   if(instructions){setInstructions(false);return;}
-   if(mobile){setMobile(false);return;}
-   if(page!=="dashboard"){window.history.back();return;}
-   if(canGoBack)window.history.back();
-   else CapacitorApp.exitApp();
-  }).then(handle=>{subscription=handle}).catch(()=>{});
-  return()=>{subscription?.remove()};
- },[page,payment,receipt,phoneModal,instructions,mobile]);
  const load=async(show=true)=>{
   const currentAdmin=adminRef.current;
   if(currentAdmin?.role){try{await loadSectionData(pageRef.current,currentAdmin.role,{silent:true});}catch{}return;}
