@@ -1846,7 +1846,7 @@ app.get("/api/admin/universal-search",adminAuth,requireAdminRole("SUPER_ADMIN","
     const [users,transactions,projects,tickets]=await Promise.all([
       prisma.user.findMany({where:{OR:[{name:contains},{email:contains},{phone:{contains:q}},{referralCode:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,phone:true,referralCode:true}}),
       prisma.transaction.findMany({where:{OR:[{reference:contains},{type:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,reference:true,type:true,status:true,amount:true,userId:true,createdAt:true}}),
-      prisma.serviceRequest.findMany({where:{OR:[{title:contains},{email:contains},{whatsapp:{contains:q}},{serviceType:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,title:true,status:true,serviceType:true,email:true,createdAt:true}}).catch(()=>[]),
+      prisma.$queryRawUnsafe(`SELECT "id","title","status","serviceType","email","createdAt" FROM "ServiceRequest" WHERE "title" ILIKE $1 OR "email" ILIKE $1 OR "whatsapp" ILIKE $1 OR "serviceType" ILIKE $1 OR "status" ILIKE $1 ORDER BY "createdAt" DESC LIMIT 8`, "%"+q+"%").catch(()=>[]),
       prisma.supportTicket.findMany({where:{OR:[{subject:contains},{status:contains}]},take:8,orderBy:{createdAt:"desc"},select:{id:true,subject:true,status:true,userId:true,createdAt:true}})
     ]);
     const results=[
