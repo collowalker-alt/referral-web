@@ -2653,7 +2653,21 @@ app.patch('/api/admin/service-requests/:id',adminAuth,async(req,res)=>{
 app.get('/api/admin/service-requests/:id/messages',adminAuth,async(req,res)=>{try{const rows=await prisma.$queryRawUnsafe(`SELECT m.* FROM "ServiceRequestMessage" m WHERE m."requestId"=$1 ORDER BY m."createdAt" ASC`,req.params.id);res.json(rows)}catch(e){res.status(500).json({message:'Unable to load project messages'})}});
 app.post('/api/admin/service-requests/:id/messages',adminAuth,async(req,res)=>{try{const message=String(req.body?.message||'').trim().slice(0,4000);if(!message)return res.status(400).json({message:'Enter a message.'});const sr=(await prisma.$queryRawUnsafe(`SELECT "userId" FROM "ServiceRequest" WHERE "id"=$1`,req.params.id))[0];if(!sr)return res.status(404).json({message:'Request not found'});const id=crypto.randomUUID();const senderId=req.admin?.id||req.user?.id;if(!senderId)return res.status(401).json({message:'Admin session not found'});await prisma.$executeRawUnsafe(`INSERT INTO "ServiceRequestMessage" ("id","requestId","senderId","senderRole","senderName","message","createdAt") VALUES ($1,$2,$3,'ADMIN',$4,$5,CURRENT_TIMESTAMP)`,id,req.params.id,senderId,req.admin.name||'NEXORA Team',message);await createUserNotification(sr.userId,{title:'New project message',message:'NEXORA has sent you a new message about your project.',type:'SERVICE',details:{requestId:req.params.id}});res.status(201).json({id,message,senderRole:'ADMIN',senderName:req.admin.name||'NEXORA Team',createdAt:new Date().toISOString()})}catch(e){res.status(400).json({message:'Unable to send project message'})}});
 
-app.use(express.static(clientDist, { index: "index.html" }));
+app.use(express.static(clientDist, {
+  index: "index.html",
+  maxAge: "1h",
+  setHeaders(res, filePath) {
+    const base = path.basename(filePath);
+    if (base === "index.html") {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    } else if (/\.[a-f0-9]{8,}\.(?:js|mjs|css)$/i.test(base)) {
+      // Vite content-hashed assets are immutable and safe to cache aggressively.
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    } else {
+      res.setHeader("Cache-Control", "public, max-age=3600");
+    }
+  }
+}));
 app.get("/{*splat}", (req,res,next) => {
   if (req.path.startsWith("/api/")) return next();
   res.sendFile(path.join(clientDist, "index.html"), err => {
