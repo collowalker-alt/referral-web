@@ -266,6 +266,9 @@ async function refundWithdrawalInTransaction(db,withdrawal,{reversed=false,proce
     // Pending funds include the full amount reserved for this withdrawal.
     await db.wallet.update({where:{userId:withdrawal.userId},data:{pendingBalance:{decrement:totalDebit},balance:{increment:totalDebit}}});
   }
+  const payoutTxRef=`WD-TX-${withdrawal.reference}`;
+  const payoutTx=await db.transaction.findUnique({where:{reference:payoutTxRef}});
+  if(payoutTx) await db.transaction.update({where:{reference:payoutTxRef},data:{status:"FAILED",metadata:{...(payoutTx.metadata||{}),closedAt:new Date().toISOString(),reason,reversed}}});
   const txRef=`WD-REFUND-${withdrawal.reference}`;
   if(!(await db.transaction.findUnique({where:{reference:txRef}}))){
     await db.transaction.create({data:{userId:withdrawal.userId,type:"REFUND",amount:totalDebit,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:withdrawal.id,processedBy,provider:"PAYSTACK",reason,reversed,payoutAmount,withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit}}});
@@ -302,8 +305,12 @@ async function applyPaystackWithdrawalOutcome(reference,transferData={},eventNam
       const payoutAmount = withdrawalPayoutForRecord(fresh);
       await db.wallet.update({where:{userId:fresh.userId},data:{pendingBalance:{decrement:totalDebit},totalWithdrawn:{increment:payoutAmount}}});
       const txRef=`WD-TX-${fresh.reference}`;
-      if(!(await db.transaction.findUnique({where:{reference:txRef}}))){
-        await db.transaction.create({data:{userId:fresh.userId,type:"WITHDRAWAL",amount:payoutAmount,status:"SUCCESS",reference:txRef,metadata:{withdrawalId:fresh.id,provider:"PAYSTACK",transferReference:payoutRef,transferCode:transferData.transfer_code||null,processedAt:new Date().toISOString(),withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit}}});
+      const payoutMetadata={withdrawalId:fresh.id,provider:"PAYSTACK",transferReference:payoutRef,transferCode:transferData.transfer_code||null,processedAt:new Date().toISOString(),withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit};
+      const existingPayoutTx=await db.transaction.findUnique({where:{reference:txRef}});
+      if(existingPayoutTx){
+        await db.transaction.update({where:{reference:txRef},data:{status:"SUCCESS",metadata:{...(existingPayoutTx.metadata||{}),...payoutMetadata}}});
+      }else{
+        await db.transaction.create({data:{userId:fresh.userId,type:"WITHDRAWAL",amount:payoutAmount,status:"SUCCESS",reference:txRef,metadata:payoutMetadata}});
       }
       return true;
     });
@@ -2187,7 +2194,9 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
       if(reserve.count!==1) throw payoutError(`Insufficient available wallet balance. This withdrawal deducts KSh ${totalDebit.toLocaleString()} total: M-PESA payout ${payoutAmount.toLocaleString()}, NEXORA fee ${fee.toLocaleString()}, and Paystack fee ${paystackFee.toLocaleString()}.`,400);
       // WDNET stores the total wallet deduction, so recovery/reconciliation can
       // calculate the same net payout after a Render restart.
-      return await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING"}});
+      const created=await db.withdrawal.create({data:{userId:req.user.id,amount:totalDebit,phone,reference,status:"PENDING"}});
+      await db.transaction.create({data:{userId:req.user.id,type:"WITHDRAWAL",amount:payoutAmount,status:"PENDING",reference:`WD-TX-${reference}`,metadata:{withdrawalId:created.id,provider:"PAYSTACK",withdrawalReference:reference,requestedAt:new Date().toISOString(),withdrawalFee:fee,paystackTransferFee:paystackFee,totalWalletDebit:totalDebit}}});
+      return created;
     },{isolationLevel:"Serializable"});
 
     try{
