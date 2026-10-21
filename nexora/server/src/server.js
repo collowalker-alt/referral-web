@@ -2306,7 +2306,7 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
     if(amount>=10000) riskReasons.push("large withdrawal amount");
     if(availableBalance>=5000 && amount>=5000 && amount>=availableBalance*0.75) riskReasons.push("withdrawal uses at least 75% of the available wallet balance");
     const reviewRequired=riskReasons.length>0;
-    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed abuse may lead to membership or account restrictions after investigation.",requestedAmount:amount});
+    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed misuse may lead to a plan downgrade or account restrictions after investigation.",requestedAmount:amount});
     const reviewReason=reviewRequired?riskReasons.join("; "):null;
     const reference=`WDNET-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const since=new Date(Date.now()-24*60*60*1000);
