@@ -5955,3 +5955,54 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
     white-space: normal;
   }
 }
+
+
+/* Member announcement alert: pulses only while at least one announcement is unseen. */
+.nx-announcement-alert{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:36px;
+  padding:7px 10px;
+  border:1px solid rgba(133,157,184,.28);
+  border-radius:11px;
+  background:rgba(15,31,49,.88);
+  color:#dcecff;
+  font-size:11px;
+  font-weight:800;
+  line-height:1;
+  cursor:pointer;
+  white-space:nowrap;
+  flex:0 0 auto;
+}
+.nx-announcement-alert:hover{border-color:#ff6c78;background:rgba(104,24,38,.24)}
+.nx-announcement-alert>i{
+  position:absolute;
+  top:-4px;
+  right:-4px;
+  width:10px;
+  height:10px;
+  border:2px solid #07111e;
+  border-radius:50%;
+  background:#ff3f55;
+}
+.nx-announcement-alert.is-unread{
+  color:#fff;
+  border-color:#ff475b;
+  background:linear-gradient(135deg,rgba(156,25,43,.96),rgba(94,18,35,.96));
+  animation:nx-announcement-pulse 1.15s ease-in-out infinite;
+}
+.nx-announcement-alert.is-unread>i{background:#fff;box-shadow:0 0 0 3px rgba(255,64,86,.28)}
+@keyframes nx-announcement-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(255,55,78,.18);filter:brightness(1)}
+  50%{box-shadow:0 0 0 5px rgba(255,55,78,.13);filter:brightness(1.18)}
+}
+@media(max-width:560px){
+  .nx-announcement-alert{min-width:35px;min-height:35px;padding:7px;border-radius:10px}
+  .nx-announcement-alert>span{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .nx-announcement-alert.is-unread{animation:none}
+}
