@@ -1245,6 +1245,28 @@ app.get("/api/me",auth,async(req,res)=>{
   res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,planStatus:u.planStatus,paymentAvailability:paymentAvailabilityForCountry(u.countryCode),referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
 });
 
+
+app.get("/api/member/intelligence",auth,async(req,res)=>{
+  try{
+    const userId=req.user.id;
+    const [user,activeListings,ordersBought,ordersSold,deliveredOrders,openDisputes,reviewStats,commissionStats,pendingPayments,withdrawalsUnderReview]=await Promise.all([
+      prisma.user.findUnique({where:{id:userId},select:{id:true,name:true,email:true,phone:true,referralCode:true,planStatus:true,sellerVerified:true,sellerBio:true,createdAt:true,package:{select:{id:true,name:true}},wallet:{select:{balance:true}}}}),
+      prisma.product.count({where:{sellerId:userId,status:"ACTIVE"}}),
+      prisma.order.count({where:{buyerId:userId}}),
+      prisma.order.count({where:{sellerId:userId}}),
+      prisma.order.count({where:{buyerId:userId,status:"DELIVERED"}}),
+      prisma.dispute.count({where:{userId,status:"OPEN"}}),
+      prisma.productReview.aggregate({where:{sellerId:userId},_avg:{rating:true},_count:{id:true}}),
+      prisma.commission.aggregate({where:{receiverId:userId},_sum:{amount:true},_count:{id:true}}),
+      prisma.transaction.count({where:{userId,status:"PENDING"}}),
+      prisma.withdrawal.count({where:{userId,status:"PENDING",reviewRequired:true}})
+    ]);
+    if(!user)return res.status(404).json({message:"Member account not found"});
+    const profileComplete=Boolean(user.name&&user.email&&user.phone&&user.referralCode);
+    res.json({generatedAt:new Date().toISOString(),stats:{activeListings,ordersBought,ordersSold,deliveredOrders,openDisputes,pendingPayments,withdrawalsUnderReview,commissionTotal:Number(commissionStats._sum.amount||0),commissionCount:Number(commissionStats._count.id||0),sellerRating:Number((reviewStats._avg.rating||0).toFixed(1)),sellerReviewCount:Number(reviewStats._count.id||0)},checks:{profileComplete,activePlan:Boolean(user.package&&String(user.planStatus||"").toUpperCase()==="ACTIVE"),sellerVerified:Boolean(user.sellerVerified),hasSellerBio:Boolean(user.sellerBio&&user.sellerBio.trim())}});
+  }catch(e){console.error("[MEMBER INTELLIGENCE]",e);res.status(500).json({message:"Unable to load NEXORA Intelligence right now"});}
+});
+
 app.get("/api/referrals",auth,async(req,res)=>{
   try{
     const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}});
