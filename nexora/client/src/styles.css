@@ -5901,3 +5901,57 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
  .modal.instructions .tutorial-content ol { width: 100%; min-width: 0; }
  .modal.instructions .tutorial-content li { gap: 9px; align-items: flex-start; }
 }
+
+
+/* Fix mobile Smart Guide text wrapping: keep headings horizontal and give the
+   copy a usable width instead of squeezing it beside the action button. */
+.nx-smart-guide,
+.nx-smart-guide * {
+  writing-mode: horizontal-tb;
+}
+.nx-smart-guide-main {
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow-wrap: normal;
+}
+.nx-smart-guide h3,
+.nx-smart-guide p {
+  word-break: normal !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  letter-spacing: normal;
+}
+@media (max-width: 560px) {
+  .nx-smart-guide {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+  .nx-smart-guide-icon {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .nx-smart-guide-main {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+  }
+  .nx-smart-guide h3 {
+    max-width: 100%;
+    line-height: 1.35;
+    font-size: 15px;
+  }
+  .nx-smart-guide p {
+    line-height: 1.5;
+  }
+  .nx-smart-guide-action {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: start;
+    width: auto;
+    max-width: 100%;
+    white-space: normal;
+  }
+}
