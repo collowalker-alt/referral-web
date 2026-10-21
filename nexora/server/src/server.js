@@ -1069,7 +1069,28 @@ app.post("/api/marketplace/coupons/validate",auth,async(req,res)=>{try{const cod
 app.post("/api/marketplace/orders/:id/disputes",auth,async(req,res)=>{try{const o=await prisma.order.findUnique({where:{id:req.params.id}});if(!o)return res.status(404).json({message:"Order not found"});if(o.buyerId!==req.user.id&&o.sellerId!==req.user.id)return res.status(403).json({message:"Not authorized"});const d=await prisma.dispute.create({data:{orderId:o.id,userId:req.user.id,reason:String(req.body?.reason||"Order issue").slice(0,160),details:String(req.body?.details||"").slice(0,3000)}});res.status(201).json(d);}catch(e){res.status(400).json({message:"Unable to open dispute"});}});
 app.get("/api/marketplace/seller/:id",auth,async(req,res)=>{try{const u=await prisma.user.findUnique({where:{id:req.params.id},select:{id:true,name:true,phone:true,sellerVerified:true,sellerBio:true,createdAt:true}});if(!u)return res.status(404).json({message:"Seller not found"});const agg=await prisma.productReview.aggregate({where:{sellerId:u.id},_avg:{rating:true},_count:{id:true}});res.json({...u,rating:Number((agg._avg.rating||0).toFixed(1)),reviews:agg._count.id});}catch(e){res.status(500).json({message:"Unable to load seller"});}});
 app.post("/api/marketplace/seller/profile",auth,async(req,res)=>{try{const bio=String(req.body?.sellerBio||"").slice(0,1200);const u=await prisma.user.update({where:{id:req.user.id},data:{sellerBio}});res.json({sellerBio:u.sellerBio});}catch(e){res.status(500).json({message:"Unable to update seller profile"});}});
-app.patch("/api/marketplace/orders/:id/status",auth,async(req,res)=>{try{const status=String(req.body?.status||"").toUpperCase();if(!["CONFIRMED","PROCESSING","SHIPPED","DELIVERED","CANCELLED"].includes(status))return res.status(400).json({message:"Invalid order status"});const o=await prisma.order.findUnique({where:{id:req.params.id}});if(!o)return res.status(404).json({message:"Order not found"});if(o.sellerId!==req.user.id && o.buyerId!==req.user.id)return res.status(403).json({message:"Not authorized"});const updated=await prisma.order.update({where:{id:o.id},data:{status}});res.json(updated);}catch(e){res.status(500).json({message:"Unable to update order"});}});
+app.patch("/api/marketplace/orders/:id/status",auth,async(req,res)=>{
+ try{
+  const status=String(req.body?.status||"").toUpperCase();
+  if(!["CONFIRMED","PROCESSING","SHIPPED","DELIVERED","CANCELLED"].includes(status))return res.status(400).json({message:"Invalid order status"});
+  const o=await prisma.order.findUnique({where:{id:req.params.id}});
+  if(!o)return res.status(404).json({message:"Order not found"});
+  const isSeller=o.sellerId===req.user.id,isBuyer=o.buyerId===req.user.id;
+  if(!isSeller&&!isBuyer)return res.status(403).json({message:"Not authorized"});
+  let allowed=false;
+  if(isSeller){
+   const nextByStatus={PENDING:["CONFIRMED","CANCELLED"],CONFIRMED:["PROCESSING","CANCELLED"],PROCESSING:["SHIPPED"],SHIPPED:[],DELIVERED:[],CANCELLED:[],REFUNDED:[]};
+   allowed=(nextByStatus[o.status]||[]).includes(status);
+  }else{
+   // Buyers can only confirm receipt after the seller marks the order as shipped.
+   // Buyers may cancel only before the seller starts fulfilling the order.
+   allowed=(status==="DELIVERED"&&o.status==="SHIPPED")||(status==="CANCELLED"&&o.status==="PENDING");
+  }
+  if(!allowed)return res.status(409).json({message:isBuyer?"You can confirm receipt only after the seller marks the order as shipped, or cancel before fulfillment starts.":"Order status must follow the seller workflow: confirm, process, then ship. Only the buyer can confirm receipt."});
+  const updated=await prisma.order.update({where:{id:o.id},data:{status}});
+  res.json(updated);
+ }catch(e){console.error("[MARKETPLACE ORDER STATUS]",e);res.status(500).json({message:"Unable to update order"});}
+});
 app.get("/api/admin/marketplace/products",adminAuth,async(req,res)=>{try{res.json(await prisma.product.findMany({include:{seller:{select:{name:true,email:true,phone:true}},_count:{select:{orderItems:true}}},orderBy:{createdAt:"desc"},take:500}));}catch(e){res.status(500).json({message:"Unable to load marketplace products"});}});
 app.patch("/api/admin/marketplace/products/:id",adminAuth,async(req,res)=>{try{const status=String(req.body?.status||"").toUpperCase();if(!["ACTIVE","SOLD_OUT","HIDDEN","REJECTED"].includes(status))return res.status(400).json({message:"Invalid product status"});const p=await prisma.product.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,"MARKETPLACE_PRODUCT_STATUS","PRODUCT",p.id,null,{status});res.json(p);}catch(e){res.status(500).json({message:"Unable to moderate product"});}});
 app.get("/api/admin/marketplace/orders",adminAuth,async(req,res)=>{try{res.json(await prisma.order.findMany({include:{items:true,buyer:{select:{name:true,email:true,phone:true}},seller:{select:{name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:500}));}catch(e){res.status(500).json({message:"Unable to load marketplace orders"});}});
@@ -1243,6 +1264,28 @@ app.get("/api/me",auth,async(req,res)=>{
   const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
   const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
   res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,planStatus:u.planStatus,paymentAvailability:paymentAvailabilityForCountry(u.countryCode),referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+});
+
+
+app.get("/api/member/intelligence",auth,async(req,res)=>{
+  try{
+    const userId=req.user.id;
+    const [user,activeListings,ordersBought,ordersSold,deliveredOrders,openDisputes,reviewStats,commissionStats,pendingPayments,withdrawalsUnderReview]=await Promise.all([
+      prisma.user.findUnique({where:{id:userId},select:{id:true,name:true,email:true,phone:true,referralCode:true,planStatus:true,sellerVerified:true,sellerBio:true,createdAt:true,package:{select:{id:true,name:true}},wallet:{select:{balance:true}}}}),
+      prisma.product.count({where:{sellerId:userId,status:"ACTIVE"}}),
+      prisma.order.count({where:{buyerId:userId}}),
+      prisma.order.count({where:{sellerId:userId}}),
+      prisma.order.count({where:{buyerId:userId,status:"DELIVERED"}}),
+      prisma.dispute.count({where:{userId,status:"OPEN"}}),
+      prisma.productReview.aggregate({where:{sellerId:userId},_avg:{rating:true},_count:{id:true}}),
+      prisma.commission.aggregate({where:{receiverId:userId},_sum:{amount:true},_count:{id:true}}),
+      prisma.transaction.count({where:{userId,status:"PENDING"}}),
+      prisma.withdrawal.count({where:{userId,status:"PENDING",reviewRequired:true}})
+    ]);
+    if(!user)return res.status(404).json({message:"Member account not found"});
+    const profileComplete=Boolean(user.name&&user.email&&user.phone&&user.referralCode);
+    res.json({generatedAt:new Date().toISOString(),stats:{activeListings,ordersBought,ordersSold,deliveredOrders,openDisputes,pendingPayments,withdrawalsUnderReview,commissionTotal:Number(commissionStats._sum.amount||0),commissionCount:Number(commissionStats._count.id||0),sellerRating:Number((reviewStats._avg.rating||0).toFixed(1)),sellerReviewCount:Number(reviewStats._count.id||0)},checks:{profileComplete,activePlan:Boolean(user.package&&String(user.planStatus||"").toUpperCase()==="ACTIVE"),sellerVerified:Boolean(user.sellerVerified),hasSellerBio:Boolean(user.sellerBio&&user.sellerBio.trim())}});
+  }catch(e){console.error("[MEMBER INTELLIGENCE]",e);res.status(500).json({message:"Unable to load NEXORA Intelligence right now"});}
 });
 
 app.get("/api/referrals",auth,async(req,res)=>{
