@@ -2040,10 +2040,20 @@ app.patch("/api/admin/users/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN"
 app.patch("/api/admin/users/:id/plan",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{
     const action=String(req.body?.action||"").toUpperCase();
-    if(!["SUSPEND","REACTIVATE","DEACTIVATE","REMOVE"].includes(action)) return res.status(400).json({message:"Invalid plan action"});
+    if(!["ASSIGN","SUSPEND","REACTIVATE","DEACTIVATE","REMOVE"].includes(action)) return res.status(400).json({message:"Invalid plan action"});
     const current=await prisma.user.findUnique({where:{id:req.params.id},include:{package:true}});
     if(!current) return res.status(404).json({message:"User not found"});
-    if(action!=="REACTIVATE" && !current.packageId) return res.status(400).json({message:"This user does not have an assigned plan"});
+    if(action==="ASSIGN"){
+      const packageId=String(req.body?.packageId||"").trim();
+      if(!packageId)return res.status(400).json({message:"Choose a plan to assign"});
+      const selected=await prisma.package.findUnique({where:{id:packageId}});
+      if(!selected||!selected.active)return res.status(404).json({message:"The selected plan does not exist or is not active"});
+      const previousPackage=current.package;
+      const updated=await prisma.user.update({where:{id:current.id},data:{packageId:selected.id,planStatus:"ACTIVE"},include:{package:true}});
+      await logAdminAction(req,"USER_PLAN_ASSIGNED","USER",current.id,current.email,{previousPackageId:previousPackage?.id||null,previousPackageName:previousPackage?.name||null,packageId:selected.id,packageName:selected.name,manualGrant:true});
+      await createUserNotification(current.id,{title:"Membership plan assigned",message:`An administrator assigned the ${selected.name} plan to your account. Your plan is now active. If you have questions about this manual assignment, contact support.`,type:"MEMBERSHIP",details:{action:"ASSIGN",packageId:selected.id,packageName:selected.name,previousPackageId:previousPackage?.id||null,manualGrant:true}});
+      return res.json({message:`${selected.name} assigned to ${current.email}. No payment or referral commission was created.`,user:{id:updated.id,package:updated.package,planStatus:updated.planStatus},previousPackage:previousPackage?{id:previousPackage.id,name:previousPackage.name}:null});
+    }
     if(action==="REACTIVATE" && !current.packageId) return res.status(400).json({message:"This user has no plan to reactivate"});
     if(action==="SUSPEND" && current.planStatus==="SUSPENDED") return res.status(400).json({message:"This plan is already suspended"});
     if(action==="REACTIVATE" && !["SUSPENDED","DEACTIVATED"].includes(current.planStatus)) return res.status(400).json({message:"This plan is already active"});
