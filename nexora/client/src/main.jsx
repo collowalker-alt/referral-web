@@ -3038,7 +3038,7 @@ function NativeLaunchSplash(){
  return <div className="nx-native-launch-splash" role="status" aria-label="NEXORA is starting">
   <div className="nx-launch-glow"/>
   <div className="nx-launch-brand">
-   <img src="/nexora-logo.png" alt="NEXORA" onError={e=>{e.currentTarget.style.display="none";}}/>
+   <img src="/nexora-logo.png" alt="NEXORA" onError={e=>{e.currentTarget.style.display="none";const fallback=e.currentTarget.parentElement?.querySelector(".nx-launch-fallback");if(fallback)fallback.style.display="block";}}/><div className="nx-launch-fallback" aria-label="NEXORA" style={{display:"none"}}>NEXORA</div>
    <div className="nx-launch-motto">CONNECT. GROW. EARN.</div>
    <div className="nx-launch-line"><span/></div>
   </div>
@@ -3047,6 +3047,7 @@ function NativeLaunchSplash(){
    .nx-launch-glow{position:absolute;width:min(78vw,420px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(40,113,255,.20) 0%,rgba(40,113,255,.07) 42%,transparent 72%);filter:blur(10px);animation:nxLaunchGlow 1.7s ease-in-out infinite alternate}
    .nx-launch-brand{position:relative;width:min(82vw,420px);display:flex;flex-direction:column;align-items:center;gap:22px;animation:nxLaunchForm .9s cubic-bezier(.2,.8,.2,1) both}
    .nx-launch-brand img{display:block;max-width:100%;max-height:34vh;object-fit:contain;filter:drop-shadow(0 0 18px rgba(69,137,255,.24));animation:nxLaunchPulse 2s ease-in-out infinite}
+    .nx-launch-fallback{font:900 clamp(36px,10vw,64px)/1 system-ui,-apple-system,sans-serif;letter-spacing:.16em;color:#f5f7ff;text-shadow:0 0 28px rgba(69,137,255,.48);animation:nxLaunchPulse 2s ease-in-out infinite}
    .nx-launch-motto{font:700 clamp(12px,3.2vw,16px)/1.4 system-ui,-apple-system,sans-serif;letter-spacing:.22em;text-align:center;color:#f5f7ff;text-shadow:0 0 18px rgba(86,147,255,.28);white-space:nowrap}
    .nx-launch-line{width:118px;height:2px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
    .nx-launch-line span{display:block;width:45%;height:100%;border-radius:99px;background:linear-gradient(90deg,#4a8dff,#b9d6ff);animation:nxLaunchProgress 1.25s ease-in-out infinite}
