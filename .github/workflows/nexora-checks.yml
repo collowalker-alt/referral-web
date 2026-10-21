@@ -1,0 +1,35 @@
+name: NEXORA checks
+
+on:
+  pull_request:
+    paths:
+      - "nexora/**"
+      - ".github/workflows/nexora-checks.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "nexora/**"
+      - ".github/workflows/nexora-checks.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            nexora/server/package-lock.json
+            nexora/client/package-lock.json
+      - name: Install backend dependencies
+        run: npm install --prefix nexora/server
+      - name: Install frontend dependencies
+        run: npm install --prefix nexora/client
+      - name: Generate Prisma client
+        run: npx prisma generate --schema nexora/prisma/schema.prisma
+      - name: Check backend JavaScript syntax
+        run: node --check nexora/server/src/server.js
+      - name: Build frontend
+        run: npm run build --prefix nexora/client
