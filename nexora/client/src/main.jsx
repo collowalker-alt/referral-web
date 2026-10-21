@@ -2268,6 +2268,7 @@ function Dashboard({me,goPage,goPackages,profileStrength,tickets,goSecurity,load
      <button type="button" className="primary" onClick={()=>goPage("marketplace")}><ShoppingCart size={15}/> Shop</button>
      <button type="button" className="secondary" onClick={()=>goPage("marketplace")}><Plus size={15}/> Sell</button>
      <button type="button" className="secondary home-earn-btn" onClick={()=>goPackages?goPackages():goPage("referrals")}><TrendingUp size={15}/> Earn</button>
+     <button type="button" className="secondary home-loan-btn" onClick={()=>goPage("balloon")}><HandCoins size={15}/> Loan</button>
     </div>
     <div className="ecom-trust-row home-trust-compact" aria-label="Marketplace benefits">
      <span><ShieldCheck size={12}/> Verified tools</span>
