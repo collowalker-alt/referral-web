@@ -1819,6 +1819,23 @@ app.patch("/api/admin/connect/orders/:id",adminAuth,requireAdminRole("SUPER_ADMI
 });
 
 app.post("/api/admin/auth/logout-all",adminAuth,async(req,res)=>{try{const updated=await prisma.admin.update({where:{id:req.admin.id},data:{tokenVersion:{increment:1}}});await logAdminAction(req,"ADMIN_LOGOUT_ALL_SESSIONS","ADMIN",req.admin.id,req.admin.email,{});res.json({message:"All other administrator sessions have been signed out.",token:signAdmin(updated)});}catch(e){res.status(500).json({message:"Unable to end administrator sessions"});}});
+app.get("/api/admin/reliability",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
+  try{
+    const staleBefore=new Date(Date.now()-15*60*1000);
+    const [pendingTransactions,stalePendingPayments,failedTransactions,pendingWithdrawals,staleWithdrawals,missingReferrers,duplicateRefs,unresolvedTickets]=await Promise.all([
+      prisma.transaction.count({where:{status:"PENDING"}}),
+      prisma.transaction.count({where:{status:"PENDING",type:{in:["DEPOSIT","PACKAGE_PURCHASE"]},createdAt:{lt:staleBefore}}}),
+      prisma.transaction.count({where:{status:"FAILED",createdAt:{gte:new Date(Date.now()-24*60*60*1000)}}}),
+      prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]}}}),
+      prisma.withdrawal.count({where:{status:{in:["PENDING","PROCESSING"]},createdAt:{lt:staleBefore}}}),
+      prisma.user.count({where:{referredById:{not:null},referredBy:{is:null}}}),
+      prisma.$queryRawUnsafe('SELECT "reference" FROM "Transaction" GROUP BY "reference" HAVING COUNT(*) > 1 LIMIT 50').catch(()=>[]),
+      prisma.supportTicket.count({where:{status:{in:["OPEN","IN_PROGRESS"]}}})
+    ]);
+    res.json({ok:true,checkedAt:new Date().toISOString(),pendingTransactions,stalePendingPayments,failedTransactionsLast24h:failedTransactions,pendingWithdrawals,staleWithdrawals,brokenReferralLinks:missingReferrers,duplicateTransactionReferences:duplicateRefs.length,unresolvedTickets,notes:["Read-only diagnostics; no balances, payments, referrals or commissions were changed.","A pending item is not necessarily an error; stale items need human review."]});
+  }catch(e){console.error("[RELIABILITY CHECK]",e);res.status(500).json({message:"Unable to complete reliability checks."});}
+});
+
 app.get("/api/admin/system-health",adminAuth,async(req,res)=>{const started=Date.now();let db="online",dbMs=0;try{const t=Date.now();await prisma.$queryRaw`SELECT 1`;dbMs=Date.now()-t;}catch{db="offline";}res.json({ok:db==="online",version:"2.7.0",node:process.version,uptime:Math.floor(process.uptime()),database:db,databaseMs:dbMs,paybill:Boolean(MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT),paystack:paystackConfigured(),paystackMode:paystackMode(),paystackTransfersEnabled:paystackTransfersReady(),paystackAutoWithdrawals:PAYSTACK_AUTO_WITHDRAWALS,resend:Boolean(resend),nexbot:Boolean(NEXBOT_AI_API_KEY),memoryMb:Math.round(process.memoryUsage().rss/1024/1024),responseMs:Date.now()-started,environment:process.env.NODE_ENV||"production",time:new Date().toISOString()});});
 app.get("/api/admin/login-events",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{try{res.json(await prisma.adminLoginEvent.findMany({orderBy:{createdAt:"desc"},take:100,select:{id:true,adminId:true,email:true,success:true,ip:true,userAgent:true,createdAt:true}}));}catch(e){res.status(500).json({message:"Unable to load login activity"});}});
 app.post("/api/admin/security/2fa/setup",adminAuth,async(req,res)=>{try{if(req.admin.twoFactorEnabled)return res.status(400).json({message:"Two-factor authentication is already enabled."});const secret=generateTotpSecret();await prisma.admin.update({where:{id:req.admin.id},data:{twoFactorSecret:secret,recoveryCodes:[]}});res.json({secret,otpauth:adminTotpUri(req.admin,secret),message:"Scan or enter the secret in an authenticator app, then verify the code to enable 2FA."});}catch(e){res.status(500).json({message:"Unable to prepare 2FA"});}});
