@@ -2074,6 +2074,20 @@ app.get("/api/admin/transactions",adminAuth,requireAdminRole("SUPER_ADMIN","ADMI
 app.get("/api/admin/withdrawals",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{const rows=await prisma.withdrawal.findMany({include:{user:{select:{id:true,name:true,email:true,phone:true}}},orderBy:{createdAt:"desc"},take:300});res.json(rows.map(withdrawalPublicRecord));}catch(e){console.error(e);res.status(500).json({message:"Unable to load withdrawals"});}
 });
+app.post("/api/admin/withdrawals/:id/approve-review",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
+  try{
+    const current=await prisma.withdrawal.findUnique({where:{id:req.params.id},include:{user:{select:{id:true,email:true,name:true}}}});
+    if(!current)return res.status(404).json({message:"Withdrawal not found"});
+    if(current.status!=="PENDING"||!current.reviewRequired)return res.status(409).json({message:"Only a pending withdrawal flagged for safety review can be approved here."});
+    // Keep the review flag until Paystack accepts the transfer initiation.
+    const result=await initiatePaystackWithdrawal(current.id);
+    await prisma.withdrawal.update({where:{id:current.id},data:{reviewRequired:false,reviewReason:null}});
+    await logAdminAction(req,"WITHDRAWAL_RISK_REVIEW_APPROVED","WITHDRAWAL",current.id,current.user?.email,{reference:current.reference,reviewReason:current.reviewReason,approvedStatus:result.status||"PROCESSING"});
+    await createUserNotification(current.userId,{title:"Withdrawal review completed",message:"NEXORA reviewed your withdrawal request and approved it for Paystack processing. The payout is not considered complete until Paystack confirms it.",type:"WITHDRAWAL",details:{reference:current.reference,status:result.status||"PROCESSING",destinationPage:"wallet"}});
+    res.json({message:result.message||"Safety review approved; Paystack processing has started.",status:result.status||"PROCESSING",reference:current.reference});
+  }catch(e){console.error("[WITHDRAWAL RISK REVIEW]",e.message);res.status(e.statusCode||500).json({message:e.message||"Unable to approve this withdrawal review"});}
+});
+
 app.patch("/api/admin/withdrawals/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
   try{
     const status=String(req.body?.status||"").toUpperCase();
