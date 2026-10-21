@@ -1081,7 +1081,6 @@ function AdminApp(){
   window.addEventListener("popstate",handlePopState);
   return()=>window.removeEventListener("popstate",handlePopState);
  },[]);
- const unreadAnnouncementCount=announcements.filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const load=async(show=true)=>{
   const currentAdmin=adminRef.current;
   if(currentAdmin?.role){try{await loadSectionData(pageRef.current,currentAdmin.role,{silent:true});}catch{}return;}
@@ -1606,7 +1605,8 @@ function App(){
  const allowedMemberPages=["dashboard","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","activity","leaderboard","challenges","support","security"];
  const memberInitialPage=allowedMemberPages.includes(requestedMemberPage)?requestedMemberPage:"dashboard";
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false),[offlineNotice,setOfflineNotice]=useState(false),[seenAnnouncementIds,setSeenAnnouncementIds]=useState([]),[showAnnouncementsModal,setShowAnnouncementsModal]=useState(false);
- const load=async(show=true)=>{
+ const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
+  const load=async(show=true)=>{
   if(show)setLoading(true);setError("");
   try{
    const m=await api("/me");
