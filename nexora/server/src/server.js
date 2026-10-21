@@ -892,7 +892,11 @@ app.post("/api/auth/register", registerLimiter, async (req,res)=>{
     const exists=await prisma.user.findFirst({where:{OR:[{email:normalizedEmail},{phone:normalizedPhone}]}});
     if(exists) return res.status(409).json({message:"Email or phone is already registered"});
     let parent=null;
-    if(referralCode) parent=await prisma.user.findUnique({where:{referralCode:String(referralCode).trim().toUpperCase()}});
+    const requestedReferralCode=String(referralCode||"").trim().toUpperCase();
+    if(requestedReferralCode && !["UNDEFINED","NULL","NONE","N/A"].includes(requestedReferralCode)){
+      parent=await prisma.user.findUnique({where:{referralCode:requestedReferralCode}});
+      if(!parent)return res.status(400).json({message:"That referral code is not valid. Check the code or open the original inviter's referral link before registering."});
+    }
     const hash=await bcrypt.hash(password,12);
     const user=await prisma.user.create({data:{
       name:String(name).trim(),email:normalizedEmail,phone:normalizedPhone,countryCode:requestedCountry.code,countryName:requestedCountry.name,countryVerified:Boolean(detectedCountry&&detectedCountry.code===requestedCountry.code),countrySource:"PHONE",passwordHash:hash,referralCode:makeCode(name),
