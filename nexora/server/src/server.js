@@ -2658,7 +2658,7 @@ app.use(express.static(clientDist, {
   maxAge: "1h",
   setHeaders(res, filePath) {
     const base = path.basename(filePath);
-    if (base === "index.html") {
+    if (base === "index.html" || base === "sw.js") {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     } else if (/\.[a-f0-9]{8,}\.(?:js|mjs|css)$/i.test(base)) {
       // Vite content-hashed assets are immutable and safe to cache aggressively.
