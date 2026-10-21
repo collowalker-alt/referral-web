@@ -1905,6 +1905,36 @@ app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FIN
     res.json(paged?{rows:users,page,pageSize,total,pageCount:Math.max(1,Math.ceil(total/pageSize))}:users);
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
+app.patch("/api/admin/users/:id/referrer",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
+  try{
+    const memberId=String(req.params.id||"").trim();
+    const rawReferrerId=req.body?.referredById;
+    const referrerId=rawReferrerId===null||rawReferrerId===""||rawReferrerId===undefined?null:String(rawReferrerId).trim();
+    if(referrerId===memberId)return res.status(400).json({message:"A member cannot be their own referrer."});
+    const member=await prisma.user.findUnique({where:{id:memberId},select:{id:true,name:true,email:true,referredById:true}});
+    if(!member)return res.status(404).json({message:"Member to update was not found."});
+    let referrer=null;
+    if(referrerId){
+      referrer=await prisma.user.findUnique({where:{id:referrerId},select:{id:true,name:true,email:true,referralCode:true,referredById:true}});
+      if(!referrer)return res.status(404).json({message:"The selected referrer was not found."});
+      // Prevent circular referral trees, including indirect loops.
+      const seen=new Set();
+      let cursor=referrer;
+      while(cursor){
+        if(cursor.id===member.id)return res.status(409).json({message:"This assignment would create a referral loop. Choose another referrer."});
+        if(seen.has(cursor.id))return res.status(409).json({message:"The selected referrer is already in a referral loop. Resolve that referral tree first."});
+        seen.add(cursor.id);
+        if(!cursor.referredById)break;
+        cursor=await prisma.user.findUnique({where:{id:cursor.referredById},select:{id:true,referredById:true}});
+      }
+    }
+    if(member.referredById===(referrer?.id||null))return res.json({message:"No change needed; the referral assignment is already correct.",memberId:member.id,referredBy:referrer?{id:referrer.id,name:referrer.name,email:referrer.email,referralCode:referrer.referralCode}:null});
+    await prisma.user.update({where:{id:member.id},data:{referredById:referrer?.id||null}});
+    await logAdminAction(req,"REFERRAL_ASSIGNMENT_UPDATED","USER",member.id,member.email,{memberName:member.name,previousReferrerId:member.referredById||null,previousReferrerEmail:null,newReferrerId:referrer?.id||null,newReferrerEmail:referrer?.email||null,newReferrerCode:referrer?.referralCode||null});
+    res.json({message:referrer? `Assigned ${member.name} under ${referrer.name} successfully.`:`Removed the referrer assignment for ${member.name}.`,memberId:member.id,referredBy:referrer?{id:referrer.id,name:referrer.name,email:referrer.email,referralCode:referrer.referralCode}:null,note:"This updates the referral tree going forward. It does not automatically create or recalculate historical commissions."});
+  }catch(e){console.error("Admin referral assignment error:",e);res.status(500).json({message:"Unable to update this referral assignment."});}
+});
+
 app.post("/api/admin/users/balance",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
   try{
     const email=String(req.body?.email||"").trim().toLowerCase();
