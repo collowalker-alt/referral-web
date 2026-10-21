@@ -3016,4 +3016,39 @@ class NEXORAErrorBoundary extends React.Component {
   return <div className="app-error-screen"><div className="app-error-card"><span className="pill">NEXORA</span><h1>Something went wrong</h1><p className="muted">This screen could not be displayed. Your account data is safe.</p><p className="error" style={{marginTop:12,textAlign:"left",fontSize:12,wordBreak:"break-word"}}>{msg}</p><div className="rowactions"><button className="secondary" onClick={()=>window.location.reload()}><RefreshCw size={16}/> Reload NEXORA</button><button className="primary" onClick={()=>this.setState({error:null})}>Try again</button></div></div></div>;
  }
 }
-createRoot(document.getElementById("root")).render(<NEXORAErrorBoundary><App/></NEXORAErrorBoundary>);
+function NativeLaunchSplash(){
+ const [visible,setVisible]=useState(()=>Capacitor.isNativePlatform());
+ useEffect(()=>{
+  if(!Capacitor.isNativePlatform())return;
+  // Native Android's system splash ends as soon as the WebView starts. Keep a
+  // branded hand-off visible briefly while the first React frame settles.
+  const started=Date.now();
+  const timer=window.setTimeout(()=>setVisible(false),2600);
+  return ()=>window.clearTimeout(timer);
+ },[]);
+ if(!visible)return null;
+ return <div className="nx-native-launch-splash" role="status" aria-label="NEXORA is starting">
+  <div className="nx-launch-glow"/>
+  <div className="nx-launch-brand">
+   <img src="/nexora-logo.png" alt="NEXORA" onError={e=>{e.currentTarget.style.display="none";}}/>
+   <div className="nx-launch-motto">CONNECT. GROW. EARN.</div>
+   <div className="nx-launch-line"><span/></div>
+  </div>
+  <style>{`
+   .nx-native-launch-splash{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#07090d;color:#f5f7ff;animation:nxLaunchFadeOut .55s ease 2.05s forwards}
+   .nx-launch-glow{position:absolute;width:min(78vw,420px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(40,113,255,.20) 0%,rgba(40,113,255,.07) 42%,transparent 72%);filter:blur(10px);animation:nxLaunchGlow 1.7s ease-in-out infinite alternate}
+   .nx-launch-brand{position:relative;width:min(82vw,420px);display:flex;flex-direction:column;align-items:center;gap:22px;animation:nxLaunchForm .9s cubic-bezier(.2,.8,.2,1) both}
+   .nx-launch-brand img{display:block;max-width:100%;max-height:34vh;object-fit:contain;filter:drop-shadow(0 0 18px rgba(69,137,255,.24));animation:nxLaunchPulse 2s ease-in-out infinite}
+   .nx-launch-motto{font:700 clamp(12px,3.2vw,16px)/1.4 system-ui,-apple-system,sans-serif;letter-spacing:.22em;text-align:center;color:#f5f7ff;text-shadow:0 0 18px rgba(86,147,255,.28);white-space:nowrap}
+   .nx-launch-line{width:118px;height:2px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}
+   .nx-launch-line span{display:block;width:45%;height:100%;border-radius:99px;background:linear-gradient(90deg,#4a8dff,#b9d6ff);animation:nxLaunchProgress 1.25s ease-in-out infinite}
+   @keyframes nxLaunchForm{from{opacity:0;transform:translateY(14px) scale(.94);filter:blur(5px)}to{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
+   @keyframes nxLaunchGlow{from{transform:scale(.88);opacity:.65}to{transform:scale(1.08);opacity:1}}
+   @keyframes nxLaunchPulse{0%,100%{filter:drop-shadow(0 0 10px rgba(69,137,255,.18))}50%{filter:drop-shadow(0 0 24px rgba(69,137,255,.42))}}
+   @keyframes nxLaunchProgress{from{transform:translateX(-120%)}to{transform:translateX(260%)}}
+   @keyframes nxLaunchFadeOut{to{opacity:0;visibility:hidden;pointer-events:none}}
+   @media(prefers-reduced-motion:reduce){.nx-native-launch-splash,.nx-launch-glow,.nx-launch-brand,.nx-launch-brand img,.nx-launch-line span{animation:none}}
+  `}</style>
+ </div>;
+}
+createRoot(document.getElementById("root")).render(<><NEXORAErrorBoundary><App/></NEXORAErrorBoundary><NativeLaunchSplash/></>);
