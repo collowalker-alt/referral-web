@@ -1225,7 +1225,7 @@ app.get("/api/me",auth,async(req,res)=>{
   const level1=await prisma.user.findMany({where:{referredById:u.id},select:{id:true}});
   const level2=level1.length?await prisma.user.count({where:{referredById:{in:level1.map(x=>x.id)}}}):0;
   const tx=await prisma.transaction.findMany({where:{userId:u.id},orderBy:{createdAt:"desc"},take:10});
-  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,paymentAvailability:paymentAvailabilityForCountry(u.countryCode)},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
+  res.json({user:{id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode,countryName:u.countryName,countryVerified:u.countryVerified,paymentAvailability:paymentAvailabilityForCountry(u.countryCode),referralCode:u.referralCode},package:u.package,wallet:u.wallet,stats:{direct,level2},transactions:tx});
 });
 
 app.get("/api/referrals",auth,async(req,res)=>{
