@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 700,
     cssCodeSplit: true,
-    minify: "esbuild",
+    minify: "oxc",
     target: "es2020",
     sourcemap: false,
     reportCompressedSize: false,
