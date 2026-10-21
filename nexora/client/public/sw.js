@@ -1,4 +1,4 @@
-const CACHE_NAME = "nexora-shell-v6";
+const CACHE_NAME = "nexora-shell-v7";
 const CACHE_PREFIX = "nexora-shell-";
 const CORE_ASSETS = ["/", "/index.html", "/nexora-logo.png", "/favicon.png", "/manifest.webmanifest"];
 const ASSET_PATTERN = /\.(?:js|mjs|css|woff2?|png|jpe?g|webp|gif|svg|ico|json|webmanifest)$/i;
