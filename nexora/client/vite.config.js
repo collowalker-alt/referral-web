@@ -4,7 +4,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   build: {
-    chunkSizeWarningLimit: 900,
+    chunkSizeWarningLimit: 700,
+    cssCodeSplit: true,
+    minify: "esbuild",
+    target: "es2020",
+    sourcemap: false,
+    reportCompressedSize: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -14,6 +19,9 @@ export default defineConfig({
             }
             if (id.includes("lucide-react")) {
               return "vendor-icons";
+            }
+            if (id.includes("@capacitor/")) {
+              return "vendor-capacitor";
             }
             return "vendor";
           }
