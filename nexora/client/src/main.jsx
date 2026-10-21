@@ -829,9 +829,11 @@ function LegalPage({type}){
       sections:[
         ["Acceptance","By creating a NEXORA account or using the platform you agree to these Terms, the Privacy Policy and the Membership & Referral Rules."],
         ["Account responsibility","You are responsible for keeping your login details private, for the accuracy of your profile information, and for activity that occurs under your account."],
-        ["Membership & payments","Plan purchases and upgrades are currently processed through Co-op Bank M-Pesa Paybill with manual confirmation-code verification. Charges, upgrades (price difference only) and refunds follow the rules shown in the platform at the time of the transaction."],
+        ["Membership & payments","Use only the payment methods displayed inside your account. Paybill payments may require submission and manual verification of an M-Pesa confirmation code; supported STK Push payments are confirmed server-side. Never share your M-Pesa PIN or approve a prompt you did not initiate. Keep your transaction reference for support."],
         ["No income guarantee","Nothing on NEXORA constitutes a guarantee of income, profit or financial return. Referral commissions are recorded only when qualifying purchases and plan eligibility rules are satisfied."],
-        ["Acceptable use","You must not misrepresent the platform, make guaranteed-income claims, share accounts, attempt to manipulate referrals, or use NEXORA for unlawful activity."],
+        ["Marketplace and advertising","Marketplace buyers and sellers must provide accurate listings and communicate honestly. NEXORA may review listings, orders, advertising submissions and supporting evidence. Advertising rewards are subject to eligibility, verification, displayed rates and current submission limits; submitting figures does not guarantee approval or payment."],
+        ["Loans and third-party services","NEXORA may assist users to submit enquiries to third-party providers such as Balloon Ventures. NEXORA is not the lender and does not guarantee eligibility, approval, loan timing, interest rates or final terms. The provider makes the lending decision and may conduct its own checks."],
+        ["Acceptable use","You must not misrepresent the platform, make guaranteed-income claims, share accounts, manipulate referrals, submit duplicate or fabricated advertising evidence, exploit payment flows, or use NEXORA for unlawful activity."],
         ["Suspension","NEXORA may suspend or restrict accounts that violate these terms, present security risk, or require review for payment or withdrawal integrity."],
         ["Contact","Questions about these terms can be raised through the in-app Help & Support centre or the published support channel."]
       ]
@@ -841,10 +843,11 @@ function LegalPage({type}){
       sections:[
         ["What we collect","Account data such as name, email, phone number, referral relationships, plan status, wallet and transaction records, support messages and basic device/session information needed to operate the service."],
         ["How we use it","To provide membership, payments, referral tracking, analytics, Academy progress, support, security and account recovery functions."],
-        ["Payments","Payment processing is currently handled through Co-op Bank M-Pesa Paybill with manual confirmation-code verification. NEXORA does not store M-Pesa PIN data."],
-        ["Sharing","We share data only as needed with payment processors, infrastructure providers, and when required by law. We do not sell personal data."],
+        ["Payments","Payment methods depend on country and availability. Paybill confirmation codes may be reviewed by authorised staff, while supported STK Push payments are checked server-side. NEXORA does not ask for or store your M-Pesa PIN."],
+        ["Sharing","We share information only where needed to operate NEXORA: with payment and hosting providers, authorised support or finance staff, and marketplace counterparties when required to fulfil an order. We may disclose information where required by law. We do not sell personal data."],
         ["Security","Access is limited to operational needs. You should use a strong unique password and never share it with anyone, including people claiming to be support."],
-        ["Retention","We keep account and transaction records for as long as needed to operate the platform, meet legal obligations and resolve disputes."],
+        ["Activity and device data","We may process marketplace listings and orders, advertising post links and uploaded proof, Academy progress, support messages, security events, and optional push-notification subscriptions. Push notifications can be disabled in your device or browser settings."],
+        ["Retention","We keep account and transaction records for as long as needed to operate the platform, meet legal obligations, prevent abuse and resolve disputes. Access to records should be limited to authorised operational needs."],
         ["Your choices","You may update profile details in the Security Centre and contact support for account-related requests."]
       ]
     },
@@ -854,7 +857,8 @@ function LegalPage({type}){
         ["Plan eligibility","Starter can earn from Starter purchases; Growth from Starter + Growth; Pro from Starter + Growth + Pro; Elite from Starter through Elite; Premium from all five plans. Commission amounts come from the plan purchased by the referral."],
         ["Recorded commissions only","Commissions are recorded when a qualifying referral purchase completes and your plan level is eligible. The UI describes eligibility and recorded outcomes — never guaranteed income."],
         ["Upgrades","Upgrading charges only the price difference between your current plan and the new plan."],
-        ["Withdrawals","Withdrawal requests depend on available balance, plan withdrawal limits and review. Processing times and outcomes can vary."],
+        ["Withdrawals","Withdrawal requests depend on available balance, plan withdrawal limits, account checks and payment-provider availability. The wallet amount deducted, fees and expected net payout are shown before submission where applicable. A request is not considered paid until its status confirms completion."],
+        ["Advertising submissions","Advertising submissions are limited to two within a rolling seven-day period. Provide the public post URL and required media or proof. Duplicate links, unusual metrics, missing evidence or policy violations may be rejected. Approved payouts follow the schedule and conditions displayed in NEXORA."],
         ["Referrals","Your personal referral code/link attributes new members who register with it. Level 1 and Level 2 structures follow the platform configuration."],
         ["Fair use","Artificial inflation of referrals, misleading promotion, or abuse of payment flows may result in commission adjustments or account restrictions."],
         ["Changes","NEXORA may update plan prices, commission parameters and platform features. Material changes will be reflected in the live product and, where appropriate, announcements."]
