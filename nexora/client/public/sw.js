@@ -1,4 +1,4 @@
-const CACHE_NAME = "nexora-shell-v8";
+const CACHE_NAME = "nexora-shell-v9";
 const CACHE_PREFIX = "nexora-shell-";
 const CORE_ASSETS = ["/", "/index.html", "/nexora-logo.png", "/favicon.png", "/manifest.webmanifest"];
 const ASSET_PATTERN = /\.(?:js|mjs|css|woff2?|png|jpe?g|webp|gif|svg|ico|json|webmanifest)$/i;
@@ -32,10 +32,10 @@ async function precacheShell() {
 
     // JS/CSS bundles are essential: do not activate a new worker unless the
     // complete new app shell is available for offline use.
-    for (const url of urls) {
+    await Promise.all(urls.map(url => {
       const required = /\.(?:js|mjs|css)$/i.test(url.pathname);
-      await fetchAndCache(cache, url.href, required);
-    }
+      return fetchAndCache(cache, url.href, required);
+    }));
 
     // Publish the HTML only after its referenced JS/CSS bundles are cached.
     await cache.put("/index.html", response.clone());
