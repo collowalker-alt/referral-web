@@ -1527,7 +1527,7 @@ function ActivityCentrePage({me,transactions=[],notifications=[],tickets=[],anal
  const unread=notifications.filter(x=>!x.read);
  const openTickets=tickets.filter(x=>String(x.status||"").toUpperCase()!=="CLOSED");
  const recentTransactions=[...transactions].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,5);
- const openNotification=async n=>{if(n?.id){try{await api(`/notifications/${n.id}/read`,{method:"POST"})}catch{}}openNexoraNotification(n,goPage)};
+ const openNotification=async n=>{if(n?.id){try{await api(`/notifications/${n.id}/read`,{method:"POST"});window.dispatchEvent(new CustomEvent("nexora-notification-read",{detail:{id:String(n.id)}}))}catch{}}openNexoraNotification(n,goPage)};
  useEffect(()=>{const refresh=()=>{try{setAcademyCount(Object.keys(JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")).length)}catch{setAcademyCount(0)}};window.addEventListener("storage",refresh);window.addEventListener("nexora-academy-progress",refresh);return()=>{window.removeEventListener("storage",refresh);window.removeEventListener("nexora-academy-progress",refresh)}},[]);
  return <section className="activity-page">
   <div className="sectionhead"><div><span className="pill">YOUR NEXORA WORKSPACE</span><h1>Activity Centre</h1><p className="muted">One place to see what needs attention, track progress and jump straight to the right feature.</p></div><button type="button" className="secondary" onClick={()=>window.dispatchEvent(new CustomEvent("nexora-refresh-data"))}><RefreshCw size={15}/> Refresh activity</button></div>
@@ -1625,12 +1625,8 @@ function App(){
    if(results[8].status==="fulfilled"){setTickets(results[8].value);saveCachedMemberData("tickets",results[8].value,m?.user?.id)}
    if(results[9].status==="fulfilled"){
     const rows=results[9].value||[];setNotifications(rows);saveCachedMemberData("notifications",rows,m?.user?.id);
-    // Do not re-open account-update popups that the member has already dismissed.
-    let dismissed=[];
-    try{dismissed=JSON.parse(localStorage.getItem("nexora-dismissed-login-updates")||"[]")}catch{}
-    const dismissedSet=new Set(dismissed.map(String));
-    const unread=rows.filter(x=>!x.read&&!dismissedSet.has(String(x.id))).slice(0,8);
-    setLoginUpdates(current=>current.length?current:unread);
+    // Notifications stay in the notification centre; do not interrupt every login with a popup.
+    setLoginUpdates([]);
    }
    const failed=results.find(x=>x.status==="rejected");
    if(failed){
@@ -1692,6 +1688,27 @@ function App(){
   api("/currency/rates?base=KES").then(d=>{if(alive&&d?.rates)setCurrencyRates({...FALLBACK_KES_RATES,...d.rates})}).catch(()=>{});
   return()=>{alive=false};
  },[]);
+ useEffect(()=>{
+  const markOne=e=>{
+   const id=String(e?.detail?.id||"");
+   if(!id)return;
+   setNotifications(rows=>{
+    const next=rows.map(n=>String(n.id)===id?{...n,read:true}:n);
+    if(me?.user?.id)saveCachedMemberData("notifications",next,me.user.id);
+    return next;
+   });
+  };
+  const markAll=()=>{
+   setNotifications(rows=>{
+    const next=rows.map(n=>({...n,read:true}));
+    if(me?.user?.id)saveCachedMemberData("notifications",next,me.user.id);
+    return next;
+   });
+  };
+  window.addEventListener("nexora-notification-read",markOne);
+  window.addEventListener("nexora-notifications-read-all",markAll);
+  return()=>{window.removeEventListener("nexora-notification-read",markOne);window.removeEventListener("nexora-notifications-read-all",markAll)};
+ },[me?.user?.id]);
  useEffect(()=>{
   if(!me)return;
   const token=localStorage.getItem("token");
@@ -1850,7 +1867,7 @@ function App(){
  {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><button type="button" className="info-chip" onClick={()=>window.open("/membership","_blank","noopener")}>Plan required · view rules</button><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
- {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="activity"&&<ActivityCentrePage me={me} transactions={transactions} notifications={notifications} tickets={tickets} analytics={analytics} goPage={setPage}/>} {page==="notifications"&&<NotificationsCenter me={me} analytics={analytics} tickets={tickets}/>} 
+ {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements}/>} {page==="activity"&&<ActivityCentrePage me={me} transactions={transactions} notifications={notifications} tickets={tickets} analytics={analytics} goPage={setPage}/>} {page==="notifications"&&<Notifications me={me} analytics={analytics} tickets={tickets} notifications={notifications}/>} 
  {page==="academy"&&<Academy goPage={setPage} me={me}/>} 
  {page==="leaderboard"&&<Leaderboard rows={leaderboard}/>} 
  {page==="challenges"&&<Challenges referrals={referrals} earnings={earnings}/>} 
@@ -2096,7 +2113,7 @@ function Notifications({me,analytics,tickets,notifications=[]}){
  if((analytics?.month?.directReferrals||0)<5)notes.push([Target,"Monthly challenge",`${5-(analytics?.month?.directReferrals||0)} more direct referral(s) to reach the current activity goal.`,null,true]);
  if(tickets?.some(x=>x.status!=="CLOSED"))notes.push([Bell,"Support update","You have an open support request. Check Help & Support for updates.",null,true]);
  if((me.transactions||[]).some(x=>x.status==="PENDING"))notes.push([Clock3,"Payment pending","A payment is still awaiting confirmation. Check Transactions for status.",null,true]);
- return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Notifications</h3><span>{notifications.filter(x=>!x.read).length} unread</span></div><div className="notificationlist">{notes.slice(0,12).map(([I,t,d,date,read],i)=>{const n=notifications.find(x=>x.title===t&&x.message===d&&x.createdAt===date);return <button type="button" className={`notification notificationbutton ${read===false?"unread":""}`} key={i} onClick={async()=>{if(n?.id){try{await api(`/notifications/${n.id}/read`,{method:"POST"})}catch{}};openNexoraNotificationForPage(n||({type:t.includes("plan")||t.includes("challenge")?"MEMBERSHIP":t.includes("Support")?"SUPPORT":t.includes("Payment")?"PAYMENT":"ACCOUNT",details:{}}))}}><I size={17}/><div><b>{t}</b><p>{d}</p><small>{date?new Date(date).toLocaleString():"Account update"}</small></div><ArrowUpRight size={14}/></button>})}{!notes.length&&<p className="muted">You're all caught up.</p>}</div><div className="rowactions"><button className="secondary" onClick={()=>api("/notifications/read-all",{method:"POST"}).then(()=>window.location.reload()).catch(()=>{})}>Mark all as read</button></div></div>}
+ return <div className="panel notificationpanel"><div className="paneltitle"><h3><Bell size={17}/> Notifications</h3><span>{notifications.filter(x=>!x.read).length} unread</span></div><div className="notificationlist">{notes.slice(0,12).map(([I,t,d,date,read],i)=>{const n=notifications.find(x=>x.title===t&&x.message===d&&x.createdAt===date);return <button type="button" className={`notification notificationbutton ${read===false?"unread":""}`} key={i} onClick={async()=>{if(n?.id){try{await api(`/notifications/${n.id}/read`,{method:"POST"});window.dispatchEvent(new CustomEvent("nexora-notification-read",{detail:{id:String(n.id)}}))}catch{}};openNexoraNotificationForPage(n||({type:t.includes("plan")||t.includes("challenge")?"MEMBERSHIP":t.includes("Support")?"SUPPORT":t.includes("Payment")?"PAYMENT":"ACCOUNT",details:{}}))}}><I size={17}/><div><b>{t}</b><p>{d}</p><small>{date?new Date(date).toLocaleString():"Account update"}</small></div><ArrowUpRight size={14}/></button>})}{!notes.length&&<p className="muted">You're all caught up.</p>}</div><div className="rowactions"><button className="secondary" onClick={()=>api("/notifications/read-all",{method:"POST"}).then(()=>window.dispatchEvent(new CustomEvent("nexora-notifications-read-all"))).catch(()=>{})}>Mark all as read</button></div></div>}
 
 
 function OnboardingChecklist({me,goPackages,goPage}){
@@ -2194,7 +2211,7 @@ function ActivityCenter({me,tickets,goPage,notifications=[]}){
  if((tickets||[]).some(x=>x.status!=="CLOSED"))items.push({icon:LifeBuoy,title:"Support request open",text:"Check your support requests for updates.",page:"support"});
  if(!me.package)items.push({icon:PackageIcon,title:"Choose a membership plan",text:"Review plans when you're ready.",page:"referrals"});
  if(!items.length)items.push({icon:CheckCheck,title:"You're all caught up",text:"No urgent account activity right now."});
- return <div className="activity-center"><button className="header-icon-btn" onClick={()=>setOpen(x=>!x)} aria-label="Open activity center"><Bell size={18}/>{items.length>0&&<span>{Math.min(items.length,9)}</span>}</button>{open&&<><button className="popover-backdrop" onClick={()=>setOpen(false)} aria-label="Close activity center"/><div className="activity-popover"><div className="popover-head"><div><span className="pill">ACTIVITY CENTER</span><h3>What's happening</h3></div><button className="iconbtn" onClick={()=>setOpen(false)}><X size={16}/></button></div>{items.map((x,i)=>{const I=x.icon;return <button className="activity-popover-row" key={i} onClick={async()=>{setOpen(false);if(x.notification){if(x.id){try{await api(`/notifications/${x.id}/read`,{method:"POST"})}catch{}};openNexoraNotification(x.data,goPage)}else{x.page&&goPage(x.page)}}}><span><I size={16}/></span><div><b>{x.title}</b><small>{x.text}</small></div><ArrowUpRight size={14}/></button>})}<button className="secondary wide" onClick={()=>{setOpen(false);goPage("notifications")}}>Open notifications</button></div></>}</div>
+ return <div className="activity-center"><button className="header-icon-btn" onClick={()=>setOpen(x=>!x)} aria-label="Open activity center"><Bell size={18}/>{items.length>0&&<span>{Math.min(items.length,9)}</span>}</button>{open&&<><button className="popover-backdrop" onClick={()=>setOpen(false)} aria-label="Close activity center"/><div className="activity-popover"><div className="popover-head"><div><span className="pill">ACTIVITY CENTER</span><h3>What's happening</h3></div><button className="iconbtn" onClick={()=>setOpen(false)}><X size={16}/></button></div>{items.map((x,i)=>{const I=x.icon;return <button className="activity-popover-row" key={i} onClick={async()=>{setOpen(false);if(x.notification){if(x.id){try{await api(`/notifications/${x.id}/read`,{method:"POST"});window.dispatchEvent(new CustomEvent("nexora-notification-read",{detail:{id:String(x.id)}}))}catch{}};openNexoraNotification(x.data,goPage)}else{x.page&&goPage(x.page)}}}><span><I size={16}/></span><div><b>{x.title}</b><small>{x.text}</small></div><ArrowUpRight size={14}/></button>})}<button className="secondary wide" onClick={()=>{setOpen(false);goPage("notifications")}}>Open notifications</button></div></>}</div>
 }
 function CommandCenter({goPage,goPackages,share,goSecurity,onDeposit}){
  const [open,setOpen]=useState(false);
