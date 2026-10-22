@@ -541,7 +541,7 @@ function NexBot({goPage,goPackages,me}){
   )}
   <div className={`nexbot-root ${open?"is-open":""} ${intro&&!open?"nexbot-intro":""}`} style={fabStyle}>
    {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Tap to ask anything</span></div>}
-   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><img className="nexbot-mascot-fab" src="/nexbot-mascot.png" alt=""/><img className="nexbot-logo-fab" src="/nexora-logo.png" alt=""/><span className="nexbot-fab-dot"/></button>
+   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><img className="nexbot-mascot-fab" src="/nexbot-mascot.png" alt="NexBot mascot"/><span className="nexbot-fab-dot"/></button>
   </div>
  </>;
 }
