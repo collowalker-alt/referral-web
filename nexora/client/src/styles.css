@@ -6011,7 +6011,7 @@ button:disabled,.primary:disabled,.secondary:disabled{cursor:not-allowed;filter:
 }
 @media(max-width:560px){
   .nx-announcement-alert{min-width:35px;min-height:35px;padding:7px;border-radius:10px}
-  .nx-announcement-alert>span{display:none}
+  .nx-announcement-alert>.nx-announcement-label{display:none}
 }
 @media(prefers-reduced-motion:reduce){
   .nx-announcement-alert.is-unread{animation:none}
