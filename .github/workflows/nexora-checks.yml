@@ -29,6 +29,11 @@ jobs:
         working-directory: nexora
         run: npx prisma generate --schema prisma/schema.prisma
       - name: Check backend JavaScript syntax
-        run: node --check nexora/server/src/server.js
+        run: |
+          node --check nexora/server/src/server.js
+          node --check nexora/server/src/security-config.js
+          node --check nexora/server/src/withdrawal-fees.js
+      - name: Run backend regression tests
+        run: npm test --prefix nexora/server
       - name: Build frontend
         run: npm run build --prefix nexora/client
