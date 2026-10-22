@@ -315,7 +315,7 @@ function NexBot({goPage,goPackages,me}){
  const [suggestions,setSuggestions]=useState([]);
  const [msgs,setMsgs]=useState([{role:"bot",text:`Hi ${me?.user?.name?.split(" ")[0]||"there"}! I'm NexBot. Ask me anything about NEXORA — you can type naturally, use voice, or tap a shortcut.`}]);
  const [tip,setTip]=useState(false);
- const [intro,setIntro]=useState(false);
+ const [intro,setIntro]=useState(true);
  const [pos,setPos]=useState(()=>{
   try{const p=JSON.parse(localStorage.getItem(storagePos)||"null");if(p&&typeof p.x==="number"&&typeof p.y==="number")return p;}catch{}
   return null;
@@ -327,11 +327,10 @@ function NexBot({goPage,goPackages,me}){
  const [panelPos,setPanelPos]=useState(null);
 
  useEffect(()=>{
-  if(sessionStorage.getItem("nexora-nexbot-greeted")==="1") return;
+  // Show the mascot entrance once each time the console is loaded.
   setIntro(true);
   setTip(true);
-  sessionStorage.setItem("nexora-nexbot-greeted","1");
-  const introTimer=setTimeout(()=>setIntro(false),1650);
+  const introTimer=setTimeout(()=>setIntro(false),2200);
   const tipTimer=setTimeout(()=>setTip(false),4200);
   return()=>{clearTimeout(introTimer);clearTimeout(tipTimer)};
  },[]);
@@ -538,7 +537,7 @@ function NexBot({goPage,goPackages,me}){
   )}
   <div className={`nexbot-root ${open?"is-open":""} ${intro&&!open?"nexbot-intro":""}`} style={fabStyle}>
    {tip&&!open&&<div className="nexbot-tip" role="status"><b>Hi — I'm NexBot</b><span>Tap to ask anything</span></div>}
-   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><img className="nexbot-mascot-fab" src="/nexbot-mascot.png" alt=""/><span className="nexbot-fab-dot"/></button>
+   <button ref={fabRef} type="button" className="nexbot-fab" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onClick={onClick} title="NexBot" aria-label="Open NexBot"><span className="nexbot-fab-glow"/><img className="nexbot-mascot-fab" src="/nexbot-mascot.png" alt=""/><img className="nexbot-logo-fab" src="/nexora-logo.png" alt=""/><span className="nexbot-fab-dot"/></button>
   </div>
  </>;
 }
