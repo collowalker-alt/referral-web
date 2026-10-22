@@ -6075,3 +6075,85 @@ body:has([aria-modal="true"]) {
 .nx-intel-opportunities {
   overscroll-behavior: contain;
 }
+
+
+/* Mobile admin console layout repair — keep all controls inside the viewport. */
+@media (max-width: 760px) {
+  .adminmain { min-width: 0; width: 100%; overflow-x: clip; }
+  .adminheader {
+    height: auto;
+    min-height: 68px;
+    padding: 10px 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .adminheader .mobilemenu {
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    display: grid;
+    place-items: center;
+    border: 1px solid #294461;
+    border-radius: 14px;
+    background: #10253b;
+    color: #eaf0ff;
+  }
+  .adminheader > div:nth-child(2) {
+    flex: 1 1 calc(100% - 70px);
+    min-width: 0;
+    line-height: 1.25;
+  }
+  .adminheader > div:nth-child(2) b {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+  .adminheader > div:nth-child(2) .small { font-size: 11px; }
+  .adminheader > div[style*="position: relative"] {
+    order: 3;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .adminheader .searchbox { width: 100%; min-width: 0; }
+  .adminheader .searchbox input { min-width: 0; font-size: 14px; }
+  .adminheader .adminuser {
+    order: 5;
+    margin-left: auto;
+    max-width: 100%;
+    padding: 7px 9px;
+  }
+  .adminheader > * { min-width: 0; }
+  .adminsection { min-width: 0; padding-top: 22px; }
+  .adminsectionhead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+  }
+  .adminsectionhead > div { flex: 1 1 100%; min-width: 0; }
+  .adminsectionhead .secondary {
+    flex: 0 0 auto;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  .adminsectionhead h1 { overflow-wrap: anywhere; }
+  .adminsectionhead p { max-width: 100%; }
+  .adminstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adminstat { min-width: 0; }
+}
+@media (max-width: 430px) {
+  .adminmain { padding-left: 12px; padding-right: 12px; }
+  .adminheader { gap: 8px; }
+  .adminheader > div:nth-child(2) { flex-basis: calc(100% - 62px); }
+  .adminheader .adminuser { display: none; }
+  .adminstats { grid-template-columns: 1fr; gap: 9px; }
+  .adminstat { min-height: 96px; padding: 13px 15px; }
+  .adminstat svg { margin-bottom: 10px; }
+  .adminsectionhead h1 { font-size: 23px; line-height: 1.2; }
+  .adminsectionhead .secondary { padding: 9px 12px; }
+}
+/* Keep notification controls grouped and prevent badges/icons from being clipped. */
+.adminheader button, .adminheader .pwa-install { flex-shrink: 0; }
+.adminheader svg { flex-shrink: 0; }
