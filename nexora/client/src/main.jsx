@@ -357,7 +357,7 @@ function NexBot({goPage,goPackages,me}){
   if(/\b(connect|safaricom|bundle|bundles|okoa|kigen|airtime|sms offer|minutes offer)\b/.test(s)) return "Open NEXORA Connect for the Safaricom data, minutes and SMS offers advertised by Kigen Internet Services. Confirm current availability and payment instructions with Kigen before paying; NEXORA does not yet automate bundle delivery.";
   if(/\b(advertise|advertising|campaign|views|engagement)\b/.test(s)) return "Advertising is for eligible Premium members. Campaign submissions are reviewed and approved payouts follow the campaign rules.";
   if(/\b(payment|pay|mpesa|m-pesa|stk|deposit)\b/.test(s)) return "For Kenya, wallet deposits and membership plan purchases use Paystack M-Pesa STK Push when enabled. NEXORA only credits the wallet or activates a plan after Paystack confirms the payment. NEXORA Connect bundle orders keep their separate payment instructions. Never share your M-Pesa PIN or security codes.";
-  if(/\b(support|help|ticket|human)\b/.test(s)) return "Open Help & Support to create or review a ticket. For payment questions, include the transaction reference but never send your PIN.";
+  if(/\b(business plan|business idea|start a business|business builder)\b/.test(s)) return "Open Business Builder to create a practical starter brief. Add your idea, target customers, budget and skills, then copy the suggested steps. Validate demand and costs before investing.";\n   if(/\b(trust centre|trust center|fees|withdrawal fee|payment status|security|scam|fraud)\b/.test(s)) return "Open the Trust Centre for guidance on earning eligibility, withdrawal fees, payment statuses, marketplace safety and account protection. For a specific payment, check its reference in Orders & Transactions; pending is not confirmation.";\n   if(/\b(support|help|ticket|human)\b/.test(s)) return "Open Help & Support to create or review a ticket. For payment questions, include the transaction reference but never send your PIN.";
   return "I can help with NEXORA, including shopping, products, orders, wallet, payments, membership, referrals, advertising, NEXORA Connect bundles, selling, Academy and support. Tell me what you're trying to do and I'll guide you step by step.";
  };
 
@@ -387,10 +387,12 @@ function NexBot({goPage,goPackages,me}){
   ["💳 Wallet","Show me my wallet"],
   ["📦 Orders","Where is my latest order?"],
   ["🎁 Rewards","Explain my referrals and rewards"],
+  ["🧠 Business plan","Help me build a business plan"],
+  ["🛡 Trust Centre","How do I check payment status and stay safe?"],
   ["🏪 Sell","How do I sell a product?"],
   ["❓ Help","What can NexBot help me with?"]
  ];
- const actionInfo={plans:["Open Membership Plans",()=>goPackages?.()],marketplace:["Open Marketplace",()=>goPage?.("marketplace")],transactions:["Open Orders & Transactions",()=>goPage?.("transactions")],wallet:["Open Wallet",()=>goPage?.("wallet")],referrals:["Open Earn & Referrals",()=>goPage?.("referrals")],products:["Open Advertise",()=>goPage?.("products")],notifications:["Open Notifications",()=>goPage?.("notifications")],academy:["Open Academy",()=>goPage?.("academy")],support:["Open Help & Support",()=>goPage?.("support")],security:["Open Profile & Security",()=>goPage?.("security")],transfer:["Open Send Money",()=>goPage?.("transfer")],services:["Open Digital Studio",()=>goPage?.("services")],connect:["Open NEXORA Connect",()=>goPage?.("connect")]};
+ const actionInfo={plans:["Open Membership Plans",()=>goPackages?.()],marketplace:["Open Marketplace",()=>goPage?.("marketplace")],transactions:["Open Orders & Transactions",()=>goPage?.("transactions")],wallet:["Open Wallet",()=>goPage?.("wallet")],referrals:["Open Earn & Referrals",()=>goPage?.("referrals")],products:["Open Advertise",()=>goPage?.("products")],notifications:["Open Notifications",()=>goPage?.("notifications")],academy:["Open Academy",()=>goPage?.("academy")],trust:["Open Trust Centre",()=>goPage?.("trust")],businessbuilder:["Open Business Builder",()=>goPage?.("businessbuilder")],support:["Open Help & Support",()=>goPage?.("support")],security:["Open Profile & Security",()=>goPage?.("security")],transfer:["Open Send Money",()=>goPage?.("transfer")],services:["Open Digital Studio",()=>goPage?.("services")],connect:["Open NEXORA Connect",()=>goPage?.("connect")]};
 
  const startVoice=()=>{
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
