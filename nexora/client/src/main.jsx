@@ -2382,6 +2382,17 @@ function NexoraTrustCentre({me,transactions=[],earnings=[],goPage}){
    <article className="panel trust-status-card"><span className="trust-status-icon"><ReceiptText size={19}/></span><small>Recorded earning entries</small><strong>{Array.isArray(earnings)?earnings.length:0}</strong><button className="secondary narrow" onClick={()=>goPage("referrals")}>View earnings</button></article>
   </div>
   <div className="panel trust-notice"><ShieldCheck size={21}/><div><b>Understand status before taking action</b><p className="muted">This page summarises the records currently loaded for your account. It is not a live payment-provider health monitor or a promise that a transaction will succeed. Always check the individual reference for the latest status.</p></div></div>
+  <div className="panel trust-earning-guide">
+   <div className="paneltitle"><div><h3>Advertising eligibility & published rates</h3><p className="muted">A quick reference for the current NEXORA advertising rules.</p></div><Megaphone size={20}/></div>
+   <div className="trust-rate-grid">
+    <article><small>Like · approved social platforms</small><strong>KSh 10</strong><span>per verified like</span></article>
+    <article><small>Comment · approved social platforms</small><strong>KSh 15</strong><span>per verified comment</span></article>
+    <article><small>Profile visit · approved social platforms</small><strong>KSh 3</strong><span>per verified profile view</span></article>
+    <article><small>WhatsApp Status</small><strong>KSh 7</strong><span>per verified view</span></article>
+   </div>
+   <div className="trust-earning-foot"><span><CheckCircle2 size={16}/> Advertising tasks require an active Premium plan.</span><span><CalendarDays size={16}/> Approved advertising payouts are scheduled for Fridays.</span><span><ShieldCheck size={16}/> Submit no more than twice per week; each submission is subject to review.</span></div>
+   <p className="muted trust-caveat">These are reference rates, not guaranteed earnings. Only eligible, valid and reviewed activity can qualify. Campaign instructions and the amount actually approved for your account take precedence.</p>
+  </div>
   <div className="trust-rule-list">{rules.map(r=><article className={"panel trust-rule "+(expanded===r.id?"expanded":"")} key={r.id}><button type="button" className="trust-rule-toggle" aria-expanded={expanded===r.id} onClick={()=>setExpanded(expanded===r.id?"":r.id)}><span><b>{r.title}</b><small>Open to read the guidance</small></span><ChevronDown size={18}/></button>{expanded===r.id&&<p>{r.body}</p>}</article>)}</div>
   <div className="trust-quicklinks"><button className="secondary" onClick={()=>goPage("wallet")}><WalletCards size={16}/> Wallet</button><button className="secondary" onClick={()=>goPage("transactions")}><History size={16}/> Transactions</button><button className="secondary" onClick={()=>goPage("products")}><Megaphone size={16}/> Advertising rules</button><button className="secondary" onClick={()=>goPage("security")}><LockKeyhole size={16}/> Account security</button></div>
  </section>;
