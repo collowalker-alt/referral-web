@@ -6632,3 +6632,46 @@ body:has([aria-modal="true"]) {
 @media(prefers-reduced-motion:reduce){
   .nexbot-root.nexbot-intro:not(.is-open) .nexbot-mascot-fab{animation:none !important}
 }
+
+
+/* NEXORA Trust Centre and Business Builder */
+.trust-centre,.nx-business-builder{display:grid;gap:18px}
+.trust-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.trust-status-card{display:grid;gap:10px;align-content:start;padding:20px}
+.trust-status-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:rgba(69,130,255,.13);color:var(--accent,#75a7ff)}
+.trust-status-card small{color:var(--muted,#9ba8ba)}
+.trust-status-card strong{font-size:1.8rem;line-height:1.1}
+.trust-notice{display:flex;gap:13px;align-items:flex-start;padding:18px;border-color:rgba(74,154,255,.28)}
+.trust-notice>svg{flex:0 0 auto;color:var(--accent,#75a7ff);margin-top:2px}
+.trust-notice p{margin:6px 0 0;line-height:1.55}
+.trust-rule-list{display:grid;gap:10px}
+.trust-rule{padding:0 17px}
+.trust-rule-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:17px 0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
+.trust-rule-toggle span{display:grid;gap:5px}
+.trust-rule-toggle small{font-size:.8rem;color:var(--muted,#9ba8ba)}
+.trust-rule-toggle>svg{transition:transform .2s ease;flex:0 0 auto}
+.trust-rule.expanded .trust-rule-toggle>svg{transform:rotate(180deg)}
+.trust-rule>p{margin:0;padding:0 0 18px;color:var(--muted,#b2bdce);line-height:1.7;max-width:900px}
+.trust-quicklinks{display:flex;flex-wrap:wrap;gap:9px}
+.business-builder-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);gap:16px;align-items:start}
+.business-builder-form,.business-builder-result{padding:20px;display:grid;gap:16px}
+.business-builder-form .paneltitle{margin-bottom:0}
+.business-builder-form .fieldlabel{display:grid;gap:7px}
+.business-builder-form input,.business-builder-form textarea,.business-builder-form select{width:100%;min-width:0;box-sizing:border-box}
+.business-builder-result h3{font-size:1.4rem;margin:0}
+.business-builder-result>p{line-height:1.6}
+.business-builder-result ol{padding-left:22px;display:grid;gap:12px;line-height:1.55}
+.business-builder-actions{display:grid;gap:9px}
+.business-builder-actions button{justify-content:center}
+.business-builder-result>small{line-height:1.55}
+@media(max-width:760px){
+ .trust-status-grid{grid-template-columns:1fr}
+ .trust-status-card{grid-template-columns:42px 1fr;align-items:center;column-gap:12px;padding:15px}
+ .trust-status-card .trust-status-icon{grid-row:span 2}
+ .trust-status-card strong{font-size:1.4rem}
+ .trust-status-card .secondary{grid-column:1/-1;width:100%}
+ .business-builder-grid{grid-template-columns:minmax(0,1fr)}
+ .business-builder-form,.business-builder-result{padding:15px}
+ .trust-quicklinks>*{flex:1 1 calc(50% - 9px);justify-content:center}
+}
+@media(prefers-reduced-motion:reduce){.trust-rule-toggle>svg{transition:none}}
