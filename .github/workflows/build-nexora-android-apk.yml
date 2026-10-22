@@ -65,7 +65,13 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Check NEXORA backend JavaScript syntax
-        run: node --check nexora/server/src/server.js
+        run: |
+          node --check nexora/server/src/server.js
+          node --check nexora/server/src/security-config.js
+          node --check nexora/server/src/withdrawal-fees.js
+
+      - name: Run backend regression tests
+        run: npm test --prefix nexora/server
 
       - name: Build React/Vite frontend
         working-directory: nexora/client
