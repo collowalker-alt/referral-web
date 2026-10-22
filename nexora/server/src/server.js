@@ -11,6 +11,7 @@ import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 import { Resend } from "resend";
 import webpush from "web-push";
+import { getAllowedOrigins, resolveJwtSecret } from "./security-config.js";
 
 // Resolve the deployed frontend build from this server/src directory.
 // Without these ESM path variables, the catch-all/static serving code throws
@@ -27,10 +28,16 @@ app.set("trust proxy", 1);
 // FIX 1: Helmet was blocking cross-origin fetches — disable resource policy
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
-// FIX 2: Allow ALL origins (including your live frontend on Render)
-// Previously you only allowed localhost:5173, which caused "Failed to fetch"
-app.use(cors({ 
-  origin: true,
+// Browser access is restricted to the deployed frontend, explicitly configured
+// origins, and local development. Native Capacitor origins remain supported.
+const allowedOrigins = getAllowedOrigins(process.env);
+app.use(cors({
+  origin(origin, callback) {
+    // Requests without Origin (native clients, health probes, server-to-server)
+    // are not browser CORS requests and are allowed through normal auth controls.
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error("Origin is not allowed by NEXORA CORS policy"));
+  },
   credentials: true,
   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
   allowedHeaders: ["Content-Type","Authorization","x-paystack-signature"]
@@ -88,7 +95,7 @@ const serviceRequestLimiter = rateLimit({ windowMs: 60*60*1000, max: 5, standard
 const listingLimiter = rateLimit({ windowMs: 60*60*1000, max: 12, standardHeaders: true, legacyHeaders: false, message: { message: "Too many product listings. Please try again later." } });
 
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || "change-me";
+const JWT_SECRET = resolveJwtSecret(process.env);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const AFRICAN_COUNTRIES = [
@@ -935,12 +942,12 @@ app.post("/api/auth/forgot-password", forgotLimiter, async (req,res)=>{
       console.error("[PASSWORD RESET EMAIL]", mailErr.message || mailErr);
       // Do not reveal mail failures to the client
     }
-    // Dev/staging only: still log and optionally expose token when email is not required
-    console.log(`[PASSWORD RESET] email=${email} expires=${expires.toISOString()}`);
-    const payload={...generic, message:"If an account exists for that email, a password reset link has been sent. Check your inbox (and spam)."};
-    if(process.env.NODE_ENV!=="production" || process.env.EXPOSE_RESET_TOKEN==="1"){
+    // Never log reset tokens or email addresses. Expose a token only when a
+    // developer explicitly enables it in a development environment.
+    const payload={...generic};
+    if(String(process.env.NODE_ENV||"").toLowerCase()==="development" && process.env.EXPOSE_RESET_TOKEN==="1"){
       payload.resetToken=rawToken;
-      payload.hint="Development only — token also returned in API response.";
+      payload.hint="Development-only reset token.";
     }
     res.json(payload);
   } catch(e){ console.error(e); res.status(500).json({message:"Unable to process password reset request"}); }
@@ -955,7 +962,7 @@ app.post("/api/auth/reset-password", async (req,res)=>{
     const user=await prisma.user.findFirst({where:{resetToken:tokenHash,resetTokenExpires:{gt:new Date()}}});
     if(!user) return res.status(400).json({message:"Invalid or expired reset token. Request a new password reset."});
     const hash=await bcrypt.hash(password,12);
-    await prisma.user.update({where:{id:user.id},data:{passwordHash:hash,resetToken:null,resetTokenExpires:null}});
+    await prisma.user.update({where:{id:user.id},data:{passwordHash:hash,resetToken:null,resetTokenExpires:null,tokenVersion:{increment:1}}});
     res.json({message:"Password updated successfully. You can now log in."});
   } catch(e){ console.error(e); res.status(500).json({message:"Unable to reset password"}); }
 });
@@ -2077,7 +2084,7 @@ app.post("/api/admin/users/balance",adminAuth,requireAdminRole("SUPER_ADMIN","AD
   }
 });
 app.patch("/api/admin/users/:id/status",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
-  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});await createUserNotification(u.id,{title:status==="ACTIVE"?"Your account was reactivated":"Your account was suspended",message:status==="ACTIVE"?"An administrator reactivated your NEXORA account. You can continue using the platform.":"An administrator suspended your NEXORA account. Please contact support if you need clarification.",type:"ACCOUNT",details:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
+  try{const status=req.body?.status;if(!["ACTIVE","SUSPENDED"].includes(status))return res.status(400).json({message:"Invalid user status"});const u=await prisma.user.update({where:{id:req.params.id},data:{status,tokenVersion:{increment:1}}});await logAdminAction(req,status==="ACTIVE"?"USER_REACTIVATED":"USER_SUSPENDED","USER",u.id,u.email,{status});await createUserNotification(u.id,{title:status==="ACTIVE"?"Your account was reactivated":"Your account was suspended",message:status==="ACTIVE"?"An administrator reactivated your NEXORA account. You can continue using the platform.":"An administrator suspended your NEXORA account. Please contact support if you need clarification.",type:"ACCOUNT",details:{status}});res.json({message:`User ${status.toLowerCase()}`,user:{id:u.id,status:u.status}});}
   catch(e){console.error(e);res.status(500).json({message:"Unable to update user"});}
 });
 app.patch("/api/admin/users/:id/plan",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN"),async(req,res)=>{
