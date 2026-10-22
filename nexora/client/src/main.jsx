@@ -2390,7 +2390,7 @@ function NexoraTrustCentre({me,transactions=[],earnings=[],goPage}){
     <article><small>Profile visit · approved social platforms</small><strong>KSh 3</strong><span>per verified profile view</span></article>
     <article><small>WhatsApp Status</small><strong>KSh 7</strong><span>per verified view</span></article>
    </div>
-   <div className="trust-earning-foot"><span><CheckCircle2 size={16}/> Advertising tasks require an active Premium plan.</span><span><CalendarDays size={16}/> Approved advertising payouts are scheduled for Fridays.</span><span><ShieldCheck size={16}/> Submit no more than twice per week; each submission is subject to review.</span></div>
+   <div className="trust-earning-foot"><span><CheckCircle2 size={16}/> Advertising tasks require an active Premium plan.</span><span><Clock3 size={16}/> Approved advertising payouts are scheduled for Fridays.</span><span><ShieldCheck size={16}/> Submit no more than twice per week; each submission is subject to review.</span></div>
    <p className="muted trust-caveat">These are reference rates, not guaranteed earnings. Only eligible, valid and reviewed activity can qualify. Campaign instructions and the amount actually approved for your account take precedence.</p>
   </div>
   <div className="trust-rule-list">{rules.map(r=><article className={"panel trust-rule "+(expanded===r.id?"expanded":"")} key={r.id}><button type="button" className="trust-rule-toggle" aria-expanded={expanded===r.id} onClick={()=>setExpanded(expanded===r.id?"":r.id)}><span><b>{r.title}</b><small>Open to read the guidance</small></span><ChevronDown size={18}/></button>{expanded===r.id&&<p>{r.body}</p>}</article>)}</div>
