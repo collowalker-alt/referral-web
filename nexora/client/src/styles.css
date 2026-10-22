@@ -6324,3 +6324,63 @@ body:has([aria-modal="true"]) {
   .nexbot-root.nexbot-intro .nexbot-mascot-fab{animation:none !important}
   .nexbot-root.nexbot-intro .nexbot-mascot-fab{display:none !important}
 }
+
+
+/* NexBot correction: show the full mascot first, then shrink to a small NEXORA mark (not an orb). */
+.nexbot-root:not(.is-open) .nexbot-fab{
+  width:38px !important;
+  height:38px !important;
+  border-radius:0 !important;
+  overflow:visible !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  animation:none;
+}
+.nexbot-root:not(.is-open) .nexbot-fab::before{
+  display:none !important;
+}
+.nexbot-root:not(.is-open) .nexbot-fab-glow{
+  inset:-5px !important;
+  border-radius:50% !important;
+  background:radial-gradient(circle,rgba(56,217,169,.22),transparent 72%) !important;
+  opacity:.65 !important;
+}
+.nexbot-root:not(.is-open) .nexbot-mascot-fab{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  object-fit:contain !important;
+  object-position:center !important;
+  border-radius:0 !important;
+  transform-origin:center center;
+  animation:none;
+}
+.nexbot-root:not(.is-open) .nexbot-fab-dot{
+  top:0 !important;
+  right:0 !important;
+  width:7px !important;
+  height:7px !important;
+}
+.nexbot-root.nexbot-intro:not(.is-open) .nexbot-fab{
+  animation:none !important;
+}
+.nexbot-root.nexbot-intro:not(.is-open) .nexbot-mascot-fab{
+  animation:nexbotFullMascotIntro 1.9s cubic-bezier(.2,.8,.25,1) both !important;
+}
+@keyframes nexbotFullMascotIntro{
+  0%{transform:scale(3.4) translateY(-8px);opacity:1;filter:drop-shadow(0 5px 15px rgba(0,180,255,.45))}
+  14%{transform:scale(3.4) translateY(-8px);opacity:1}
+  32%{transform:scale(3.05) translateY(-12px);opacity:1}
+  48%{transform:scale(2.25) translateY(-4px);opacity:1}
+  66%{transform:scale(1.45) translateY(0);opacity:1}
+  82%{transform:scale(.92) translateY(0);opacity:1}
+  100%{transform:scale(1) translateY(0);opacity:1;filter:drop-shadow(0 2px 5px rgba(0,0,0,.3))}
+}
+@media(max-width:760px){
+  .nexbot-root:not(.is-open) .nexbot-fab{width:34px !important;height:34px !important}
+}
+@media(prefers-reduced-motion:reduce){
+  .nexbot-root.nexbot-intro:not(.is-open) .nexbot-mascot-fab{animation:none !important}
+}
