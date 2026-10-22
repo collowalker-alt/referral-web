@@ -9,6 +9,13 @@ test("production refuses to start without a strong JWT secret", () => {
   );
 });
 
+test("Render is treated as production even when NODE_ENV is unset", () => {
+  assert.throws(
+    () => resolveJwtSecret({ RENDER: "true", JWT_SECRET: "" }),
+    /JWT_SECRET/
+  );
+});
+
 test("production refuses the historical default JWT secret", () => {
   assert.throws(
     () => resolveJwtSecret({ NODE_ENV: "production", JWT_SECRET: "change-me" }),
