@@ -2360,10 +2360,31 @@ function Dashboard({me,referrals,goPage,goPackages,profileStrength,tickets,goSec
  const [typedGreeting,setTypedGreeting]=useState("");
  const firstName=me?.user?.name?.split(" ")[0]||"there";
  useEffect(()=>{
-  const full=`Good evening, ${firstName}`;
-  let i=0; setTypedGreeting("");
-  const timer=setInterval(()=>{ i+=1; setTypedGreeting(full.slice(0,i)); if(i>=full.length)clearInterval(timer); },105);
-  return ()=>clearInterval(timer);
+  const getGreeting=()=>{
+   const hour=new Date().getHours();
+   if(hour>=5&&hour<12)return "Good morning";
+   if(hour>=12&&hour<17)return "Good afternoon";
+   if(hour>=17&&hour<21)return "Good evening";
+   return "Welcome back";
+  };
+  let typingTimer=null;
+  let currentFull="";
+  const animateGreeting=()=>{
+   const full=`${getGreeting()}, ${firstName}`;
+   if(full===currentFull)return;
+   currentFull=full;
+   if(typingTimer)clearInterval(typingTimer);
+   let i=0;
+   setTypedGreeting("");
+   typingTimer=setInterval(()=>{
+    i+=1;
+    setTypedGreeting(full.slice(0,i));
+    if(i>=full.length){clearInterval(typingTimer);typingTimer=null;}
+   },105);
+  };
+  animateGreeting();
+  const clockTimer=setInterval(animateGreeting,60000);
+  return ()=>{clearInterval(clockTimer);if(typingTimer)clearInterval(typingTimer);};
  },[firstName]);
  const [showBalance,setShowBalance]=useState(true);
  const recent=(me.transactions||[]).slice(0,4);
