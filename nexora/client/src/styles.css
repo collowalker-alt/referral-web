@@ -6675,3 +6675,33 @@ body:has([aria-modal="true"]) {
  .trust-quicklinks>*{flex:1 1 calc(50% - 9px);justify-content:center}
 }
 @media(prefers-reduced-motion:reduce){.trust-rule-toggle>svg{transition:none}}
+
+
+/* NexBot launcher: keep the real NexBot mascot visible; never substitute the NEXORA brand logo. */
+.nexbot-root:not(.is-open) .nexbot-fab{
+  display:grid !important;
+  place-items:center !important;
+  overflow:visible !important;
+  background:radial-gradient(circle at 30% 20%,rgba(45,224,190,.22),rgba(14,24,42,.96) 68%) !important;
+}
+.nexbot-root:not(.is-open) .nexbot-mascot-fab{
+  display:block !important;
+  visibility:visible !important;
+  width:100% !important;
+  height:100% !important;
+  max-width:100% !important;
+  max-height:100% !important;
+  object-fit:contain !important;
+  opacity:1 !important;
+  position:relative !important;
+  z-index:5 !important;
+  border-radius:inherit;
+  pointer-events:none;
+}
+.nexbot-root:not(.is-open) .nexbot-logo-fab{display:none !important;visibility:hidden !important}
+.nexbot-root.nexbot-intro:not(.is-open) .nexbot-mascot-fab{
+  animation:nexbotMascotShrinkIntoLauncher 2.2s cubic-bezier(.2,.75,.25,1) both !important;
+}
+@media(prefers-reduced-motion:reduce){
+  .nexbot-root.nexbot-intro:not(.is-open) .nexbot-mascot-fab{animation:none !important}
+}
