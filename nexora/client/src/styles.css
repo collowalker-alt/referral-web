@@ -6896,9 +6896,7 @@ main>header.member-sticky-header.compact{height:60px!important;background:rgba(4
     margin:0!important;
   }
   main>header.member-sticky-header.compact{height:56px!important}
-  .member-title-row{gap:5px}
-  .nx-header-back-to-top{min-height:27px;padding:5px 6px;font-size:9px}
-}
+  }
 @media(max-width:480px){
   main>header.member-sticky-header{padding:0 11px!important}
 }
