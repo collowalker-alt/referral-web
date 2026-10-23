@@ -8,7 +8,7 @@ on:
       - ".github/workflows/build-nexora-android.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -75,3 +75,12 @@ jobs:
           path: nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish installable APK release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nexora-android-build-${{ github.run_number }}
+          name: NEXORA Android build ${{ github.run_number }}
+          prerelease: true
+          generate_release_notes: false
+          files: nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
