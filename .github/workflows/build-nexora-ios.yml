@@ -1,0 +1,72 @@
+name: Build NEXORA iOS app
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - "nexora/client/**"
+      - ".github/workflows/build-nexora-ios.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nexora-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-simulator-build:
+    name: Validate and build iOS app (unsigned)
+    runs-on: macos-15
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: nexora/client
+    steps:
+      - name: Check out NEXORA
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nexora/client/package.json
+
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate production web build
+        run: npm run build
+
+      - name: Add Capacitor iOS platform
+        run: npx cap add ios
+
+      - name: Sync Capacitor plugins and web assets
+        run: npx cap sync ios
+
+      - name: Build for iOS Simulator without signing
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios-derived \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package simulator app
+        run: |
+          APP_PATH="build/ios-derived/Build/Products/Debug-iphonesimulator/App.app"
+          test -d "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/NEXORA-iOS-Simulator.zip
+
+      - name: Upload iOS simulator build
+        uses: actions/upload-artifact@v4
+        with:
+          name: NEXORA-iOS-Simulator
+          path: nexora/client/build/NEXORA-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
