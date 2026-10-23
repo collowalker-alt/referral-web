@@ -651,11 +651,14 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
     if(ref && !f.referralCode) setF(prev=>({...prev,referralCode:ref.toUpperCase()}));
   },[ref]);
   useEffect(()=>{
+    document.body.classList.add("nx-auth-open");
+    const syncViewport=()=>document.documentElement.style.setProperty("--nx-visual-height",`${window.visualViewport?.height||window.innerHeight}px`);
+    syncViewport();window.visualViewport?.addEventListener("resize",syncViewport);window.visualViewport?.addEventListener("scroll",syncViewport);
     const onKey=e=>{if(e.key==="Escape") onClose();};
     window.addEventListener("keydown",onKey);
     // basic focus trap: focus first input
     const t=setTimeout(()=>{const el=modalRef.current?.querySelector("input:not([type=hidden]),button.primary");el?.focus?.();},50);
-    return ()=>{window.removeEventListener("keydown",onKey);clearTimeout(t);};
+    return ()=>{window.removeEventListener("keydown",onKey);clearTimeout(t);window.visualViewport?.removeEventListener("resize",syncViewport);window.visualViewport?.removeEventListener("scroll",syncViewport);document.body.classList.remove("nx-auth-open");document.documentElement.style.removeProperty("--nx-visual-height");};
   },[mode,onClose]);
 
   const passwordMatch=mode==="register"&&confirmPassword.length>0&&f.password===confirmPassword;
