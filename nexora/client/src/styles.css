@@ -7008,3 +7008,37 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
 .member-sticky-header .nx-header-back-to-top,
 .member-sticky-header .nx-back-to-top{display:none!important}
 .member-sticky-header .member-title-row{display:contents!important;min-width:0!important;width:auto!important;margin:0!important;padding:0!important;gap:0!important}
+
+
+/* Hard reset for the member header: the floating Back to Top control is a sibling of main, never a header flex item. */
+.app>main>header.member-sticky-header{
+  display:flex!important;
+  justify-content:flex-start!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+.app>main>header.member-sticky-header>.memberpagetitle{
+  position:static!important;
+  display:block!important;
+  flex:1 1 auto!important;
+  width:auto!important;
+  min-width:0!important;
+  margin:0!important;
+  padding:0!important;
+}
+.app>main>header.member-sticky-header>.memberheaderbrand{
+  position:static!important;
+  display:flex!important;
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:0!important;
+  margin:0 0 0 auto!important;
+  padding:0!important;
+}
+.app>main>header.member-sticky-header .nx-header-back-to-top,
+.app>main>header.member-sticky-header .nx-back-to-top{display:none!important}
+@media(max-width:760px){
+  .app>main>header.member-sticky-header{gap:8px!important}
+  .app>main>header.member-sticky-header>.memberpagetitle{flex:1 1 0!important}
+  .app>main>header.member-sticky-header>.memberheaderbrand{margin-left:auto!important}
+}
