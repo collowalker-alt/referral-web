@@ -7161,9 +7161,7 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
     flex:none!important;
     overflow:hidden!important;
   }
-  .app>main>header.member-sticky-header>.memberpagetitle .muted{
-    display:none!important;
-  }
+  /* Keep the subtle page subtitle visible while the header is expanded. */
   .app>main>header.member-sticky-header>.memberheaderbrand{
     grid-column:3!important;
     min-width:0!important;
