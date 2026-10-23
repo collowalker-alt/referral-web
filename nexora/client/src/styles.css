@@ -7042,3 +7042,48 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
   .app>main>header.member-sticky-header>.memberpagetitle{flex:1 1 0!important}
   .app>main>header.member-sticky-header>.memberheaderbrand{margin-left:auto!important}
 }
+
+
+/* FINAL FIX: the member header stays in normal document flow.
+   The old viewport-fixed header added artificial top padding to main, which
+   looked like an extra reserved slot/blank space. Back-to-top is a separate
+   viewport-fixed sibling and must not affect header or page layout. */
+.app>main{padding-top:0!important}
+.app>main>header.member-sticky-header{
+  position:sticky!important;
+  top:0!important;
+  left:auto!important;
+  right:auto!important;
+  width:auto!important;
+  height:82px!important;
+  margin:0 -34px!important;
+  padding:0 34px!important;
+  display:flex!important;
+  justify-content:flex-start!important;
+  align-items:center!important;
+  gap:10px!important;
+  z-index:35!important;
+  background:rgba(5,12,23,.97)!important;
+}
+.app>main>header.member-sticky-header.compact{height:60px!important}
+.app>main>header.member-sticky-header>.memberpagetitle{
+  position:static!important;display:block!important;flex:1 1 auto!important;
+  width:auto!important;min-width:0!important;margin:0!important;padding:0!important;
+}
+.app>main>header.member-sticky-header>.memberheaderbrand{
+  position:static!important;display:flex!important;flex:0 0 auto!important;
+  width:auto!important;min-width:0!important;margin:0 0 0 auto!important;padding:0!important;
+}
+.app>main>header.member-sticky-header .nx-header-back-to-top,
+.app>main>header.member-sticky-header .nx-back-to-top{display:none!important}
+@media(max-width:760px){
+  .app>main{padding-top:0!important}
+  .app>main>header.member-sticky-header{
+    top:0!important;left:auto!important;right:auto!important;width:auto!important;
+    height:68px!important;margin:0 -11px!important;padding:0 11px!important;gap:8px!important;
+  }
+  .app>main>header.member-sticky-header.compact{height:56px!important}
+  .app>main>header.member-sticky-header>.memberpagetitle{flex:1 1 0!important}
+  .app>main>header.member-sticky-header>.memberheaderbrand{margin-left:auto!important}
+}
+@media(prefers-reduced-motion:reduce){.app>main>header.member-sticky-header{transition:none!important}}
