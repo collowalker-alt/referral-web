@@ -517,6 +517,9 @@ model Order {
   buyer           User          @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
   seller          User          @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
   total           Int
+  subtotal        Int?
+  discount        Int           @default(0)
+  couponCode      String?
   deliveryFee     Int           @default(0)
   status          OrderStatus   @default(PENDING)
   paymentMethod   PaymentMethod

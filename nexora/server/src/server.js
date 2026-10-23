@@ -13,6 +13,7 @@ import { Resend } from "resend";
 import webpush from "web-push";
 import { getAllowedOrigins, resolveJwtSecret } from "./security-config.js";
 import { MIN_WITHDRAWAL_KES, MIN_M_PESA_PAYOUT_KES, MAX_WITHDRAWAL_KES, WITHDRAWAL_FEE_RATE, paystackMpesaTransferFeeForPayout, withdrawalFeeForAmount, withdrawalBreakdownForTotal, withdrawalTotalDebit, withdrawalUsesWalletTotalPolicy, withdrawalHasFeePolicy, withdrawalFeeForRecord, withdrawalPaystackFeeForRecord, withdrawalPayoutForRecord, withdrawalTotalDebitForRecord, withdrawalPublicRecord } from "./withdrawal-fees.js";
+import { calculateCouponDiscount, isCouponUsable } from "./marketplace-coupons.js";
 
 // Resolve the deployed frontend build from this server/src directory.
 // Without these ESM path variables, the catch-all/static serving code throws
@@ -1017,20 +1018,71 @@ app.patch("/api/marketplace/products/:id",auth,async(req,res)=>{try{const p=awai
 app.get("/api/marketplace/orders",auth,async(req,res)=>{try{const [buying,selling]=await Promise.all([prisma.order.findMany({where:{buyerId:req.user.id},include:{items:{include:{product:true}},seller:{select:{name:true,phone:true,location:true}}},orderBy:{createdAt:"desc"},take:100}),prisma.order.findMany({where:{sellerId:req.user.id},include:{items:{include:{product:true}},buyer:{select:{name:true,phone:true,email:true}}},orderBy:{createdAt:"desc"},take:100})]);res.json({buying,selling});}catch(e){res.status(500).json({message:"Unable to load marketplace orders"});}});
 app.post("/api/marketplace/orders",auth,async(req,res)=>{
   try{
-    const items=Array.isArray(req.body?.items)?req.body.items:[], deliveryName=cleanMarketplaceText(req.body?.deliveryName,120)||req.user.name,deliveryPhone=cleanMarketplaceText(req.body?.deliveryPhone,20)||req.user.phone,deliveryAddress=cleanMarketplaceText(req.body?.deliveryAddress,300),deliveryNotes=cleanMarketplaceText(req.body?.deliveryNotes,1000)||null,paymentMethod=String(req.body?.paymentMethod||"CASH_ON_DELIVERY").toUpperCase();
-    if(!items.length)return res.status(400).json({message:"Your cart is empty."});if(!deliveryAddress)return res.status(400).json({message:"Delivery address/location is required."});if(!["CASH_ON_DELIVERY","WALLET","MPESA_PAYBILL"].includes(paymentMethod))return res.status(400).json({message:"Unsupported payment method."});
-    const ids=[...new Set(items.map(x=>String(x.productId)))];const products=await prisma.product.findMany({where:{id:{in:ids},status:"ACTIVE"}});if(products.length!==ids.length)return res.status(400).json({message:"One or more products are no longer available."});const sellerIds=[...new Set(products.map(p=>p.sellerId))];if(sellerIds.length!==1)return res.status(400).json({message:"For now, checkout one seller at a time. Remove products from other sellers and try again."});
-    const normalized=items.map(x=>{const p=products.find(z=>z.id===x.productId);const quantity=Math.max(1,Math.floor(Number(x.quantity||1)));if(quantity>p.stock)throw new Error(`${p.title} only has ${p.stock} in stock.`);return {p,quantity};});const total=normalized.reduce((a,x)=>a+x.p.price*x.quantity,0);const sellerId=sellerIds[0];
-    if(paymentMethod==="WALLET"){const w=await prisma.wallet.findUnique({where:{userId:req.user.id}});if(!w||w.balance<total)return res.status(400).json({message:`Insufficient wallet balance. You need ${money(total)}.`});}
-    const reference=`ORD-${crypto.randomBytes(5).toString("hex").toUpperCase()}`;
-    const order=await prisma.$transaction(async tx=>{for(const x of normalized){const updated=await tx.product.updateMany({where:{id:x.p.id,stock:{gte:x.quantity},status:"ACTIVE"},data:{stock:{decrement:x.quantity}}});if(updated.count!==1)throw new Error(`${x.p.title} is no longer available in the requested quantity.`);}const o=await tx.order.create({data:{buyerId:req.user.id,sellerId,total,paymentMethod,paymentStatus:paymentMethod==="WALLET"?"SUCCESS":"PENDING",status:paymentMethod==="WALLET"?"CONFIRMED":"PENDING",deliveryName,deliveryPhone,deliveryAddress,deliveryNotes,reference,items:{create:normalized.map(x=>({productId:x.p.id,title:x.p.title,price:x.p.price,quantity:x.quantity}))}}});if(paymentMethod==="WALLET"){await tx.wallet.update({where:{userId:req.user.id},data:{balance:{decrement:total}}});await tx.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:total,status:"SUCCESS",reference:`${reference}-WALLET`,metadata:{source:"MARKETPLACE_ORDER",orderId:o.id}}});}return o;});res.status(201).json({message:paymentMethod==="CASH_ON_DELIVERY"?"Order placed. Pay the seller on delivery as agreed.":"Order confirmed using your wallet balance.",order});
-  }catch(e){console.error(e);res.status(400).json({message:e.message||"Unable to place order"});}
+    const items=Array.isArray(req.body?.items)?req.body.items:[],
+      deliveryName=cleanMarketplaceText(req.body?.deliveryName,120)||req.user.name,
+      deliveryPhone=cleanMarketplaceText(req.body?.deliveryPhone,20)||req.user.phone,
+      deliveryAddress=cleanMarketplaceText(req.body?.deliveryAddress,300),
+      deliveryNotes=cleanMarketplaceText(req.body?.deliveryNotes,1000)||null,
+      paymentMethod=String(req.body?.paymentMethod||"CASH_ON_DELIVERY").toUpperCase(),
+      couponCode=String(req.body?.couponCode||"").trim().toUpperCase().slice(0,80);
+    if(!items.length)return res.status(400).json({message:"Your cart is empty."});
+    if(!deliveryAddress)return res.status(400).json({message:"Delivery address/location is required."});
+    if(!["CASH_ON_DELIVERY","WALLET","MPESA_PAYBILL"].includes(paymentMethod))return res.status(400).json({message:"Unsupported payment method."});
+    const ids=[...new Set(items.map(x=>String(x.productId)))];
+    const products=await prisma.product.findMany({where:{id:{in:ids},status:"ACTIVE"}});
+    if(products.length!==ids.length)return res.status(400).json({message:"One or more products are no longer available."});
+    const sellerIds=[...new Set(products.map(p=>p.sellerId))];
+    if(sellerIds.length!==1)return res.status(400).json({message:"For now, checkout one seller at a time. Remove products from other sellers and try again."});
+    const normalized=items.map(x=>{const p=products.find(z=>z.id===x.productId);const quantity=Math.max(1,Math.floor(Number(x.quantity||1)));if(quantity>p.stock)throw new Error(`${p.title} only has ${p.stock} in stock.`);return {p,quantity};});
+    const subtotal=normalized.reduce((sum,x)=>sum+x.p.price*x.quantity,0),sellerId=sellerIds[0];
+    const result=await prisma.$transaction(async tx=>{
+      for(const x of normalized){
+        const updated=await tx.product.updateMany({where:{id:x.p.id,stock:{gte:x.quantity},status:"ACTIVE"},data:{stock:{decrement:x.quantity}}});
+        if(updated.count!==1)throw new Error(`${x.p.title} is no longer available in the requested quantity.`);
+      }
+      let discount=0,appliedCouponCode=null;
+      if(couponCode){
+        const currentCoupon=await tx.coupon.findUnique({where:{code:couponCode}});
+        if(!isCouponUsable(currentCoupon,subtotal))throw new Error("Coupon is invalid, expired, used up or does not meet the minimum order.");
+        const now=new Date();
+        const couponUpdate=await tx.coupon.updateMany({where:{
+          id:currentCoupon.id,
+          active:true,
+          ...(currentCoupon.usageLimit!==null?{usedCount:{lt:currentCoupon.usageLimit}}:{}),
+          OR:[{expiresAt:null},{expiresAt:{gt:now}}]
+        },data:{usedCount:{increment:1}}});
+        if(couponUpdate.count!==1)throw new Error("This coupon was just used up or expired. Please validate another coupon.");
+        discount=calculateCouponDiscount(currentCoupon,subtotal);
+        appliedCouponCode=currentCoupon.code;
+      }
+      const total=Math.max(0,subtotal-discount);
+      if(paymentMethod==="WALLET"){
+        const walletUpdate=await tx.wallet.updateMany({where:{userId:req.user.id,balance:{gte:total}},data:{balance:{decrement:total}}});
+        if(walletUpdate.count!==1)throw new Error(`Insufficient wallet balance. You need KSh ${total.toLocaleString()}.`);
+      }
+      const order=await tx.order.create({data:{
+        buyerId:req.user.id,sellerId,subtotal,discount,couponCode:appliedCouponCode,total,paymentMethod,
+        paymentStatus:paymentMethod==="WALLET"?"SUCCESS":"PENDING",
+        status:paymentMethod==="WALLET"?"CONFIRMED":"PENDING",
+        deliveryName,deliveryPhone,deliveryAddress,deliveryNotes,reference:`ORD-${crypto.randomBytes(5).toString("hex").toUpperCase()}`,
+        items:{create:normalized.map(x=>({productId:x.p.id,title:x.p.title,price:x.p.price,quantity:x.quantity}))}
+      }});
+      if(paymentMethod==="WALLET"){
+        await tx.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:total,status:"SUCCESS",reference:`${order.reference}-WALLET`,metadata:{source:"MARKETPLACE_ORDER",orderId:order.id,couponCode:appliedCouponCode,discount}}});
+      }
+      return {order,total,discount,subtotal,couponCode:appliedCouponCode};
+    });
+    const message=result.discount
+      ?`Order placed with a KSh ${result.discount.toLocaleString()} coupon discount. ${paymentMethod==="CASH_ON_DELIVERY"?"Pay the seller on delivery as agreed.":paymentMethod==="WALLET"?"Payment was deducted from your wallet.":"Follow the payment instructions shown for this order."}`
+      :paymentMethod==="CASH_ON_DELIVERY"?"Order placed. Pay the seller on delivery as agreed.":paymentMethod==="WALLET"?"Order confirmed using your wallet balance.":"Order created. Complete the payment steps shown for this order.";
+    res.status(201).json({message,order:result.order,subtotal:result.subtotal,discount:result.discount,total:result.total,couponCode:result.couponCode});
+  }catch(e){console.error("[MARKETPLACE ORDER]",e);res.status(400).json({message:e.message||"Unable to place order"});}
 });
 app.get("/api/marketplace/products/:id/reviews",auth,async(req,res)=>{try{const rows=await prisma.productReview.findMany({where:{productId:req.params.id},include:{author:{select:{name:true}}},orderBy:{createdAt:"desc"}});const avg=rows.length?rows.reduce((a,x)=>a+x.rating,0)/rows.length:0;res.json({reviews:rows,average:Number(avg.toFixed(1)),count:rows.length});}catch(e){res.status(500).json({message:"Unable to load reviews"});}});
 app.post("/api/marketplace/products/:id/reviews",auth,async(req,res)=>{try{const rating=Math.max(1,Math.min(5,Math.floor(Number(req.body?.rating))));const p=await prisma.product.findUnique({where:{id:req.params.id}});if(!p)return res.status(404).json({message:"Product not found"});const delivered=await prisma.order.findFirst({where:{buyerId:req.user.id,status:"DELIVERED",items:{some:{productId:p.id}}}});if(!delivered)return res.status(403).json({message:"You can review this product after a completed purchase."});const r=await prisma.productReview.upsert({where:{productId_authorId:{productId:p.id,authorId:req.user.id}},update:{rating,title:req.body?.title?.slice(0,120)||null,body:req.body?.body?.slice(0,1500)||null},create:{productId:p.id,authorId:req.user.id,sellerId:p.sellerId,rating,title:req.body?.title?.slice(0,120)||null,body:req.body?.body?.slice(0,1500)||null}});res.status(201).json(r);}catch(e){res.status(400).json({message:e.message||"Unable to save review"});}});
 app.get("/api/marketplace/wishlist",auth,async(req,res)=>{try{res.json(await prisma.wishlist.findMany({where:{userId:req.user.id},include:{product:true},orderBy:{createdAt:"desc"}}));}catch(e){res.status(500).json({message:"Unable to load wishlist"});}});
 app.post("/api/marketplace/wishlist/:productId",auth,async(req,res)=>{try{const id=req.params.productId;const existing=await prisma.wishlist.findUnique({where:{userId_productId:{userId:req.user.id,productId:id}}});if(existing){await prisma.wishlist.delete({where:{id:existing.id}});return res.json({saved:false});}await prisma.wishlist.create({data:{userId:req.user.id,productId:id}});res.json({saved:true});}catch(e){res.status(400).json({message:"Unable to update wishlist"});}});
-app.post("/api/marketplace/coupons/validate",auth,async(req,res)=>{try{const code=String(req.body?.code||"").trim().toUpperCase();const subtotal=Math.max(0,Math.floor(Number(req.body?.subtotal||0)));const c=await prisma.coupon.findUnique({where:{code}});if(!c||!c.active|| (c.expiresAt&&c.expiresAt<new Date()) || (c.usageLimit!==null&&c.usedCount>=c.usageLimit) || subtotal<c.minOrder)return res.status(400).json({message:"Coupon is invalid, expired or does not meet the minimum order."});const discount=c.percentOff?Math.floor(subtotal*c.percentOff/100):Math.min(c.amountOff,subtotal);res.json({code,discount,total:subtotal-discount});}catch(e){res.status(400).json({message:"Unable to validate coupon"});}});
+app.post("/api/marketplace/coupons/validate",auth,async(req,res)=>{try{const code=String(req.body?.code||"").trim().toUpperCase();const subtotal=Math.max(0,Math.floor(Number(req.body?.subtotal||0)));const c=await prisma.coupon.findUnique({where:{code}});if(!isCouponUsable(c,subtotal))return res.status(400).json({message:"Coupon is invalid, expired or does not meet the minimum order."});const discount=calculateCouponDiscount(c,subtotal);res.json({code,discount,total:subtotal-discount});}catch(e){res.status(400).json({message:"Unable to validate coupon"});}});
 app.post("/api/marketplace/orders/:id/disputes",auth,async(req,res)=>{try{const o=await prisma.order.findUnique({where:{id:req.params.id}});if(!o)return res.status(404).json({message:"Order not found"});if(o.buyerId!==req.user.id&&o.sellerId!==req.user.id)return res.status(403).json({message:"Not authorized"});const d=await prisma.dispute.create({data:{orderId:o.id,userId:req.user.id,reason:String(req.body?.reason||"Order issue").slice(0,160),details:String(req.body?.details||"").slice(0,3000)}});res.status(201).json(d);}catch(e){res.status(400).json({message:"Unable to open dispute"});}});
 app.get("/api/marketplace/seller/:id",auth,async(req,res)=>{try{const u=await prisma.user.findUnique({where:{id:req.params.id},select:{id:true,name:true,phone:true,sellerVerified:true,sellerBio:true,createdAt:true}});if(!u)return res.status(404).json({message:"Seller not found"});const agg=await prisma.productReview.aggregate({where:{sellerId:u.id},_avg:{rating:true},_count:{id:true}});res.json({...u,rating:Number((agg._avg.rating||0).toFixed(1)),reviews:agg._count.id});}catch(e){res.status(500).json({message:"Unable to load seller"});}});
 app.post("/api/marketplace/seller/profile",auth,async(req,res)=>{try{const bio=String(req.body?.sellerBio||"").slice(0,1200);const u=await prisma.user.update({where:{id:req.user.id},data:{sellerBio}});res.json({sellerBio:u.sellerBio});}catch(e){res.status(500).json({message:"Unable to update seller profile"});}});

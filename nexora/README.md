@@ -1,3 +1,39 @@
+# NEXORA release and production-readiness notes
+
+> **Current payment source of truth:** the documented member payment path is Co-op Bank M-Pesa Paybill with manual confirmation-code verification by an authorized administrator. Legacy Paystack code is retained for compatibility; do not advertise Paystack as an active member payment method unless the production configuration and end-to-end verification have explicitly changed.
+
+## Release gate
+
+Every NEXORA change should pass the repository quality gate before it is merged for production deployment. The GitHub Actions workflow runs backend syntax checks and regression tests, generates the Prisma client, validates the database schema, and builds the Vite frontend. A green build is necessary but does not replace live payment, mobile-device, or account-level checks.
+
+## Production smoke-test checklist
+
+After each deployment, verify these flows against the deployed site and API:
+
+1. **Availability:** public site loads, API health endpoint responds, sign-in and registration screens render.
+2. **Referrals and membership:** create/use a referral link in a test account; verify attribution and package eligibility; verify admin plan assignment, suspension and reactivation.
+3. **Wallet and payments:** use only an approved test flow; verify pending/approved/rejected Paybill records, duplicate confirmation handling, transaction history and wallet balance reconciliation. Never test with a real member's money without authorization.
+4. **Marketplace:** browse/search, create a test listing, place a test order, check stock and status transitions, and verify cancellation/dispute permissions.
+5. **Advertising and services:** check Premium eligibility, submission validation, admin review, service request/quote state transitions and notifications.
+6. **Announcements and notifications:** publish a test announcement, confirm unread indication, open/close the modal, and confirm read state remains correct after refresh and sign-in.
+7. **Mobile:** check narrow Android viewport, menu/modal scrolling, keyboard visibility, Android back behavior, offline toast recovery and app launch branding.
+8. **Security and admin:** verify role-based access, failed-login throttling, audit events, and that private keys or account secrets never appear in client bundles or logs.
+
+Use dedicated test accounts and reversible test records. Do not run destructive database migrations or manually change production balances as part of a smoke test.
+
+## Prioritized engineering plan
+
+- **P0 — correctness and safety:** referral attribution, membership eligibility, payment idempotency, wallet reconciliation, authorization and production error handling.
+- **P1 — commerce reliability:** marketplace order/payment states, inventory consistency, dispute handling and verified seller trust signals.
+- **P1 — mobile usability:** responsive dashboard, touch-friendly controls, safe-area support, predictable modal scrolling and accessible status messages.
+- **P2 — operational clarity:** consistent notifications, announcement read states, administrator audit trails and a clear current-payment-method description.
+- **P2 — member experience:** NexBot account-aware guidance and short practical Academy lessons.
+- **P3 — expansion:** richer business profiles and a unified activity feed after the core flows are verified.
+
+Preserve existing features and the NEXORA brand during reliability work. Prefer small, testable changes over broad rewrites; document any production setting that still requires a human administrator.
+
+---
+
 # NEXORA — Real Member Platform Upgrade
 
 NEXORA is structured as a member workspace plus an administrator console. The member experience now includes dashboard intelligence, package comparison, progressive package-earning rules, referral analytics, a marketing center, QR sharing, Academy lessons, leaderboard, monthly challenges and achievements, wallet/transactions, support tickets, profile/security controls and payment recovery visibility.

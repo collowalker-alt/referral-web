@@ -6791,3 +6791,12 @@ body:has([aria-modal="true"]) {
 @media(prefers-reduced-motion:reduce){
  .nexora-marketplace .market-tabs{scroll-behavior:auto}
 }
+
+
+/* Marketplace coupon feedback: make the discount and final amount easy to verify. */
+.coupon-applied{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:9px;padding:10px 12px;border:1px solid rgba(56,217,169,.35);border-radius:12px;background:rgba(56,217,169,.08);color:#baf7e4;font-size:.88rem}
+.coupon-applied strong{font-variant-numeric:tabular-nums}
+.coupon-applied .link{width:auto;margin:0;padding:4px 2px}
+.coupon-summary{display:grid;grid-template-columns:1fr auto;gap:7px 12px;margin:10px 0 16px;padding:12px;border:1px solid var(--line,#26364b);border-radius:12px;font-size:.9rem;color:var(--muted,#a7b0ba)}
+.coupon-summary strong{color:#62e6b8;font-variant-numeric:tabular-nums;text-align:right}
+@media(max-width:430px){.coupon-applied{align-items:flex-start}.coupon-summary{font-size:.86rem}}
