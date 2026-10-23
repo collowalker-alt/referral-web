@@ -6917,3 +6917,61 @@ main>header.member-sticky-header.compact{height:60px!important;background:rgba(4
 @media(prefers-reduced-motion:reduce){
   main>header.member-sticky-header{transition:none!important}
 }
+
+
+/* NEXORA Settings & Preferences */
+.nx-header-nexbot{height:36px;min-width:36px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 9px;border:1px solid rgba(56,217,169,.3);border-radius:11px;background:linear-gradient(145deg,rgba(56,217,169,.14),rgba(16,32,48,.92));color:#8aefd1;cursor:pointer;box-shadow:0 5px 15px rgba(0,0,0,.15);transition:transform .18s ease,border-color .18s ease,background .18s ease}
+.nx-header-nexbot:hover{transform:translateY(-1px);border-color:rgba(56,217,169,.65);background:rgba(56,217,169,.18)}
+.nx-header-nexbot img{width:27px;height:27px;object-fit:contain;display:block;animation:nxHeaderBotHello 3.8s ease-in-out infinite}
+.nx-header-nexbot span{font-size:11px;font-weight:800;letter-spacing:.02em}
+@keyframes nxHeaderBotHello{0%,82%,100%{transform:translateY(0) rotate(0)}86%{transform:translateY(-2px) rotate(-7deg)}90%{transform:translateY(0) rotate(7deg)}94%{transform:translateY(-1px) rotate(-4deg)}}
+/* The assistant is launched from the header now; its chat sheet remains portal-mounted. */
+.nexbot-root{display:none!important}
+.nx-settings-page{display:grid;gap:18px;min-width:0}
+.nx-settings-layout{display:grid;grid-template-columns:235px minmax(0,1fr);gap:16px;align-items:start}
+.nx-settings-tabs{display:grid;gap:6px;padding:9px;border:1px solid var(--border,rgba(255,255,255,.1));border-radius:17px;background:rgba(255,255,255,.025);position:sticky;top:96px}
+.nx-settings-tabs button{display:flex;align-items:center;gap:10px;min-height:45px;padding:10px 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--muted,#9ba8ba);text-align:left;cursor:pointer}
+.nx-settings-tabs button span{flex:1;min-width:0;font-weight:650;font-size:.88rem}
+.nx-settings-tabs button>svg:last-child{opacity:.55}
+.nx-settings-tabs button.active{background:rgba(56,217,169,.1);border-color:rgba(56,217,169,.24);color:#70e6c3}
+.nx-settings-content{display:grid;gap:14px;min-width:0}
+.nx-settings-card{min-width:0;padding:19px;border:1px solid var(--border,rgba(255,255,255,.1));border-radius:17px;background:rgba(255,255,255,.025);display:grid;gap:15px}
+.nx-settings-card h2,.nx-settings-card h3{margin:0;font-size:1.05rem}
+.nx-settings-card p{margin:5px 0 0;line-height:1.55}
+.nx-settings-card-title{display:flex;align-items:center;gap:12px}
+.nx-settings-card-title>div:last-child{min-width:0}
+.nx-settings-icon{width:40px;height:40px;flex:0 0 40px;display:grid;place-items:center;border:1px solid rgba(56,217,169,.2);border-radius:13px;background:rgba(56,217,169,.09);color:#69e5c1;font-size:21px}
+.nx-theme-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nx-theme-options button{min-width:0;display:grid;justify-items:start;gap:7px;padding:14px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:14px;background:rgba(255,255,255,.025);color:inherit;text-align:left;cursor:pointer}
+.nx-theme-options button.selected{border-color:rgba(56,217,169,.72);box-shadow:0 0 0 2px rgba(56,217,169,.1);background:rgba(56,217,169,.07)}
+.nx-theme-preview{width:100%;height:68px;display:grid;place-items:center;border-radius:10px;font-size:25px}
+.dark-preview{background:#0b1422;color:#7ce8c9;border:1px solid #25364a}
+.light-preview{background:#f0f6f8;color:#0f766e;border:1px solid #d4e1e7}
+.nx-theme-options b{font-size:.92rem}
+.nx-theme-options small{font-size:.77rem;line-height:1.45;color:var(--muted,#9ba8ba)}
+.nx-preference-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 0;border-top:1px solid rgba(140,160,185,.14);cursor:pointer}
+.nx-preference-row>span{display:grid;gap:4px;min-width:0}
+.nx-preference-row b{font-size:.9rem}
+.nx-preference-row small{font-size:.8rem;line-height:1.5;color:var(--muted,#9ba8ba)}
+.nx-preference-row input{position:absolute;width:1px;height:1px;opacity:0}
+.nx-preference-row i{width:43px;height:25px;flex:0 0 43px;border-radius:999px;background:#38465a;position:relative;transition:background .18s ease}
+.nx-preference-row i:after{content:"";position:absolute;left:3px;top:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:transform .18s ease}
+.nx-preference-row input:checked+i{background:#1ca982}
+.nx-preference-row input:checked+i:after{transform:translateX(18px)}
+.nx-preference-row input:focus-visible+i{outline:2px solid #7ce8c9;outline-offset:3px}
+.nx-settings-note{display:flex;align-items:flex-start;gap:9px;padding:13px 15px;border:1px solid rgba(56,217,169,.2);border-radius:13px;background:rgba(56,217,169,.06);color:var(--muted,#a7b5c5);font-size:.82rem;line-height:1.55}
+.nx-settings-note svg{flex:0 0 auto;color:#68dfbd;margin-top:1px}
+.nx-settings-footnote{font-size:.82rem}
+.nx-settings-list{display:grid;gap:9px;margin:0;padding-left:21px;color:var(--muted,#a7b5c5);font-size:.88rem;line-height:1.6}
+.nx-settings-card .nx-push-settings{padding:0;border:0;background:transparent;box-shadow:none}
+html.nx-reduce-motion *,html.nx-reduce-motion *:before,html.nx-reduce-motion *:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+html.nexora-light .nx-settings-tabs,html.nexora-light .nx-settings-card{background:#fff;border-color:#dce6eb;color:#15202b}
+html.nexora-light .nx-settings-tabs button{color:#586b7b}
+html.nexora-light .nx-settings-tabs button.active{background:#e9fbf5;color:#087e64;border-color:#b5ecdc}
+html.nexora-light .nx-theme-options button{background:#f8fbfc;border-color:#dce6eb}
+html.nexora-light .nx-theme-options button.selected{background:#edfcf7;border-color:#39bd98}
+html.nexora-light .nx-settings-note{background:#edfcf7;border-color:#c8eee1;color:#526779}
+html.nexora-light .nx-header-nexbot{background:#fff;color:#087e64;border-color:#b5ecdc}
+@media(max-width:760px){.nx-header-nexbot{width:36px;padding:0}.nx-header-nexbot span{display:none}.nx-header-nexbot img{width:29px;height:29px}.nx-settings-layout{grid-template-columns:minmax(0,1fr)}.nx-settings-tabs{position:static;display:flex;overflow-x:auto;gap:5px;padding:6px}.nx-settings-tabs button{flex:0 0 auto;min-height:42px;padding:9px 11px}.nx-settings-tabs button span{white-space:nowrap}.nx-settings-tabs button>svg:last-child{display:none}.nx-settings-card{padding:15px}.nx-theme-preview{height:56px}}
+@media(max-width:430px){.nx-theme-options{gap:8px}.nx-theme-options button{padding:10px}.nx-theme-options small{font-size:.72rem}.nx-settings-card-title{align-items:flex-start}.nx-settings-icon{width:36px;height:36px;flex-basis:36px}}
+@media(prefers-reduced-motion:reduce){.nx-header-nexbot img{animation:none}.nx-header-nexbot{transition:none}}
