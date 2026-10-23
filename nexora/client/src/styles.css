@@ -6975,3 +6975,16 @@ html.nexora-light .nx-header-nexbot{background:#fff;color:#087e64;border-color:#
 @media(max-width:760px){.nx-header-nexbot{width:36px;padding:0}.nx-header-nexbot span{display:none}.nx-header-nexbot img{width:29px;height:29px}.nx-settings-layout{grid-template-columns:minmax(0,1fr)}.nx-settings-tabs{position:static;display:flex;overflow-x:auto;gap:5px;padding:6px}.nx-settings-tabs button{flex:0 0 auto;min-height:42px;padding:9px 11px}.nx-settings-tabs button span{white-space:nowrap}.nx-settings-tabs button>svg:last-child{display:none}.nx-settings-card{padding:15px}.nx-theme-preview{height:56px}}
 @media(max-width:430px){.nx-theme-options{gap:8px}.nx-theme-options button{padding:10px}.nx-theme-options small{font-size:.72rem}.nx-settings-card-title{align-items:flex-start}.nx-settings-icon{width:36px;height:36px;flex-basis:36px}}
 @media(prefers-reduced-motion:reduce){.nx-header-nexbot img{animation:none}.nx-header-nexbot{transition:none}}
+
+
+/* Floating quick actions and WhatsApp support: sit just above mobile navigation and tuck away during scrolling. */
+.command-center{bottom:18px;transition:opacity .22s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .22s ease}
+.supportfloat{bottom:16px;transition:opacity .22s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .22s ease,background .2s ease,box-shadow .2s ease}
+@media(max-width:760px){
+ .command-center{right:12px;bottom:78px;z-index:250}
+ .supportfloat{left:12px;right:auto;bottom:84px;z-index:240;width:48px;height:48px;padding:0;justify-content:center}
+ .supportfloat span{display:none}
+}
+body.nx-floating-controls-scrolling .command-center,
+body.nx-floating-controls-scrolling .supportfloat{opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(14px) scale(.96)!important}
+@media(prefers-reduced-motion:reduce){.command-center,.supportfloat{transition:none!important}}
