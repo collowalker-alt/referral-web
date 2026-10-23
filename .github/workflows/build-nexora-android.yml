@@ -1,0 +1,79 @@
+name: Build NEXORA Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "nexora/client/**"
+      - ".github/workflows/build-nexora-android.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build Android APK with native biometric plugin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nexora/client
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: nexora/client/package.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate Android project if it is not tracked
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+
+      - name: Register native plugins and sync Android
+        run: |
+          npx cap sync android
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          if not manifest.exists():
+              raise SystemExit(f"Android manifest not found: {manifest}")
+          content = manifest.read_text()
+          permission = '<uses-permission android:name="android.permission.USE_BIOMETRIC" />'
+          if permission not in content:
+              marker = "<manifest"
+              start = content.find(marker)
+              end = content.find(">", start)
+              if start < 0 or end < 0:
+                  raise SystemExit("Could not safely locate the Android manifest root element.")
+              content = content[:end + 1] + "\\n    " + permission + content[end + 1:]
+              manifest.write_text(content)
+          print("Biometric permission is present.")
+          PY
+
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Publish APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexora-android-biometric-debug-apk
+          path: nexora/client/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
