@@ -4,10 +4,10 @@ import {createPortal} from "react-dom";
 import {App as CapacitorApp} from "@capacitor/app";
 import {Capacitor} from "@capacitor/core";
 import {NativeBiometric} from "@capgo/capacitor-native-biometric";
-const BIOMETRIC_SERVER="https://nexora-referral.onrender.com";
 import {SplashScreen} from "@capacitor/splash-screen";
 import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,ArrowDownLeft,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,ChevronLeft,ChevronRight,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, Info, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot,Mic,Volume2,VolumeX,SendHorizontal,ShoppingBag,MapPinned,ArrowRight,LoaderCircle,MessageSquareText,WalletMinimal,PackageSearch,BadgeCheck,Mail,Wifi,Smartphone,PhoneCall,Zap} from "lucide-react";
 import "./styles.css";
+const BIOMETRIC_SERVER="https://nexora-referral.onrender.com";
 const API=(import.meta.env.VITE_API_URL||"https://nexora-api-shxf.onrender.com/api").replace(/\/$/,"");
 const CURRENCY_BY_COUNTRY={KE:{code:"KES",symbol:"KSh",name:"Kenyan Shilling",digits:0},GH:{code:"GHS",symbol:"GH₵",name:"Ghanaian Cedi",digits:2},CI:{code:"XOF",symbol:"CFA",name:"West African CFA Franc",digits:0},NG:{code:"NGN",symbol:"₦",name:"Nigerian Naira",digits:0},ZA:{code:"ZAR",symbol:"R",name:"South African Rand",digits:2},EG:{code:"EGP",symbol:"E£",name:"Egyptian Pound",digits:2},RW:{code:"RWF",symbol:"FRw",name:"Rwandan Franc",digits:0},TZ:{code:"TZS",symbol:"TSh",name:"Tanzanian Shilling",digits:0},UG:{code:"UGX",symbol:"USh",name:"Ugandan Shilling",digits:0},ZM:{code:"ZMW",symbol:"ZK",name:"Zambian Kwacha",digits:2},BW:{code:"BWP",symbol:"P",name:"Botswana Pula",digits:2},MZ:{code:"MZN",symbol:"MT",name:"Mozambican Metical",digits:2},ZW:{code:"ZWG",symbol:"ZiG",name:"Zimbabwe Gold",digits:2},SN:{code:"XOF",symbol:"CFA",name:"West African CFA Franc",digits:0},CM:{code:"XAF",symbol:"FCFA",name:"Central African CFA Franc",digits:0},ET:{code:"ETB",symbol:"Br",name:"Ethiopian Birr",digits:2},MA:{code:"MAD",symbol:"MAD",name:"Moroccan Dirham",digits:2},TN:{code:"TND",symbol:"د.ت",name:"Tunisian Dinar",digits:3},MU:{code:"MUR",symbol:"Rs",name:"Mauritian Rupee",digits:2}};
 const FALLBACK_KES_RATES={KES:1,GHS:0.085, XOF:7.15, NGN:12.1, ZAR:0.125, EGP:0.39, RWF:9.8, TZS:20.3222, UGX:28.6, ZMW:0.205, BWP:0.105, MZN:0.49, ZWG:0.19, XAF:7.15, ETB:1.12, MAD:0.077, TND:0.023, MUR:0.36};
@@ -1707,7 +1707,7 @@ function App(){
     else setError(message);
    }
   }catch(e){
-   if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");clearCachedMemberData();setMe(null)}
+   if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");localStorage.removeItem("nexora-biometric-enabled");try{await NativeBiometric.deleteCredentials({server:BIOMETRIC_SERVER})}catch{}clearCachedMemberData();setMe(null)}
    else if(typeof navigator!=="undefined"&&(navigator.onLine===false||/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(String(e?.message||e)))){setNetworkOnline(false);setError("")}
    else setError(e.message);
    setLoading(false);
