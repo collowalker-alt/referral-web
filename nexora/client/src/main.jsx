@@ -1752,7 +1752,8 @@ function App(){
    if(!isActive){
     if(localStorage.getItem("nexora-biometric-enabled")==="true"){
      biometricResumeLock.current=true;
-     localStorage.removeItem("token");
+     // Keep the existing session token intact while the biometric gate is shown.
+     // A rejected fingerprint/face check must not turn into a logout.
      setBiometricGateError("");
      setBiometricGateReady(false);
     }
