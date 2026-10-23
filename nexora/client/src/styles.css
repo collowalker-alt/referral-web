@@ -7002,3 +7002,9 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
   .nx-back-to-top{right:10px;bottom:140px;width:42px;height:42px}
 }
 @media(prefers-reduced-motion:reduce){.nx-back-to-top{animation:none;transition:none}}
+
+
+/* Defensive cleanup for cached/older member-header markup: Back to Top must never occupy header layout. */
+.member-sticky-header .nx-header-back-to-top,
+.member-sticky-header .nx-back-to-top{display:none!important}
+.member-sticky-header .member-title-row{display:contents!important;min-width:0!important;width:auto!important;margin:0!important;padding:0!important;gap:0!important}
