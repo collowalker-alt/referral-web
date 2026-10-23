@@ -426,8 +426,9 @@ function NexBot({goPage,goPackages,me}){
  const FAB_SIZE=58;
  const clampPos=(x,y)=>({x:Math.max(8,Math.min((window.innerWidth||400)-FAB_SIZE-8,x)),y:Math.max(8,Math.min((window.innerHeight||700)-FAB_SIZE-8,y))});
  const positionPanel=()=>{
-  if(!open||!fabRef.current||!sheetRef.current) return;
-  const fab=fabRef.current.getBoundingClientRect(), panel=sheetRef.current.getBoundingClientRect(), gap=10,pad=8;
+  const launcher=fabRef.current&&fabRef.current.getBoundingClientRect().width>0?fabRef.current:document.querySelector(".nx-header-nexbot");
+  if(!open||!launcher||!sheetRef.current) return;
+  const fab=launcher.getBoundingClientRect(), panel=sheetRef.current.getBoundingClientRect(), gap=10,pad=8;
   let left=fab.left-panel.width-gap;
   if(left<pad) left=fab.right+gap;
   left=Math.max(pad,Math.min(left,window.innerWidth-panel.width-pad));
