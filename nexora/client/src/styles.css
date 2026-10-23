@@ -7087,3 +7087,51 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
   .app>main>header.member-sticky-header>.memberheaderbrand{margin-left:auto!important}
 }
 @media(prefers-reduced-motion:reduce){.app>main>header.member-sticky-header{transition:none!important}}
+
+
+/* Keep the member header pinned to the viewport; the Back to Top button is
+   independently fixed and must never participate in header layout. */
+.app>main{padding-top:82px!important}
+.app>main>header.member-sticky-header{
+  position:fixed!important;
+  top:0!important;
+  left:245px!important;
+  right:0!important;
+  width:auto!important;
+  height:82px!important;
+  margin:0!important;
+  padding:0 34px!important;
+  z-index:235!important;
+  display:flex!important;
+  justify-content:flex-start!important;
+  align-items:center!important;
+  gap:10px!important;
+  background:rgba(5,12,23,.97)!important;
+  -webkit-backdrop-filter:blur(18px)!important;
+  backdrop-filter:blur(18px)!important;
+  border-bottom:1px solid rgba(52,79,111,.78)!important;
+  box-shadow:0 8px 24px rgba(0,0,0,.2)!important;
+}
+.app>main>header.member-sticky-header.compact{height:60px!important}
+.app>main>header.member-sticky-header>.memberpagetitle{
+  position:static!important;display:block!important;flex:1 1 auto!important;
+  width:auto!important;min-width:0!important;margin:0!important;padding:0!important;
+}
+.app>main>header.member-sticky-header>.memberheaderbrand{
+  position:static!important;display:flex!important;flex:0 0 auto!important;
+  width:auto!important;min-width:0!important;margin:0 0 0 auto!important;padding:0!important;
+}
+.app>main>header.member-sticky-header .nx-header-back-to-top,
+.app>main>header.member-sticky-header .nx-back-to-top{display:none!important}
+@media(max-width:760px){
+  .app>main{padding-top:68px!important}
+  .app>main>header.member-sticky-header{
+    left:0!important;right:0!important;width:auto!important;
+    height:68px!important;padding:0 16px!important;margin:0!important;gap:8px!important;
+  }
+  .app>main>header.member-sticky-header.compact{height:56px!important}
+  .app>main>header.member-sticky-header>.memberpagetitle{flex:1 1 0!important}
+  .app>main>header.member-sticky-header>.memberheaderbrand{margin-left:auto!important}
+}
+@media(max-width:480px){.app>main>header.member-sticky-header{padding:0 11px!important}}
+@media(prefers-reduced-motion:reduce){.app>main>header.member-sticky-header{transition:none!important}}
