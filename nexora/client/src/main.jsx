@@ -1644,6 +1644,7 @@ function App(){
  const allowedMemberPages=["dashboard","intelligence","trust","businessbuilder","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","activity","leaderboard","challenges","support","security"];
  const memberInitialPage=allowedMemberPages.includes(requestedMemberPage)?requestedMemberPage:"dashboard";
  const [biometricGateReady,setBiometricGateReady]=useState(()=>!Capacitor.isNativePlatform()),[biometricGateBusy,setBiometricGateBusy]=useState(false),[biometricGateError,setBiometricGateError]=useState("");
+ const biometricResumeLock=useRef(false),biometricResumeUnlocking=useRef(false);
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false),[offlineNotice,setOfflineNotice]=useState(false),[seenAnnouncementIds,setSeenAnnouncementIds]=useState([]),[showAnnouncementsModal,setShowAnnouncementsModal]=useState(false);
  const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const [headerCompact,setHeaderCompact]=useState(false);
@@ -1738,6 +1739,52 @@ function App(){
   };
   unlockOnLaunch();
   return()=>{active=false};
+ },[]);
+ // Lock the native app as soon as it leaves the foreground. On return, require
+ // a fresh biometric check before restoring the saved session token.
+ useEffect(()=>{
+  if(!Capacitor.isNativePlatform())return;
+  let subscription,disposed=false;
+  const handleAppState=async({isActive})=>{
+   if(!isActive){
+    if(localStorage.getItem("nexora-biometric-enabled")==="true"){
+     biometricResumeLock.current=true;
+     localStorage.removeItem("token");
+     setBiometricGateError("");
+     setBiometricGateReady(false);
+    }
+    return;
+   }
+   if(!biometricResumeLock.current||biometricResumeUnlocking.current)return;
+   if(localStorage.getItem("nexora-biometric-enabled")!=="true"){
+    biometricResumeLock.current=false;
+    setBiometricGateReady(true);
+    return;
+   }
+   biometricResumeUnlocking.current=true;
+   setBiometricGateBusy(true);
+   setBiometricGateError("");
+   try{
+    const availability=await NativeBiometric.isAvailable();
+    if(!availability?.isAvailable)throw new Error("Biometrics are unavailable.");
+    await NativeBiometric.verifyIdentity({reason:"Unlock NEXORA after returning to the app",title:"Unlock NEXORA",subtitle:"Verify it's you",description:"Authenticate to continue your session."});
+    const credentials=await NativeBiometric.getCredentials({server:BIOMETRIC_SERVER});
+    if(!credentials?.password)throw new Error("No saved NEXORA session was found.");
+    localStorage.setItem("token",credentials.password);
+    biometricResumeLock.current=false;
+    if(!disposed){setBiometricGateError("");setBiometricGateReady(true);}
+   }catch(error){
+    if(!disposed){
+     setBiometricGateError("NEXORA remains locked. Authenticate with your fingerprint or face to continue.");
+     setBiometricGateReady(false);
+    }
+   }finally{
+    biometricResumeUnlocking.current=false;
+    if(!disposed)setBiometricGateBusy(false);
+   }
+  };
+  CapacitorApp.addListener("appStateChange",handleAppState).then(handle=>{subscription=handle;if(disposed)handle.remove()}).catch(error=>console.warn("NEXORA biometric app-state listener",error));
+  return()=>{disposed=true;subscription?.remove()};
  },[]);
  useEffect(()=>{
   if(!biometricGateReady)return;
@@ -1912,6 +1959,7 @@ function App(){
    const credentials=await NativeBiometric.getCredentials({server:BIOMETRIC_SERVER});
    if(!credentials?.password)throw new Error("No saved session. Please use password login.");
    localStorage.setItem("token",credentials.password);
+   biometricResumeLock.current=false;
    setBiometricGateReady(true);
   }catch(error){setBiometricGateError("Could not unlock NEXORA. Try again or use password login.");}
   finally{setBiometricGateBusy(false);}
@@ -1919,6 +1967,7 @@ function App(){
  const usePasswordLogin=async()=>{
   try{await NativeBiometric.deleteCredentials({server:BIOMETRIC_SERVER})}catch{}
   localStorage.removeItem("nexora-biometric-enabled");
+  biometricResumeLock.current=false;
   localStorage.removeItem("token");
   localStorage.removeItem("nexora-cached-me");
   setBiometricGateError("");setBiometricGateReady(true);setLoading(false);setMe(null);
