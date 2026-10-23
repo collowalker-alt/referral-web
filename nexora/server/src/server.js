@@ -2834,6 +2834,17 @@ async function ensureNotificationTable(){
   await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Notification_userId_read_idx" ON "Notification"("userId","read")`);
 }
 
+async function ensureOrderCouponColumns(){
+  try{
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "subtotal" INTEGER`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "discount" INTEGER NOT NULL DEFAULT 0`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "couponCode" TEXT`);
+  }catch(e){
+    console.error("[ORDER COUPON COLUMNS]",e.message);
+    throw e;
+  }
+}
+
 async function ensureResetTokenColumns(){
   try{
     await prisma.$executeRawUnsafe(`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "resetToken" TEXT`);
@@ -2874,6 +2885,7 @@ async function startServer(){
     await ensureSupportTicketTable();
     await ensureNotificationTable();
     await ensureResetTokenColumns();
+    await ensureOrderCouponColumns();
     await ensureTransferAndServiceTables();
     await ensureAdmin();
   }catch(e){
