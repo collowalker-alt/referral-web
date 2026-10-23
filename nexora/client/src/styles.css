@@ -6988,3 +6988,31 @@ html.nexora-light .nx-header-nexbot{background:#fff;color:#087e64;border-color:#
 body.nx-floating-controls-scrolling .command-center,
 body.nx-floating-controls-scrolling .supportfloat{opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(14px) scale(.96)!important}
 @media(prefers-reduced-motion:reduce){.command-center,.supportfloat{transition:none!important}}
+
+
+/* Floating Back to Top: right edge, above the mobile bottom navigation. */
+.nx-back-to-top{
+  position:fixed;right:18px;bottom:94px;z-index:260;
+  width:46px;height:46px;border-radius:50%;
+  display:grid;place-items:center;
+  color:#06130f;background:linear-gradient(145deg,#65efc3,#28c99b);
+  border:1px solid rgba(177,255,229,.72);
+  box-shadow:0 8px 24px rgba(0,0,0,.3),0 0 0 4px rgba(56,217,169,.08);
+  opacity:1;visibility:visible;pointer-events:auto;
+  transform:translateY(0) scale(1);
+  transition:opacity .22s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility .22s ease,box-shadow .2s ease;
+  animation:nxBackTopIn .22s ease-out;
+}
+.nx-back-to-top svg{transform:rotate(-45deg)}
+.nx-back-to-top:hover{transform:translateY(-3px) scale(1.04);box-shadow:0 12px 30px rgba(0,0,0,.35),0 0 0 5px rgba(56,217,169,.12)}
+.nx-back-to-top:focus-visible{outline:2px solid #8cf4d5;outline-offset:3px}
+body.nx-floating-controls-scrolling .nx-back-to-top{
+  opacity:0!important;visibility:hidden!important;pointer-events:none!important;transform:translateY(14px) scale(.94)!important
+}
+@media(max-width:760px){
+  .nx-back-to-top{right:13px;bottom:142px;width:44px;height:44px;z-index:260}
+}
+@media(max-width:380px){
+  .nx-back-to-top{right:10px;bottom:140px;width:42px;height:42px}
+}
+@media(prefers-reduced-motion:reduce){.nx-back-to-top{animation:none;transition:none}}
