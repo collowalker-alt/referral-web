@@ -1624,7 +1624,12 @@ function App(){
  const [headerCompact,setHeaderCompact]=useState(false);
  const [showBackToTop,setShowBackToTop]=useState(false);
  useEffect(()=>{
-  let previousY=window.scrollY||document.documentElement.scrollTop||0,frame=0;
+  let previousY=window.scrollY||document.documentElement.scrollTop||0,frame=0,idleTimer=0;
+  const markScrolling=()=>{
+   document.body.classList.add("nx-floating-controls-scrolling");
+   window.clearTimeout(idleTimer);
+   idleTimer=window.setTimeout(()=>document.body.classList.remove("nx-floating-controls-scrolling"),700);
+  };
   const readY=(event)=>{
    const target=event?.target;
    if(target&&target!==window&&target!==document&&target!==document.documentElement&&target!==document.body&&target!==document.querySelector(".app main"))return previousY;
@@ -1632,6 +1637,7 @@ function App(){
    return Math.max(0,window.scrollY||document.documentElement.scrollTop||document.body.scrollTop||main?.scrollTop||0);
   };
   const onScroll=(event)=>{
+   markScrolling();
    if(frame)return;
    frame=window.requestAnimationFrame(()=>{
     const y=readY(event),delta=y-previousY;
@@ -1644,7 +1650,7 @@ function App(){
   window.addEventListener("scroll",onScroll,{passive:true});
   document.addEventListener("scroll",onScroll,{passive:true,capture:true});
   onScroll();
-  return()=>{window.removeEventListener("scroll",onScroll);document.removeEventListener("scroll",onScroll,true);if(frame)window.cancelAnimationFrame(frame)};
+  return()=>{window.removeEventListener("scroll",onScroll);document.removeEventListener("scroll",onScroll,true);if(frame)window.cancelAnimationFrame(frame);window.clearTimeout(idleTimer);document.body.classList.remove("nx-floating-controls-scrolling")};
  },[]);
   const load=async(show=true)=>{
   if(show)setLoading(true);setError("");
