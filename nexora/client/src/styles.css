@@ -7135,3 +7135,58 @@ body.nx-floating-controls-scrolling .nx-back-to-top{
 }
 @media(max-width:480px){.app>main>header.member-sticky-header{padding:0 11px!important}}
 @media(prefers-reduced-motion:reduce){.app>main>header.member-sticky-header{transition:none!important}}
+
+
+/* Mobile member header layout correction:
+   the floating Back to Top control is fixed to the viewport and must never
+   reserve a column or width in the header. Use only menu, title, and actions. */
+@media(max-width:760px){
+  .app>main>header.member-sticky-header{
+    display:grid!important;
+    grid-template-columns:46px minmax(0,1fr) auto!important;
+    align-items:center!important;
+    column-gap:12px!important;
+    overflow:visible!important;
+  }
+  .app>main>header.member-sticky-header>.mobilemenu{
+    grid-column:1!important;
+    min-width:0!important;
+    width:46px!important;
+    margin:0!important;
+  }
+  .app>main>header.member-sticky-header>.memberpagetitle{
+    grid-column:2!important;
+    min-width:0!important;
+    width:100%!important;
+    flex:none!important;
+    overflow:hidden!important;
+  }
+  .app>main>header.member-sticky-header>.memberpagetitle .muted{
+    display:none!important;
+  }
+  .app>main>header.member-sticky-header>.memberheaderbrand{
+    grid-column:3!important;
+    min-width:0!important;
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+    gap:6px!important;
+    justify-self:end!important;
+  }
+  .app>main>header.member-sticky-header .nx-back-to-top,
+  .app>main>header.member-sticky-header .nx-header-back-to-top{
+    display:none!important;
+  }
+}
+/* Back to Top stays an independent overlay, never a layout participant. */
+.nx-back-to-top{
+  position:fixed!important;
+  right:13px!important;
+  bottom:142px!important;
+  z-index:260!important;
+  width:44px!important;
+  height:44px!important;
+}
+@media(min-width:761px){
+  .nx-back-to-top{right:18px!important;bottom:94px!important}
+}
