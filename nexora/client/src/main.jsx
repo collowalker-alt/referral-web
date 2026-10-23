@@ -1615,7 +1615,7 @@ function App(){
   let previousY=window.scrollY||document.documentElement.scrollTop||0,frame=0;
   const readY=(event)=>{
    const target=event?.target;
-   if(target&&target!==document&&target!==document.documentElement&&target!==document.body&&target!==document.querySelector(".app main"))return previousY;
+   if(target&&target!==window&&target!==document&&target!==document.documentElement&&target!==document.body&&target!==document.querySelector(".app main"))return previousY;
    const main=document.querySelector(".app main");
    return Math.max(0,window.scrollY||document.documentElement.scrollTop||document.body.scrollTop||main?.scrollTop||0);
   };
