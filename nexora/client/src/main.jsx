@@ -225,7 +225,7 @@ function PWAInstall({compact=false}){
      <div>
       <span className="pill">NEXORA APP</span>
       <h2>Get NEXORA on your device</h2>
-      <p>Choose your device. Android downloads the official NEXORA app; iPhone and iPad use Add to Home Screen.</p>
+      <p>Choose your device. Android downloads the APK; iPhone and iPad can install NEXORA from Safari using Add to Home Screen.</p>
      </div>
      <button type="button" className="iconbtn" onClick={()=>setShowHelp(false)} aria-label="Close"><X size={20}/></button>
     </div>
@@ -237,14 +237,14 @@ function PWAInstall({compact=false}){
      </div>
      <div className={`installcard ${platform==="ios"?"selected":""}`}>
       <div className="installicon iosicon">iOS</div>
-      <div className="installcopy"><b>iPhone / iPad</b><span>Use Safari to add NEXORA to your Home Screen.</span></div>
-      <button type="button" className="secondary installaction" onClick={iosHelp}><Download size={16}/>Add to Home</button>
+      <div className="installcopy"><b>iPhone / iPad</b><span>Install NEXORA on your Home Screen from Safari. No App Store download is available yet.</span></div>
+      <button type="button" className="secondary installaction" onClick={iosHelp}><Download size={16}/>Install on iPhone</button>
      </div>
      <div className="installnote"><ShieldCheck size={17}/><span>Android downloads the official NEXORA APK from this website. After the download finishes, open NEXORA.apk and confirm installation when Android asks.</span></div>
      <div className="installsteps">
       <b>{platform==="ios"?"iPhone / iPad":"Android"}</b>
       {platform==="ios"
-        ? <span>Open this site in <strong>Safari</strong> → tap <strong>Share</strong> → choose <strong>Add to Home Screen</strong>.</span>
+        ? <span>Open this site in <strong>Safari</strong> → tap <strong>Share</strong> → choose <strong>Add to Home Screen</strong> → tap <strong>Add</strong>. NEXORA will appear as an app icon. This is the web-app install route; a native iOS download is not ready yet.</span>
         : <span>Tap <strong>Download APK</strong>, open the downloaded <strong>NEXORA.apk</strong>, then tap <strong>Install</strong>. If prompted, allow your browser to install apps for this download.</span>}
      </div>
     </div>
