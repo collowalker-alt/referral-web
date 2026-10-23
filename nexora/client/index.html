@@ -11,6 +11,43 @@
     <link rel="apple-touch-icon" href="/nexora-logo.png" />
     <link rel="icon" href="/nexora-logo.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <style id="nexora-header-stability-fix">
+      /* Keep the member header identical before and after scrolling. */
+      .app>main>header.member-sticky-header,
+      .app>main>header.member-sticky-header.compact{
+        height:82px!important;min-height:82px!important;max-height:82px!important;
+        padding-top:0!important;padding-bottom:0!important;
+        box-sizing:border-box!important;
+      }
+      .app>main>header.member-sticky-header .memberpagetitle .muted,
+      .app>main>header.member-sticky-header.compact .memberpagetitle .muted{
+        display:block!important;visibility:visible!important;opacity:1!important;
+        white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+        font-size:10px!important;line-height:1.35!important;
+      }
+      .app>main>header.member-sticky-header .nx-back-to-top,
+      .app>main>header.member-sticky-header .nx-header-back-to-top,
+      .nx-back-to-top,.nx-header-back-to-top{
+        position:fixed!important;right:13px!important;bottom:142px!important;
+        z-index:260!important;flex:none!important;grid-column:auto!important;
+      }
+      @media(max-width:760px){
+        .app>main>header.member-sticky-header,
+        .app>main>header.member-sticky-header.compact{
+          height:68px!important;min-height:68px!important;max-height:68px!important;
+        }
+        .app>main>header.member-sticky-header .memberpagetitle .muted,
+        .app>main>header.member-sticky-header.compact .memberpagetitle .muted{
+          display:block!important;font-size:9px!important;line-height:1.3!important;
+        }
+        .app>main>header.member-sticky-header .nx-back-to-top,
+        .app>main>header.member-sticky-header .nx-header-back-to-top,
+        .nx-back-to-top,.nx-header-back-to-top{
+          right:13px!important;bottom:142px!important;
+        }
+      }
+      @media(min-width:761px){.nx-back-to-top,.nx-header-back-to-top{right:18px!important;bottom:94px!important}}
+    </style>
     <title>NEXORA — Connect. Grow. Earn.</title>
   </head>
   <body>
