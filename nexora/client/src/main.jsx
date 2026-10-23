@@ -3,6 +3,8 @@ import {createRoot} from "react-dom/client";
 import {createPortal} from "react-dom";
 import {App as CapacitorApp} from "@capacitor/app";
 import {Capacitor} from "@capacitor/core";
+import {NativeBiometric} from "@capgo/capacitor-native-biometric";
+const BIOMETRIC_SERVER="https://nexora-referral.onrender.com";
 import {SplashScreen} from "@capacitor/splash-screen";
 import {LayoutDashboard,Users,WalletCards,Package as PackageIcon,LogOut,Copy,ArrowUpRight,ArrowDownLeft,Menu,X,ShieldCheck,RefreshCw,History,CheckCircle2,MessageCircle,BookOpen,ExternalLink,UsersRound,ReceiptText,HandCoins,Settings2,Search,LockKeyhole,LogIn,Ban,UserCheck,Clock3,Check,ChevronDown,ChevronLeft,ChevronRight,BarChart3, UserRound, Wrench, Activity, Download, Eye, EyeOff, CreditCard, AlertTriangle, Info, FileSpreadsheet, Trophy, Megaphone, Share2, QrCode, Bell, LifeBuoy, GraduationCap, Shield, UserCog, KeyRound, Send, Target, TrendingUp, Medal, Crown, Sparkles, CheckCheck, BarChart2, Users2, CopyCheck, Store, Link2, CalendarCheck2, ShoppingCart, MapPin, Plus, Trash2, PackageCheck, Truck, Heart, Filter, Edit3, Upload, FileImage, Video, ClipboardCopy, Star,Bot,Mic,Volume2,VolumeX,SendHorizontal,ShoppingBag,MapPinned,ArrowRight,LoaderCircle,MessageSquareText,WalletMinimal,PackageSearch,BadgeCheck,Mail,Wifi,Smartphone,PhoneCall,Zap} from "lucide-react";
 import "./styles.css";
@@ -620,7 +622,27 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
   const [successMsg,setSuccessMsg]=useState("");
   const [resetToken,setResetToken]=useState(initialResetToken||"");
   const [devResetToken,setDevResetToken]=useState("");
+  const [biometricBusy,setBiometricBusy]=useState(false);
   const modalRef=React.useRef(null);
+  const setupBiometrics=async(email,token)=>{
+    if(!Capacitor.isNativePlatform()||!email||!token)return;
+    try{
+      const availability=await NativeBiometric.isAvailable();
+      if(!availability?.isAvailable)return;
+      const alreadyEnabled=localStorage.getItem("nexora-biometric-enabled")==="true";
+      if(alreadyEnabled){
+        await NativeBiometric.setCredentials({username:String(email),password:String(token),server:BIOMETRIC_SERVER});
+        return;
+      }
+      if(!window.confirm("Would you like to enable fingerprint or face unlock for NEXORA on this phone? You can still use your password whenever you need to."))return;
+      await NativeBiometric.verifyIdentity({reason:"Enable biometric sign-in for NEXORA",title:"Secure NEXORA login",subtitle:"Confirm it's you",description:"Your device will protect your saved NEXORA session."});
+      await NativeBiometric.setCredentials({username:String(email),password:String(token),server:BIOMETRIC_SERVER});
+      localStorage.setItem("nexora-biometric-enabled","true");
+    }catch(error){
+      // Biometric setup is optional; never block a successful password login.
+      console.warn("NEXORA biometric setup skipped",error);
+    }
+  };
   const rawRef=(new URLSearchParams(location.search).get("ref")||"").trim().toUpperCase();
   const ref=["UNDEFINED","NULL","NONE","N/A"].includes(rawRef)?"":rawRef;
 
@@ -679,9 +701,11 @@ function AuthModal({mode:onMode,initialResetToken="",onClose,onLogin}){
         if(mode==="register"){
           setSuccessMsg("Account created successfully. Opening your workspace…");
           localStorage.setItem("token",d.token);
+          await setupBiometrics(f.email,d.token);
           onLogin();onClose();
         }else{
           localStorage.setItem("token",d.token);
+          await setupBiometrics(f.email,d.token);
           onLogin();onClose();
         }
       }else if(mode==="forgot"){
@@ -1619,6 +1643,7 @@ function App(){
  const requestedMemberPage=new URLSearchParams(window.location.search).get("page");
  const allowedMemberPages=["dashboard","intelligence","trust","businessbuilder","marketplace","connect","wallet","transfer","services","transactions","referrals","products","marketing","academy","analytics","community","notifications","activity","leaderboard","challenges","support","security"];
  const memberInitialPage=allowedMemberPages.includes(requestedMemberPage)?requestedMemberPage:"dashboard";
+ const [biometricGateReady,setBiometricGateReady]=useState(()=>!Capacitor.isNativePlatform()),[biometricGateBusy,setBiometricGateBusy]=useState(false),[biometricGateError,setBiometricGateError]=useState("");
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false),[offlineNotice,setOfflineNotice]=useState(false),[seenAnnouncementIds,setSeenAnnouncementIds]=useState([]),[showAnnouncementsModal,setShowAnnouncementsModal]=useState(false);
  const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const [headerCompact,setHeaderCompact]=useState(false);
@@ -1692,13 +1717,37 @@ function App(){
  useEffect(()=>{if(!me?.user?.id)return;let alive=true;const refresh=async()=>{try{const rows=await api("/announcements");if(alive){setAnnouncements(rows);saveCachedMemberData("announcements",rows,me.user.id)}}catch{}};const timer=window.setInterval(refresh,20000);return()=>{alive=false;window.clearInterval(timer)}},[me?.user?.id]);
  useEffect(()=>{if(page!=="community"||!announcements.length)return;const unseen=announcements.filter(a=>a?.id&&!a.opened);if(!unseen.length)return;let alive=true;Promise.all(unseen.map(a=>api("/announcements/"+encodeURIComponent(a.id)+"/open",{method:"POST"}).catch(()=>null))).then(()=>{if(alive)setAnnouncements(rows=>{const next=rows.map(a=>({...a,opened:true}));if(me?.user?.id)saveCachedMemberData("announcements",next,me.user.id);return next})});return()=>{alive=false}},[page,announcements]);
  useEffect(()=>{
+  let active=true;
+  const unlockOnLaunch=async()=>{
+   if(!Capacitor.isNativePlatform()||localStorage.getItem("nexora-biometric-enabled")!=="true"){
+    if(active)setBiometricGateReady(true);
+    return;
+   }
+   setBiometricGateBusy(true);setBiometricGateError("");
+   try{
+    const availability=await NativeBiometric.isAvailable();
+    if(!availability?.isAvailable)throw new Error("Biometrics are not available. Use password login to continue.");
+    await NativeBiometric.verifyIdentity({reason:"Unlock your NEXORA workspace",title:"Unlock NEXORA",subtitle:"Verify it's you",description:"Use your enrolled fingerprint or face to continue."});
+    const credentials=await NativeBiometric.getCredentials({server:BIOMETRIC_SERVER});
+    if(!credentials?.password)throw new Error("No saved NEXORA session was found. Use password login to sign in again.");
+    localStorage.setItem("token",credentials.password);
+    if(active){setBiometricGateError("");setBiometricGateReady(true);}
+   }catch(error){
+    if(active)setBiometricGateError("NEXORA is locked. Authenticate with your fingerprint or face, or choose password login.");
+   }finally{if(active)setBiometricGateBusy(false);}
+  };
+  unlockOnLaunch();
+  return()=>{active=false};
+ },[]);
+ useEffect(()=>{
+  if(!biometricGateReady)return;
   if(!localStorage.getItem("token")){setLoading(false);return;}
   try{
    const cached=JSON.parse(localStorage.getItem("nexora-cached-me")||"null");
    if(cached?.user){setMe(cached);setLoading(false);}
   }catch{}
   load(false);
- },[]);
+ },[biometricGateReady]);
  useEffect(()=>{
   const markOffline=()=>{
    setNetworkOnline(false);
@@ -1854,6 +1903,27 @@ function App(){
   return()=>{subscription?.remove()};
  },[page,payment,receipt,phoneModal,instructions,mobile]);
  useEffect(()=>{const fn=e=>{const page=e.detail?.page;if(page)setPage(page)};window.addEventListener("nexora-go-page",fn);return()=>window.removeEventListener("nexora-go-page",fn)},[]);
+ const retryBiometricUnlock=async()=>{
+  setBiometricGateBusy(true);setBiometricGateError("");
+  try{
+   const availability=await NativeBiometric.isAvailable();
+   if(!availability?.isAvailable)throw new Error("Biometrics are unavailable on this device.");
+   await NativeBiometric.verifyIdentity({reason:"Unlock your NEXORA workspace",title:"Unlock NEXORA",subtitle:"Verify it's you",description:"Use your enrolled fingerprint or face to continue."});
+   const credentials=await NativeBiometric.getCredentials({server:BIOMETRIC_SERVER});
+   if(!credentials?.password)throw new Error("No saved session. Please use password login.");
+   localStorage.setItem("token",credentials.password);
+   setBiometricGateReady(true);
+  }catch(error){setBiometricGateError("Could not unlock NEXORA. Try again or use password login.");}
+  finally{setBiometricGateBusy(false);}
+ };
+ const usePasswordLogin=async()=>{
+  try{await NativeBiometric.deleteCredentials({server:BIOMETRIC_SERVER})}catch{}
+  localStorage.removeItem("nexora-biometric-enabled");
+  localStorage.removeItem("token");
+  localStorage.removeItem("nexora-cached-me");
+  setBiometricGateError("");setBiometricGateReady(true);setLoading(false);setMe(null);
+ };
+ if(Capacitor.isNativePlatform()&&!biometricGateReady)return <div className="nx-biometric-lock" style={{minHeight:"100dvh",display:"grid",placeItems:"center",padding:24,background:"#07110e",color:"#f4fff8",textAlign:"center"}}><div style={{width:"min(100%,380px)",padding:28,border:"1px solid rgba(67,220,144,.28)",borderRadius:24,background:"rgba(11,31,24,.94)",boxShadow:"0 24px 80px rgba(0,0,0,.35)"}}><img src="/nexora-logo.png" alt="NEXORA" style={{width:86,height:86,objectFit:"contain",marginBottom:14}}/><h1 style={{margin:"0 0 8px",fontSize:26}}>Unlock NEXORA</h1><p style={{color:"#b9cec3",lineHeight:1.6}}>Use your phone's fingerprint or face authentication to open your workspace.</p>{biometricGateError&&<p role="alert" style={{color:"#ffb4a9",fontSize:14}}>{biometricGateError}</p>}<button type="button" className="primary" style={{width:"100%",justifyContent:"center",marginTop:12}} onClick={retryBiometricUnlock} disabled={biometricGateBusy}><ShieldCheck size={18}/>{biometricGateBusy?"Verifying…":"Unlock with biometrics"}</button><button type="button" className="secondary" style={{width:"100%",justifyContent:"center",marginTop:10}} onClick={usePasswordLogin}>Use password login instead</button></div></div>;
  // IMPORTANT: all App hooks above must run on every render. Route-specific returns
  // are intentionally kept after the hooks to prevent React error #310 (hook order).
  if(path === "/admin" || path.startsWith("/admin/")) return <AdminApp/>;
