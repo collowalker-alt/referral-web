@@ -7218,3 +7218,15 @@ body.nx-auth-open .supportfloat,body.nx-auth-open .nexbot-fab{visibility:hidden!
 .modalbackdrop:has(>.authmodal){align-items:center!important;overflow-y:auto!important;padding:12px 14px!important}
 .modalbackdrop:has(>.authmodal)>.authmodal{max-height:none!important;height:auto!important;flex:0 0 auto!important;overflow:visible!important;margin:auto!important;transform:none!important}
 @media(max-width:600px){.modalbackdrop:has(>.authmodal){padding:8px 10px!important;align-items:center!important}.modalbackdrop:has(>.authmodal)>.authmodal{width:100%!important;max-height:none!important;overflow:visible!important;margin:auto!important}}
+
+
+/* Hide floating controls while the member side navigation is open. */
+.app.member-menu-open .supportfloat,
+.app.member-menu-open .command-center,
+.app.member-menu-open .nx-back-to-top,
+.app.member-menu-open .nx-header-back-to-top,
+.app.member-menu-open .nexbot-root{
+  opacity:0!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
