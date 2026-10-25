@@ -7264,3 +7264,104 @@ body.nx-auth-open .supportfloat,body.nx-auth-open .nexbot-fab{visibility:hidden!
 .nx-withdraw-actions{position:sticky;bottom:0;display:flex;gap:10px;padding:14px 22px max(16px,env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,.08);background:rgba(9,18,15,.96)}
 .nx-withdraw-actions button{flex:1;min-height:46px;justify-content:center;white-space:nowrap}
 @media(max-width:480px){.nx-confirm-backdrop{padding:10px;align-items:center}.nx-withdraw-confirm{width:100%;max-height:90dvh;border-radius:20px}.nx-withdraw-confirm .modalhead{padding:18px 17px 14px}.nx-withdraw-shield,.nx-withdraw-breakdown,.nx-withdraw-recipient,.nx-withdraw-risk{margin-left:17px;margin-right:17px}.nx-withdraw-disclaimer{margin-left:17px;margin-right:17px}.nx-withdraw-actions{padding-left:17px;padding-right:17px}.nx-withdraw-breakdown{padding:12px}.nx-withdraw-breakdown .nx-withdraw-net strong{font-size:18px}}
+
+
+/* October 2026 mobile reliability patch: keep the member workspace scrollable
+   on Android WebView and mobile browsers with inconsistent viewport sizing. */
+html {
+  min-height: 100% !important;
+  height: auto !important;
+  overflow-x: clip !important;
+  overflow-y: auto !important;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: auto !important;
+  overflow-x: clip !important;
+  overflow-y: auto !important;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  height: auto !important;
+}
+.app {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: auto !important;
+  overflow: visible !important;
+  align-items: stretch;
+}
+.app > main {
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: auto !important;
+  overflow: visible !important;
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  html, body, #root {
+    max-width: 100%;
+    overscroll-behavior-x: none;
+  }
+  .app {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .app > main {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    padding-bottom: max(112px, calc(100px + env(safe-area-inset-bottom))) !important;
+    overflow: visible !important;
+    touch-action: pan-y pinch-zoom;
+  }
+  .app > main > * {
+    min-width: 0;
+  }
+}
+/* Scroll locking is only appropriate while the authentication dialog is open. */
+body.nx-auth-open {
+  overflow: hidden !important;
+}
+body.nx-auth-open .modalbackdrop:has(> .authmodal) {
+  overscroll-behavior: contain !important;
+}
+/* Keep the unread announcements badge fully visible and the button easy to tap. */
+.app > main > header.member-sticky-header {
+  overflow: visible !important;
+}
+.app > main > header.member-sticky-header .memberheaderbrand {
+  overflow: visible !important;
+}
+.nx-announcement-alert {
+  position: relative !important;
+  isolation: isolate;
+  min-width: 40px;
+  min-height: 40px;
+  margin: 0 4px 0 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.nx-announcement-alert > .nx-announcement-count {
+  z-index: 3;
+  top: -5px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  border-color: #07101f;
+  pointer-events: none;
+}
+@media (max-width: 560px) {
+  .nx-announcement-alert {
+    min-width: 38px !important;
+    min-height: 38px !important;
+    padding: 7px !important;
+    margin-right: 3px;
+  }
+}
