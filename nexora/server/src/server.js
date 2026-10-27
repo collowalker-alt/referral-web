@@ -611,7 +611,7 @@ async function sendPasswordResetEmail({ to, name, rawToken }) {
 }
 
 
-const sign = user => jwt.sign({ id:user.id, v:Number(user.tokenVersion||0) }, JWT_SECRET, { expiresIn:"7d" });
+const sign = user => jwt.sign({ id:user.id, v:Number(user.tokenVersion||0) }, JWT_SECRET, { expiresIn:"30d" });
 const auth = async (req,res,next) => {
   try {
     const token=(req.headers.authorization||"").replace("Bearer ","");
@@ -883,7 +883,9 @@ app.post("/api/auth/login", memberLoginLimiter, async (req,res)=>{
   } catch(e){ console.error(e); res.status(500).json({message:"Login failed"}); }
 });
 
-app.post("/api/auth/forgot-password", forgotLimiter, async (req,res)=>{
+app.post("/api/auth/refresh", auth, async (req,res)=>{ try { const user=await prisma.user.findUnique({where:{id:req.user.id}}); if(!user||user.status!=="ACTIVE")return res.status(401).json({message:"Your account is not active. Please contact support."}); res.json({token:sign(user)}); } catch(e){ res.status(500).json({message:"Unable to refresh session"}); } });
+
+ app.post("/api/auth/forgot-password", forgotLimiter, async (req,res)=>{
   try {
     const email=String(req.body?.email||"").trim().toLowerCase();
     if(!email || !EMAIL_RE.test(email)) return res.status(400).json({message:"Enter a valid email address"});
