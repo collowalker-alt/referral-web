@@ -1686,6 +1686,8 @@ function App(){
   if(show)setLoading(true);setError("");
   try{
    const m=await api("/me");
+   // Renew the persistent member session while the current token is still valid.
+   try{const refreshed=await api("/auth/refresh",{method:"POST"});if(refreshed?.token)localStorage.setItem("token",refreshed.token)}catch(refreshError){console.warn("NEXORA session refresh deferred",refreshError)}
    setNetworkOnline(true);
    setMe(m);
    try{localStorage.setItem("nexora-cached-me",JSON.stringify(m))}catch{}
