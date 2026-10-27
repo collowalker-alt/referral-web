@@ -7365,3 +7365,17 @@ body.nx-auth-open .modalbackdrop:has(> .authmodal) {
     margin-right: 3px;
   }
 }
+
+
+/* NEXORA custom withdrawal confirmation */
+.nx-withdraw-confirm-overlay{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(2,7,12,.78);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.nx-withdraw-confirm-modal{width:min(100%,440px);max-height:min(88dvh,720px);overflow:auto;padding:26px;border:1px solid rgba(40,220,158,.35);border-radius:24px;background:linear-gradient(155deg,#111d24 0%,#08110f 100%);box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 0 1px rgba(40,220,158,.08);color:#eaf5f0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+.nx-withdraw-confirm-icon{display:flex;align-items:center;justify-content:center;width:46px;height:46px;margin-bottom:14px;border-radius:14px;background:rgba(22,190,130,.15);border:1px solid rgba(40,220,158,.28);color:#43e6ac;font-size:25px;font-weight:700}
+.nx-withdraw-confirm-modal h2{margin:0 0 16px;font-size:20px;line-height:1.35;font-weight:750;color:#f3fff9}
+.nx-withdraw-confirm-details{white-space:pre-line;font-size:14px;line-height:1.65;color:#c7d8d2;overflow-wrap:anywhere}
+.nx-withdraw-confirm-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:24px}
+.nx-withdraw-confirm-actions button{min-height:46px;padding:0 18px;border-radius:12px;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.nx-withdraw-cancel{border:1px solid #344740;background:#14201c;color:#d0e2da}
+.nx-withdraw-approve{border:1px solid #20c98b;background:linear-gradient(135deg,#20c98b,#087d57);color:#041b12;box-shadow:0 8px 22px rgba(16,185,129,.18)}
+.nx-withdraw-confirm-actions button:focus-visible{outline:2px solid #66f0bc;outline-offset:3px}
+@media(max-width:480px){.nx-withdraw-confirm-overlay{padding:14px}.nx-withdraw-confirm-modal{padding:22px 20px;border-radius:20px}.nx-withdraw-confirm-modal h2{font-size:18px}.nx-withdraw-confirm-details{font-size:13.5px}.nx-withdraw-confirm-actions button{flex:1;padding:0 10px}}
