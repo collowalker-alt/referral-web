@@ -1609,6 +1609,19 @@ function NexoraPageTransition({label="Opening workspace…"}){
 }
 
 function App(){
+ useEffect(()=>{
+  let locked=false,scrollY=0;
+  const modalSelector='.modalbackdrop,.nx-news-modal-backdrop,[role="dialog"][aria-modal="true"],.nexbot-panel';
+  const syncModalScrollLock=()=>{
+   const active=!!document.querySelector(modalSelector);
+   if(active&&!locked){locked=true;scrollY=window.scrollY||document.documentElement.scrollTop||0;document.body.classList.add("nx-modal-scroll-locked");document.body.style.top=`-${scrollY}px`}
+   else if(!active&&locked){locked=false;document.body.classList.remove("nx-modal-scroll-locked");document.body.style.top="";window.scrollTo(0,scrollY)}
+  };
+  const observer=new MutationObserver(syncModalScrollLock);
+  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class","style","aria-hidden"]});
+  syncModalScrollLock();
+  return()=>{observer.disconnect();if(locked){document.body.classList.remove("nx-modal-scroll-locked");document.body.style.top="";window.scrollTo(0,scrollY)}};
+ },[]);
  useEffect(()=>{try{document.documentElement.classList.toggle("nexora-light",localStorage.getItem("nexora-theme")==="light");document.documentElement.classList.toggle("nx-reduce-motion",localStorage.getItem("nexora-reduce-motion")==="true")}catch{}},[]);
  // Check the published APK manifest on native installs. Installation is offered only after signing is configured.
  useEffect(()=>{
@@ -3595,6 +3608,9 @@ function NativeLaunchSplash(){
    <div className="nx-launch-line"><span/></div>
   </div>
   <style>{`
+   body.nx-modal-scroll-locked{position:fixed!important;overflow:hidden!important;width:100%;left:0;right:0;overscroll-behavior:none;touch-action:none}
+   body.nx-modal-scroll-locked .modalbackdrop,body.nx-modal-scroll-locked .nx-news-modal-backdrop{overscroll-behavior:contain;touch-action:pan-y}
+
    .nx-native-launch-splash{position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#07090d;color:#f5f7ff;animation:nxLaunchFadeOut .55s ease 2.05s forwards}
    .nx-launch-glow{position:absolute;width:min(78vw,420px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(40,113,255,.20) 0%,rgba(40,113,255,.07) 42%,transparent 72%);filter:blur(10px);animation:nxLaunchGlow 1.7s ease-in-out infinite alternate}
    .nx-launch-brand{position:relative;width:min(82vw,420px);display:flex;flex-direction:column;align-items:center;gap:22px;animation:nxLaunchForm .9s cubic-bezier(.2,.8,.2,1) both}
