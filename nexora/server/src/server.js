@@ -130,7 +130,7 @@ const PAYSTACK_AUTO_WITHDRAWALS = /^(1|true|yes)$/i.test(String(process.env.PAYS
 const PAYSTACK_AUTO_WITHDRAWAL_MAX = Number.isInteger(Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX)) && Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX) >= 100
   ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_MAX) : 50000;
 const PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT = Number.isInteger(Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT)) && Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) >= 100
-  ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) : 10000;
+  ? Number(process.env.PAYSTACK_AUTO_WITHDRAWAL_DAILY_LIMIT) : 50000;
 const VAPID_PUBLIC_KEY = String(process.env.VAPID_PUBLIC_KEY || "").trim();
 const VAPID_PRIVATE_KEY = String(process.env.VAPID_PRIVATE_KEY || "").trim();
 const VAPID_SUBJECT = String(process.env.VAPID_SUBJECT || (process.env.ADMIN_EMAIL ? `mailto:${process.env.ADMIN_EMAIL}` : "")).trim();
@@ -621,7 +621,15 @@ const auth = async (req,res,next) => {
     if(!u || u.status!=="ACTIVE") return res.status(401).json({message:"Account unavailable"});
     if(p.v!==undefined && Number(p.v)!==Number(u.tokenVersion||0)) return res.status(401).json({message:"Your session has ended. Please sign in again."});
     req.user=u; next();
-  } catch { res.status(401).json({message:"Invalid or expired session"}); }
+  } catch (error) {
+    // Do not turn a temporary database/connection failure into a false 401.
+    // The client treats 401 as a genuinely invalid session and clears its token.
+    if (["TokenExpiredError","JsonWebTokenError","NotBeforeError"].includes(error?.name)) {
+      return res.status(401).json({message:"Invalid or expired session"});
+    }
+    console.error("[MEMBER AUTH CHECK]", error?.message || error);
+    return res.status(503).json({message:"NEXORA could not verify your session because the service is temporarily unavailable. Your login has been kept; please retry shortly."});
+  }
 };
 const signAdmin = admin => jwt.sign({ id:admin.id, type:"admin", role:admin.role, v:Number(admin.tokenVersion||0) }, JWT_SECRET, { expiresIn:"12h" });
 const requireAdminRole = (...roles) => (req,res,next) => { if(!req.admin || !roles.includes(req.admin.role)) return res.status(403).json({message:"You do not have permission to perform this admin action"}); next(); };
@@ -645,7 +653,13 @@ const adminAuth = async (req,res,next) => {
       if(!allowed) return res.status(403).json({message:"Connect Admin accounts can access NEXORA Connect orders only."});
     }
     req.admin=a; next();
-  } catch { res.status(401).json({message:"Invalid or expired admin session"}); }
+  } catch (error) {
+    if (["TokenExpiredError","JsonWebTokenError","NotBeforeError"].includes(error?.name)) {
+      return res.status(401).json({message:"Invalid or expired admin session"});
+    }
+    console.error("[ADMIN AUTH CHECK]", error?.message || error);
+    return res.status(503).json({message:"NEXORA could not verify the admin session because the service is temporarily unavailable. Please retry shortly."});
+  }
 };
 
 async function logAdminAction(req, action, targetType=null, targetId=null, targetEmail=null, details={}){
@@ -2363,11 +2377,10 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
     const limit=Number(memberWithPackage?.package?.withdrawalLimit||0);
     if(limit>0 && amount>limit) return res.status(400).json({message:`Your ${memberWithPackage.package.name} package allows total wallet withdrawals up to KSh ${limit.toLocaleString()} per request.`});
     if(req.body?.amountConfirmed!==true) return res.status(400).json({message:"Please review and confirm the exact withdrawal amount, fees, and M-PESA payout before submitting."});
-    const availableBalance=Number(memberWithPackage?.wallet?.balance||0);
-    const riskReasons=[];
-    if(amount>=10000) riskReasons.push("large withdrawal amount");
-    if(availableBalance>=5000 && amount>=5000 && amount>=availableBalance*0.75) riskReasons.push("withdrawal uses at least 75% of the available wallet balance");
-    const reviewRequired=riskReasons.length>0;
+    // Requests below KSh 20,000 proceed automatically. Requests at or above
+    // KSh 20,000 are reserved and sent to manual review before any provider payout.
+    const riskReasons=amount>=20000?["withdrawal amount is KSh 20,000 or above and requires manual review"]:[];
+    const reviewRequired=amount>=20000;
     if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed misuse may lead to a plan downgrade or account restrictions after investigation.",requestedAmount:amount});
     const reviewReason=reviewRequired?riskReasons.join("; "):null;
     const reference=`WDNET-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
