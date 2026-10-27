@@ -71,7 +71,7 @@ const buildInternationalPhone=(countryCode,national)=>{
   return `${country.dial}${digits}`;
 };
 const validPhone=v=>PHONE_RE.test(cleanPhone(v));
-async function api(path,opts={}){const token=localStorage.getItem("token");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.message||"Request failed");return d}
+async function api(path,opts={}){const token=localStorage.getItem("token");const r=await fetch(API+path,{...opts,headers:{"Content-Type":"application/json",...(token?{Authorization:`Bearer ${token}`}:{})}});const d=await r.json().catch(()=>({}));if(!r.ok){const error=new Error(d.message||"Request failed");error.status=r.status;error.path=path;throw error}return d}
 
 
 const markCopied=(btn,ms=2200)=>{
@@ -1727,7 +1727,7 @@ function App(){
     else setError(message);
    }
   }catch(e){
-   if(/session|authentication|expired/i.test(e.message)){localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");localStorage.removeItem("nexora-biometric-enabled");try{await NativeBiometric.deleteCredentials({server:BIOMETRIC_SERVER})}catch{}clearCachedMemberData();setMe(null)}
+   if(e?.status===401){localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");localStorage.removeItem("nexora-biometric-enabled");try{await NativeBiometric.deleteCredentials({server:BIOMETRIC_SERVER})}catch{}clearCachedMemberData();setMe(null)}
    else if(typeof navigator!=="undefined"&&(navigator.onLine===false||/failed to fetch|networkerror|network request failed|load failed|fetch failed/i.test(String(e?.message||e)))){setNetworkOnline(false);setError("")}
    else setError(e.message);
    setLoading(false);
