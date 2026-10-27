@@ -2381,7 +2381,7 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
     // KSh 20,000 are reserved and sent to manual review before any provider payout.
     const riskReasons=amount>=20000?["withdrawal amount is KSh 20,000 or above and requires manual review"]:[];
     const reviewRequired=amount>=20000;
-    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"This is a large or unusually high proportion of your available balance. Please confirm that you intentionally entered this amount. If it is incorrect or appears suspicious, the request may be held for review; confirmed misuse may lead to a plan downgrade or account restrictions after investigation.",requestedAmount:amount});
+    if(reviewRequired && req.body?.confirmSuspiciousAmount!==true) return res.status(409).json({confirmationRequired:true,reviewRequired:true,message:"Withdrawals of KSh 20,000 or more require manual review before payout. Please confirm that you intentionally entered this amount. Incorrect or suspicious requests may be investigated; confirmed misuse may lead to account restrictions after investigation.",requestedAmount:amount});
     const reviewReason=reviewRequired?riskReasons.join("; "):null;
     const reference=`WDNET-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`;
     const since=new Date(Date.now()-24*60*60*1000);
