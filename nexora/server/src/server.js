@@ -708,6 +708,15 @@ const paystackMode=()=>{
   const key=process.env.PAYSTACK_SECRET_KEY||"";
   return key.startsWith("sk_live_")?"live":key.startsWith("sk_test_")?"test":"unknown";
 };
+
+// Paystack transfer references must be deterministic across retries and restarts.
+// Withdrawal IDs are Prisma cuid strings; normalize to lowercase because webhook
+// validation uses a lowercase nxwd_<id> reference.
+function paystackWithdrawalReference(withdrawalId){
+  const id=String(withdrawalId||"").trim().toLowerCase();
+  if(!/^[a-z0-9]+$/.test(id)) throw new Error("Invalid NEXORA withdrawal ID for Paystack reference");
+  return `nxwd_${id}`;
+}
 const logPaystackCharge=(label,{reference,httpStatus,response,phone,email}={})=>{
   const data=response?.data||{};
   console.log(`[PAYSTACK ${label}]`,JSON.stringify({
