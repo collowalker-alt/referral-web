@@ -7388,3 +7388,56 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop,
 body.nx-modal-scroll-locked .nx-withdraw-confirm-overlay{position:fixed!important;inset:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;touch-action:pan-y!important;-webkit-overflow-scrolling:touch!important}
 body.nx-modal-scroll-locked .modalbackdrop>* ,
 body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!important}
+
+
+/* Fix Smart Guide's desktop card: prevent grid/flex children from collapsing
+   to a character-wide column and keep the card content compact. */
+.nx-smart-guide{
+  display:grid!important;
+  grid-template-columns:38px minmax(0,1fr) auto!important;
+  align-items:center!important;
+  gap:14px!important;
+  width:100%!important;
+  min-width:0!important;
+  box-sizing:border-box!important;
+  overflow:visible!important;
+}
+.nx-smart-guide-icon{grid-column:1!important;grid-row:1!important;align-self:start!important}
+.nx-smart-guide-main{
+  grid-column:2!important;grid-row:1!important;
+  display:block!important;
+  width:100%!important;min-width:0!important;max-width:100%!important;
+  flex:1 1 auto!important;
+  writing-mode:horizontal-tb!important;
+  overflow-wrap:anywhere!important;word-break:normal!important;
+  white-space:normal!important;
+}
+.nx-smart-guide-main h3,
+.nx-smart-guide-main p,
+.nx-smart-guide-kicker,
+.nx-smart-guide-meta{
+  display:block!important;width:100%!important;max-width:100%!important;
+  writing-mode:horizontal-tb!important;word-break:normal!important;
+  overflow-wrap:anywhere!important;white-space:normal!important;
+}
+.nx-smart-guide-action{grid-column:3!important;grid-row:1!important;justify-self:end!important;max-width:100%!important}
+@media(max-width:760px){
+ .nx-smart-guide{grid-template-columns:34px minmax(0,1fr)!important;align-items:start!important}
+ .nx-smart-guide-main{grid-column:2!important;grid-row:1!important}
+ .nx-smart-guide-action{grid-column:2!important;grid-row:2!important;justify-self:start!important}
+}
+
+/* Keep announcement count readable and completely inside the visible header. */
+.nx-announcement-alert{overflow:visible!important;isolation:isolate!important}
+.nx-announcement-alert>.nx-announcement-count{
+ display:grid!important;place-items:center!important;
+ position:absolute!important;top:-8px!important;right:-8px!important;
+ min-width:23px!important;height:23px!important;padding:0 5px!important;
+ border:2px solid #07101f!important;border-radius:999px!important;
+ background:#ff304d!important;color:#fff!important;
+ font-size:12px!important;font-weight:900!important;line-height:1!important;
+ z-index:20!important;box-sizing:border-box!important;
+ box-shadow:0 0 0 1px rgba(255,255,255,.12),0 3px 10px rgba(0,0,0,.45)!important;
+}
+.app>main>header.member-sticky-header{overflow:visible!important}
+.app>main>header.member-sticky-header .memberheaderbrand{overflow:visible!important;flex-shrink:0!important}
