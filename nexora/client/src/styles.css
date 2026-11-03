@@ -7548,3 +7548,51 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
   .nx-header-actions .nx-announcement-alert,.nx-header-actions .nx-header-nexbot,.nx-header-actions .pending-action-chip{width:33px!important;height:33px!important;min-width:33px!important;min-height:33px!important}
   .nx-header-actions .avatarbtn{width:33px!important;height:33px!important;min-width:33px!important}
 }
+
+/* NEXORA compact header dropdowns: retain every action in animated, grouped menus. */
+.nx-header-dropdown{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;z-index:40}
+.nx-header-dropdown-trigger{position:relative;display:grid;place-items:center;width:42px;height:42px;border:1px solid rgba(126,165,203,.2);border-radius:13px;background:rgba(19,38,61,.78);color:#eaf3ff;cursor:pointer;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.nx-header-dropdown-trigger:hover,.nx-header-dropdown.is-open>.nx-header-dropdown-trigger{background:rgba(36,75,113,.85);border-color:rgba(92,164,239,.48)}
+.nx-header-badge{position:absolute;top:-6px;right:-6px;display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border:2px solid #07101f;border-radius:999px;background:#ff304d;color:#fff;font-size:10px;font-weight:900;line-height:1;box-shadow:0 3px 10px rgba(0,0,0,.35)}
+.nx-dropdown-scrim{position:fixed;inset:0;z-index:80;border:0;background:transparent;cursor:default}
+.nx-header-dropdown-panel{position:absolute;top:calc(100% + 13px);right:0;z-index:90;width:min(370px,calc(100vw - 24px));padding:14px;border:1px solid rgba(113,157,202,.24);border-radius:18px;background:linear-gradient(155deg,#102239 0%,#091626 100%);box-shadow:0 22px 65px rgba(0,0,0,.48);color:#edf5ff;transform-origin:top right;animation:nxHeaderDropIn .2s cubic-bezier(.2,.8,.2,1) both}
+@keyframes nxHeaderDropIn{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.nx-dropdown-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:4px 3px 13px;border-bottom:1px solid rgba(164,190,220,.12)}
+.nx-dropdown-heading h3{margin:5px 0 3px;font-size:17px;letter-spacing:-.02em}
+.nx-dropdown-heading p{margin:0;color:#9db2c9;font-size:11px}
+.nx-dropdown-content{display:grid;gap:5px;padding-top:9px}
+.nx-dropdown-entry{display:flex;align-items:center;gap:11px;width:100%;min-height:58px;padding:9px 8px;border:1px solid transparent;border-radius:12px;background:transparent;color:#e8f1fc;text-align:left;text-decoration:none;cursor:pointer;transition:background .16s ease,border-color .16s ease}
+.nx-dropdown-entry:hover{background:rgba(75,133,190,.13);border-color:rgba(116,166,215,.15)}
+.nx-dropdown-entry>span:nth-child(2),.nx-dropdown-entry>div{display:grid;gap:3px;flex:1;min-width:0}
+.nx-dropdown-entry b{font-size:12px;font-weight:750}
+.nx-dropdown-entry small{color:#9db2c9;font-size:10px;line-height:1.35}
+.nx-dropdown-entry>svg:last-child{flex:0 0 auto;color:#7896b5}
+.nx-dropdown-entry-icon{display:grid;place-items:center;flex:0 0 34px!important;width:34px;height:34px;border-radius:10px;background:rgba(72,135,199,.13);color:#a9d2ff}
+.nx-dropdown-entry em{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#e9435c;color:#fff;font-size:10px;font-style:normal;font-weight:800}
+.nx-activity-entry{cursor:default}
+.nx-activity-entry .activity-center{display:block;flex:0 0 34px;width:34px;height:34px;max-width:none!important}
+.nx-activity-entry .activity-center>.header-icon-btn{display:grid;place-items:center;width:34px;height:34px;min-width:34px;padding:0;border:0;border-radius:10px;background:rgba(72,135,199,.13);color:#a9d2ff}
+.nx-activity-entry .activity-center>.header-icon-btn>span{top:-5px;right:-5px}
+.nx-activity-entry .activity-center .activity-popover{position:fixed;top:84px;right:18px;z-index:120;width:min(350px,calc(100vw - 24px))}
+.nx-dropdown-all{display:flex;align-items:center;justify-content:center;gap:8px;min-height:40px;margin-top:4px;border:1px solid rgba(90,155,218,.22);border-radius:11px;background:rgba(44,105,164,.16);color:#c9e4ff;font-size:11px;font-weight:750;cursor:pointer}
+.nx-profile-panel{width:min(310px,calc(100vw - 24px));padding:10px}
+.nx-profile-summary{display:flex;align-items:center;gap:11px;padding:9px 8px 13px;margin-bottom:4px;border-bottom:1px solid rgba(164,190,220,.12)}
+.nx-profile-summary>.avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#2877bd,#15518c);color:white;font-weight:800}
+.nx-profile-summary>div{display:grid;gap:3px;min-width:0}
+.nx-profile-summary b{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nx-profile-summary small{font-size:10px;color:#9db2c9}
+.nx-profile-install{padding:7px 8px;border-top:1px solid rgba(164,190,220,.1);border-bottom:1px solid rgba(164,190,220,.1)}
+.nx-profile-install .pwa-install{display:flex;width:100%;justify-content:flex-start;min-height:40px;padding:7px 8px;border:0;background:transparent;color:#e8f1fc}
+.nx-profile-install .pwa-install:hover{background:rgba(75,133,190,.13)}
+.nx-profile-logout{color:#ffb7c0}
+.nx-profile-logout .nx-dropdown-entry-icon{background:rgba(239,68,68,.12);color:#ff9eaa}
+@media(max-width:760px){
+ .nx-header-dropdown-trigger{width:36px;height:36px;border-radius:11px}
+ .nx-header-dropdown-panel{top:calc(100% + 10px);right:-4px;width:min(360px,calc(100vw - 18px));padding:12px}
+ .nx-profile-panel{width:min(300px,calc(100vw - 18px))}
+ .nx-activity-entry .activity-center .activity-popover{top:74px;right:9px}
+}
+@media(max-width:390px){
+ .nx-header-dropdown-trigger{width:33px;height:33px}
+ .nx-header-dropdown-panel{right:-5px;width:calc(100vw - 16px)}
+}
