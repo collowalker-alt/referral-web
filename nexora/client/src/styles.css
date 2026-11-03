@@ -7596,3 +7596,14 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
  .nx-header-dropdown-trigger{width:33px;height:33px}
  .nx-header-dropdown-panel{right:-5px;width:calc(100vw - 16px)}
 }
+
+/* Keep header dropdowns inside the viewport instead of anchoring them to the edge of the header. */
+.nx-header-dropdown-panel{position:fixed;top:76px;right:16px;left:auto;width:min(370px,calc(100vw - 32px));max-height:calc(100dvh - 92px);overflow-y:auto;overscroll-behavior:contain}
+.nx-profile-panel{width:min(310px,calc(100vw - 32px))}
+@media(max-width:760px){
+ .nx-header-dropdown-panel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 68px);right:10px;left:auto;width:min(360px,calc(100vw - 20px));max-height:calc(100dvh - env(safe-area-inset-top,0px) - 82px);overflow-y:auto}
+ .nx-profile-panel{width:min(300px,calc(100vw - 20px))}
+}
+@media(max-width:390px){
+ .nx-header-dropdown-panel{right:8px;left:8px;width:auto;max-width:none}
+}
