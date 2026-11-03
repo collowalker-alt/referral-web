@@ -7633,3 +7633,43 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
   pointer-events:none!important;
   transform:translate(0,0)!important;
 }
+
+
+/* Header install shortcut: visible beside Notifications, NexBot and Profile. */
+.nx-header-actions>.pwa-install{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  width:auto!important;
+  min-width:96px!important;
+  min-height:40px!important;
+  padding:0 11px!important;
+  border:1px solid rgba(75,217,183,.3)!important;
+  border-radius:12px!important;
+  background:rgba(20,65,62,.55)!important;
+  color:#aaf4dc!important;
+  font-size:12px!important;
+  font-weight:800!important;
+  white-space:nowrap!important;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease!important;
+}
+.nx-header-actions>.pwa-install:hover{
+  background:rgba(29,103,88,.72)!important;
+  border-color:rgba(75,217,183,.65)!important;
+  transform:translateY(-1px);
+}
+.nx-header-actions>.pwa-install svg{width:15px;height:15px;flex:0 0 auto}
+.nx-header-actions>.pwa-install span{display:inline!important}
+@media(max-width:760px){
+  .nx-header-actions>.pwa-install{
+    width:36px!important;min-width:36px!important;height:36px!important;min-height:36px!important;
+    padding:0!important;border-radius:11px!important;
+  }
+  .nx-header-actions>.pwa-install span{display:none!important}
+}
+@media(max-width:390px){
+  .nx-header-actions>.pwa-install{
+    width:33px!important;min-width:33px!important;height:33px!important;min-height:33px!important;
+  }
+}
