@@ -1645,6 +1645,7 @@ function HowYouEarn({goPage}){
 
 function DashboardHub({me,goPage}) {
  const tiles=[
+  {id:"dashboard",title:"Home Overview",tag:"OVERVIEW",desc:"Return to your NEXORA earning-first home overview.",icon:"🏠",links:[["dashboard","Open overview"]]},
   {id:"earning",title:"Earn",tag:"EARN FIRST",desc:"Your earning centre: membership, referrals, approved rewards and growth tools.",icon:"💸",links:[["referrals","Membership & plans"],["analytics","Earning analytics"],["marketing","Share & promote"]]},
   {id:"marketplace",title:"Marketplace",tag:"SHOP · SELL",desc:"Browse products, shop, manage your marketplace experience and discover offers.",icon:"🛍️",links:[["marketplace","Open marketplace"]]},
   {id:"products",title:"Advertise",tag:"PREMIUM PROMOTION",desc:"Explore approved advertising campaigns. Premium membership is required for advertising-task earnings.",icon:"📣",links:[["products","Advertising tools"],["marketing","Marketing"]]},
@@ -1654,7 +1655,6 @@ function DashboardHub({me,goPage}) {
   {id:"connect",title:"NEXORA Connect",tag:"CONNECT",desc:"Explore connectivity and internet services.",icon:"📶",links:[["connect","Open Connect"]]},
   {id:"wallet",title:"Wallet",tag:"PAYMENTS",desc:"View your wallet and payment options.",icon:"👛",links:[["wallet","Open wallet"]]},
   {id:"promoter",title:"Agent / Promoter",tag:"PROMOTE",desc:"Your invite link, referred members and recorded performance. Earnings are not guaranteed.",icon:"📣",links:[["marketing","Marketing Center"],["howearn","How you earn"]]},
-  {id:"dashboard",title:"Home Overview",tag:"OVERVIEW",desc:"Return to your NEXORA earning-first home overview.",icon:"🏠",links:[["dashboard","Open overview"]]}
  ];
  return <section className="nx-dashboard-hub" style={{padding:"clamp(12px,2vw,28px)",maxWidth:1400,margin:"0 auto"}}>
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap",marginBottom:24}}>
@@ -1703,10 +1703,24 @@ function App(){
  useEffect(()=>{
   let locked=false,scrollY=0;
   const modalSelector='.modalbackdrop,.nx-news-modal-backdrop,[role="dialog"][aria-modal="true"],.nexbot-panel';
+  let lastActiveModal=null;
   const syncModalScrollLock=()=>{
-   const active=!!document.querySelector(modalSelector);
+   const modalRoots=Array.from(document.querySelectorAll(modalSelector));
+   const active=modalRoots.length>0;
+   const currentModal=modalRoots[modalRoots.length-1]||null;
    if(active&&!locked){locked=true;scrollY=window.scrollY||document.documentElement.scrollTop||0;document.body.classList.add("nx-modal-scroll-locked");document.body.style.top=`-${scrollY}px`}
    else if(!active&&locked){locked=false;document.body.classList.remove("nx-modal-scroll-locked");document.body.style.top="";window.scrollTo(0,scrollY)}
+   if(currentModal&&currentModal!==lastActiveModal){
+    lastActiveModal=currentModal;
+    requestAnimationFrame(()=>{
+     const dialog=currentModal.matches('[role="dialog"]')?currentModal:currentModal.querySelector('[role="dialog"]');
+     [currentModal,dialog,...(dialog||currentModal).querySelectorAll("*")].filter(Boolean).forEach(el=>{
+      const style=window.getComputedStyle(el);
+      if(el===currentModal||el===dialog||style.overflowY==="auto"||style.overflowY==="scroll")el.scrollTop=0;
+     });
+    });
+   }
+   if(!active)lastActiveModal=null;
   };
   const observer=new MutationObserver(syncModalScrollLock);
   observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class","style","aria-hidden"]});
@@ -1759,6 +1773,20 @@ function App(){
   const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const [headerCompact,setHeaderCompact]=useState(false);
  const [showBackToTop,setShowBackToTop]=useState(false);
+ // Every page transition starts at the top of the viewport and the app's own
+ // scrolling region. This also covers navigation triggered outside the sidebar.
+ useEffect(()=>{
+  const resetScroll=()=>{
+   window.scrollTo({top:0,left:0,behavior:"instant"});
+   document.documentElement.scrollTop=0;
+   document.body.scrollTop=0;
+   const main=document.querySelector(".app main");
+   if(main)main.scrollTo({top:0,left:0,behavior:"instant"});
+  };
+  resetScroll();
+  const frame=requestAnimationFrame(resetScroll);
+  return()=>cancelAnimationFrame(frame);
+ },[page]);
  useEffect(()=>{
   let previousY=window.scrollY||document.documentElement.scrollTop||0,frame=0,idleTimer=0;
   const markScrolling=()=>{
