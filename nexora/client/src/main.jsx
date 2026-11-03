@@ -1609,6 +1609,13 @@ function NexoraPageTransition({label="Opening workspace…"}){
  </div>
 }
 
+function AcademyProgressWidget({goPage}){
+ const titles=["NEXORA & your member workspace","NEXORA Marketplace: buy & sell","Understanding membership plans","Premium advertising & weekly payouts","Referral fundamentals","Marketing that builds trust","Reading your analytics","Wallet, transactions & payments","Account security & privacy","Growing sustainably & ethically"];
+ const [completed,setCompleted]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")}catch{return {}}});
+ useEffect(()=>{const sync=()=>{try{setCompleted(JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}"))}catch{setCompleted({})}};window.addEventListener("nexora-academy-progress",sync);return()=>window.removeEventListener("nexora-academy-progress",sync)},[]);
+ const count=titles.filter(t=>completed[t]).length,pct=Math.round(count/titles.length*100),next=titles.find(t=>!completed[t])||"All lessons completed";
+ return <div className="panel" style={{marginTop:16}}><div className="paneltitle"><div><span className="pill">ACADEMY PROGRESS</span><h3>{pct}% complete</h3><p className="muted small">{count} of {titles.length} lessons completed</p></div><GraduationCap size={20}/></div><div className="progress"><i style={{width:pct+"%"}}/></div><p className="muted small" style={{marginTop:12}}><b>Next lesson:</b> {next}</p><button className="primary narrow" onClick={()=>goPage("academy")}>{count===titles.length?"Review Academy":"Continue learning"} <ArrowUpRight size={14}/></button></div>;
+}
 function PromoterDashboard({me,referrals,earnings,goPage}){
  const link=`${location.origin}/?ref=${me?.user?.referralCode||""}`;
  const direct=Array.isArray(referrals?.direct)?referrals.direct:[];
@@ -2785,6 +2792,7 @@ function Dashboard({me,referrals,goPage,goPackages,profileStrength,tickets,goSec
   </section>
 
   <GettingStartedChecklist me={me} goPage={goPage} profileStrength={profileStrength}/>
+  <AcademyProgressWidget goPage={goPage}/>
   <SmartGuide me={me} referrals={referrals} profileStrength={profileStrength} goPage={goPage} goPackages={goPackages}/>
 
   <div className="shopcategorybar panel">
@@ -2864,6 +2872,7 @@ function Marketing({me,copy,copyCode,copiedKind,share}){
  const copyText=async(t,kind="msg")=>{try{await navigator.clipboard.writeText(t);}catch{window.prompt("Copy message:",t);}setLocalCopied(kind);setTimeout(()=>setLocalCopied(""),2500);};
  return <section>
   <div className="sectionhead"><div><span className="pill">GROWTH TOOLS</span><h1>Referral marketing center</h1><p className="muted">Share clearly, invite honestly, and help people understand NEXORA before they join.</p></div></div>
+  <div className="notice"><Info size={16}/> Approximate / performance-based • not a fixed guaranteed salary. Do not promise earnings; explain the active eligibility rules.</div>
   {!hasPackage&&<div className="lockedpanel"><LockKeyhole size={28}/><div><h3>Referral tools unlock after plan activation</h3><p className="muted">Activate a membership plan first (Earn → Membership plans). Your personal referral link, QR code and share messages become available once a plan is active.</p></div></div>}
   {hasPackage&&<>
    <div className="marketinggrid">
