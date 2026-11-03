@@ -2615,7 +2615,7 @@ function SmartGuide({me,referrals,profileStrength,goPage,goPackages}){
  const [completed,setCompleted]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}")}catch{return {}}});
  useEffect(()=>{const sync=()=>{try{setCompleted(JSON.parse(localStorage.getItem("nexora-academy-completed")||"{}"))}catch{setCompleted({})}};window.addEventListener("nexora-academy-progress",sync);return()=>window.removeEventListener("nexora-academy-progress",sync)},[]);
  const lessonCount=Object.keys(completed).length;
- const profileComplete=Boolean(me?.user?.name&&me?.user?.email&&me?.user?.phone&&me?.user?.referralCode);
+ const profileComplete=Boolean(me?.user?.name&&me?.user?.email&&me?.user?.phone);
  const pending=(me?.transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING").length;
  const directCount=Array.isArray(referrals?.direct)?referrals.direct.length:0;
  const next=pending?{title:"Check a pending transaction",detail:"Confirm the latest status before retrying a payment.",action:"Open transactions",icon:ReceiptText,run:()=>goPage("transactions")}:!profileComplete?{title:"Finish your account profile",detail:"A complete profile helps keep account details accurate.",action:"Complete profile",icon:UserCog,run:()=>goPage("security")}:lessonCount<3?{title:"Build your NEXORA skills",detail:`Complete ${3-lessonCount} more Academy lesson${3-lessonCount===1?"":"s"} to strengthen your platform knowledge.`,action:"Continue learning",icon:GraduationCap,run:()=>goPage("academy")}:!me?.package?{title:"Review membership options",detail:"Read plan benefits and eligibility before deciding whether to join a plan.",action:"Review plans",icon:WalletCards,run:()=>goPackages?goPackages():goPage("referrals")}:!localStorage.getItem("nexora-milestone-plan-review")?{title:"Review membership and earning rules",detail:"Check plan eligibility, advertising conditions and payout rules before taking your next step.",action:"Review rules",icon:ShieldCheck,run:()=>goPage("referrals")}:directCount===0?{title:"Explore the marketplace",detail:"Discover products and understand how the buying and selling tools work.",action:"Explore marketplace",icon:Store,run:()=>goPage("marketplace")}:{title:"Review your recorded activity",detail:"Use your transactions and analytics to understand what has actually happened.",action:"Open Activity Centre",icon:Activity,run:()=>goPage("activity")};
@@ -2881,8 +2881,8 @@ function Dashboard({me,referrals,earnings=[],analytics,goPage,openMarketplace,go
   <SmartGuide me={me} referrals={referrals} profileStrength={profileStrength} goPage={goPage} goPackages={goPackages}/>
 
   <div className="shopcategorybar panel">
-   <div><span className="pill">SHOP BY CATEGORY</span><h3>What are you looking for?</h3></div>
-   <div className="shopcategorychips"><button onClick={()=>goPage("marketplace")}><Store size={16}/> All products</button><button onClick={()=>goPage("marketplace")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>goPage("marketplace")}><Heart size={16}/> Fashion</button><button onClick={()=>goPage("marketplace")}><Truck size={16}/> Services</button><button onClick={()=>goPage("marketplace")}><MapPin size={16}/> Nearby</button></div>
+   <div><span className="pill">EXPLORE MARKETPLACE</span><h3>Browse by category</h3></div>
+   <div className="shopcategorychips"><button onClick={()=>openMarketplace("shop","All")}><Store size={16}/> All products</button><button onClick={()=>openMarketplace("shop","Electronics")}><PackageIcon size={16}/> Electronics</button><button onClick={()=>openMarketplace("shop","Fashion")}><Heart size={16}/> Fashion</button><button onClick={()=>openMarketplace("shop","Services")}><Wrench size={16}/> Services</button></div>
   </div>
 
   <section className="nx-core-areas" aria-label="NEXORA core areas">
