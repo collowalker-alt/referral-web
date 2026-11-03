@@ -7673,3 +7673,20 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
     width:33px!important;min-width:33px!important;height:33px!important;min-height:33px!important;
   }
 }
+
+
+/* Earn-first member dashboard and earning centre */
+.nx-earn-overview{margin:16px 0 20px;padding:clamp(16px,2vw,24px);border:1px solid rgba(65,170,145,.22);background:linear-gradient(145deg,rgba(17,46,53,.55),rgba(12,24,40,.92))}
+.nx-earn-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px;margin:14px 0}
+.nx-earn-metrics>div{display:grid;gap:5px;min-width:0;padding:15px;border:1px solid rgba(130,170,195,.16);border-radius:14px;background:rgba(7,16,31,.48)}
+.nx-earn-metrics>div>span,.nx-earn-metrics>div>small{color:var(--muted,#9aacc2);font-size:12px}
+.nx-earn-metrics>div>strong{font-size:clamp(19px,2.5vw,26px);overflow-wrap:anywhere;color:var(--text,#eef5ff)}
+.nx-earn-actions{display:flex;gap:9px;flex-wrap:wrap}
+.nx-earning-tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));gap:14px;margin-top:18px}
+.nx-earning-tools>.panel{padding:18px;min-width:0}
+.nx-earning-tools h2{font-size:17px;margin:0 0 8px}
+.nx-earning-tools p{min-height:48px;line-height:1.5}
+.nx-earning-next{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px;margin-top:18px}
+.nx-earning-next h2{margin:8px 0;font-size:20px}
+.nx-earning-next p{margin:0;max-width:680px}
+@media(max-width:600px){.nx-earning-next{align-items:stretch;flex-direction:column}.nx-earn-actions>*{flex:1 1 auto}}

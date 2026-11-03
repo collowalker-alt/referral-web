@@ -1511,8 +1511,8 @@ function Products({me,packages=[],purchase,goPlans}){
  {selected&&<div className="modalbackdrop" onClick={()=>setSelected(null)}><div className="modal adsubmitmodal" onClick={e=>e.stopPropagation()}><div className="modalhead"><div><span className="pill">CAMPAIGN SUBMISSION</span><h2>{selected.title}</h2></div><button className="iconbtn" onClick={()=>setSelected(null)}><X size={20}/></button></div><form onSubmit={submit}><div className="adsubmitbody"><p className="muted">Paste the public post URL and upload the exact creative you published. This helps NEXORA verify that the campaign was actually posted.</p><label className="fieldlabel">Public post / status link<input required type="url" value={form.postUrl} onChange={e=>setForm({...form,postUrl:e.target.value})} placeholder="https://…"/></label><label className="fieldlabel">Upload the post you published<input required type="file" accept="image/*,video/*" onChange={readMedia}/></label>{form.postMediaData&&<div className="mediapreview">{form.postMediaType.startsWith("video/")?<video controls src={form.postMediaData}/>:<img src={form.postMediaData} alt="Submitted campaign post"/>}<small>{form.postMediaName}</small></div>}<label className="fieldlabel">Proof / analytics screenshot link (optional)<input type="url" value={form.proofUrl} onChange={e=>setForm({...form,proofUrl:e.target.value})} placeholder="https://…"/></label><div className="admetricgrid"><label className="fieldlabel">Current views<input required min="0" type="number" value={form.views} onChange={e=>setForm({...form,views:e.target.value})}/></label><label className="fieldlabel">Current engagements<input required min="0" type="number" value={form.engagements} onChange={e=>setForm({...form,engagements:e.target.value})}/></label></div><div className="notice"><Eye size={16}/> Enter the figures visible on the platform. NEXORA can request additional verification before approval.</div></div><div className="modalfoot"><button type="button" className="secondary" onClick={()=>setSelected(null)} disabled={busy}>Cancel</button><button className="primary" disabled={busy}>{busy?"Submitting…":"Submit for review"}</button></div></form></div></div>}</section>
 }
 
-function Marketplace({me}){
- const [tab,setTab]=useState("shop"),[products,setProducts]=useState([]),[mine,setMine]=useState([]),[orders,setOrders]=useState({buying:[],selling:[]}),[wishlist,setWishlist]=useState([]),[cart,setCart]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-cart")||"[]")}catch{return[]}}),[recentViews,setRecentViews]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-recent-products")||"[]")}catch{return[]}}),[q,setQ]=useState(""),[category,setCategory]=useState("All"),[location,setLocation]=useState(""),[sort,setSort]=useState("newest"),[minPrice,setMinPrice]=useState(""),[maxPrice,setMaxPrice]=useState(""),[selected,setSelected]=useState(null),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[couponCode,setCouponCode]=useState(""),[coupon,setCoupon]=useState(null),[couponBusy,setCouponBusy]=useState(false),[form,setForm]=useState({title:"",description:"",price:"",stock:"1",category:"Other",location:"",phone:me.user.phone||"",images:[]}),[checkout,setCheckout]=useState({deliveryName:me.user.name||"",deliveryPhone:me.user.phone||"",deliveryAddress:"",deliveryNotes:"",paymentMethod:"CASH_ON_DELIVERY"});
+function Marketplace({me,initialTab="shop",initialCategory="All"}){
+ const [tab,setTab]=useState(initialTab),[products,setProducts]=useState([]),[mine,setMine]=useState([]),[orders,setOrders]=useState({buying:[],selling:[]}),[wishlist,setWishlist]=useState([]),[cart,setCart]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-cart")||"[]")}catch{return[]}}),[recentViews,setRecentViews]=useState(()=>{try{return JSON.parse(localStorage.getItem("nexora-recent-products")||"[]")}catch{return[]}}),[q,setQ]=useState(""),[category,setCategory]=useState(initialCategory),[location,setLocation]=useState(""),[sort,setSort]=useState("newest"),[minPrice,setMinPrice]=useState(""),[maxPrice,setMaxPrice]=useState(""),[selected,setSelected]=useState(null),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[couponCode,setCouponCode]=useState(""),[coupon,setCoupon]=useState(null),[couponBusy,setCouponBusy]=useState(false),[form,setForm]=useState({title:"",description:"",price:"",stock:"1",category:"Other",location:"",phone:me.user.phone||"",images:[]}),[checkout,setCheckout]=useState({deliveryName:me.user.name||"",deliveryPhone:me.user.phone||"",deliveryAddress:"",deliveryNotes:"",paymentMethod:"CASH_ON_DELIVERY"});
  const categories=["All","Fashion","Electronics","Phones & Accessories","Home","Beauty","Food","Services","Vehicles","Property","Jobs","Other"];
  const saveCart=c=>{setCart(c);localStorage.setItem("nexora-cart",JSON.stringify(c));setCoupon(null);setCouponCode("")};
  const loadProducts=async()=>{setBusy(true);try{setProducts(await api(`/marketplace/products?q=${encodeURIComponent(q)}&category=${encodeURIComponent(category)}&location=${encodeURIComponent(location)}`));}catch(e){setError(e.message)}finally{setBusy(false)}};
@@ -1645,16 +1645,16 @@ function HowYouEarn({goPage}){
 
 function DashboardHub({me,goPage}) {
  const tiles=[
-  {id:"earning",title:"Earning",tag:"EARN",desc:"Your earning center: referrals, membership plans, earnings activity and growth tools.",icon:"💸",links:[["referrals","Referrals & plans"],["analytics","Earning analytics"],["marketing","Share & promote"]]},
-  {id:"promoter",title:"Agent / Promoter",tag:"PROMOTE",desc:"Your invite link, referred members and recorded performance. Earnings are not guaranteed.",icon:"📣",links:[["marketing","Marketing Center"],["howearn","How you earn"]]},
+  {id:"earning",title:"Earn",tag:"EARN FIRST",desc:"Your earning centre: membership, referrals, approved rewards and growth tools.",icon:"💸",links:[["referrals","Membership & plans"],["analytics","Earning analytics"],["marketing","Share & promote"]]},
   {id:"marketplace",title:"Marketplace",tag:"SHOP · SELL",desc:"Browse products, shop, manage your marketplace experience and discover offers.",icon:"🛍️",links:[["marketplace","Open marketplace"]]},
+  {id:"products",title:"Advertise",tag:"PREMIUM PROMOTION",desc:"Explore approved advertising campaigns. Premium membership is required for advertising-task earnings.",icon:"📣",links:[["products","Advertising tools"],["marketing","Marketing"]]},
   {id:"academy",title:"Academy",tag:"LEARN",desc:"Explore learning resources and build skills.",icon:"🎓",links:[["academy","Open Academy"]]},
-  {id:"products",title:"Advertise",tag:"PROMOTE",desc:"Explore advertising and promotion tools available to your account.",icon:"📣",links:[["products","Advertising tools"],["marketing","Marketing"]]},
+  {id:"balloon",title:"Loans & Growth",tag:"GROW",desc:"Explore business financing and growth opportunities.",icon:"📈",links:[["balloon","Loan information"]]},
   {id:"services",title:"NEXORA Services",tag:"DIGITAL SERVICES",desc:"Request websites, mobile apps and other digital services.",icon:"🧩",links:[["services","Open Services"]]},
   {id:"connect",title:"NEXORA Connect",tag:"CONNECT",desc:"Explore connectivity and internet services.",icon:"📶",links:[["connect","Open Connect"]]},
-  {id:"balloon",title:"Loans & Growth",tag:"GROW",desc:"Explore business financing and growth opportunities.",icon:"📈",links:[["balloon","Loan information"]]},
   {id:"wallet",title:"Wallet",tag:"PAYMENTS",desc:"View your wallet and payment options.",icon:"👛",links:[["wallet","Open wallet"]]},
-  {id:"dashboard",title:"Home Overview",tag:"OVERVIEW",desc:"Return to your familiar NEXORA member overview.",icon:"🏠",links:[["dashboard","Open overview"]]}
+  {id:"promoter",title:"Agent / Promoter",tag:"PROMOTE",desc:"Your invite link, referred members and recorded performance. Earnings are not guaranteed.",icon:"📣",links:[["marketing","Marketing Center"],["howearn","How you earn"]]},
+  {id:"dashboard",title:"Home Overview",tag:"OVERVIEW",desc:"Return to your NEXORA earning-first home overview.",icon:"🏠",links:[["dashboard","Open overview"]]}
  ];
  return <section className="nx-dashboard-hub" style={{padding:"clamp(12px,2vw,28px)",maxWidth:1400,margin:"0 auto"}}>
   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,flexWrap:"wrap",marginBottom:24}}>
@@ -1672,14 +1672,32 @@ function DashboardHub({me,goPage}) {
  </section>;
 }
 
-function EarningDashboard({goPage}) {
- return <section style={{padding:"clamp(12px,2vw,28px)",maxWidth:1200,margin:"0 auto"}}>
-  <div className="sectionhead"><div><span className="pill">NEXORA · EARNING</span><h1>Earning Dashboard</h1><p className="muted">Manage your earning tools, referral activity and membership plans in one place.</p></div><button className="secondary" onClick={()=>goPage("dashboardhub")}>← Dashboard Hub</button></div>
-  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(min(100%,240px),1fr))",gap:16}}>
-   {[["referrals","Referrals & Plans","View your referral activity and membership options."],["promoter","Agent / Promoter","View invite link, referral activity and recorded performance."],["howearn","How You Earn","Understand eligibility, performance and payout rules."],["analytics","Earning Analytics","Review available earning analytics."],["marketing","Share & Promote","Open your marketing and sharing tools."],["products","Advertising","Explore advertising tools and products."],["leaderboard","Leaderboard","See member leaderboard information."],["challenges","Challenges","Explore available challenges."]].map(([id,title,desc])=><article key={id} className="panel" style={{padding:20}}><h2>{title}</h2><p className="muted">{desc}</p><button className="primary" onClick={()=>goPage(id)}>Open {title} →</button></article>)}
+function EarningDashboard({goPage,me,referrals={},earnings=[],analytics}) {
+ const direct=Number(referrals?.direct?.length||0);
+ const recorded=Array.isArray(earnings)?earnings.reduce((sum,row)=>sum+Number(row.amount||0),0):0;
+ const actions=[
+  ["referrals","Membership & Plans","Review your plan, referral network and membership benefits."],
+  ["promoter","Agent / Promoter","Open your invite link and review your recorded referral activity."],
+  ["howearn","How You Earn","Understand eligibility, review, and payout rules before promoting."],
+  ["analytics","Earning Analytics","Review the commissions and referral activity recorded for your account."],
+  ["marketing","Share & Promote","Use your referral tools and share responsibly."],
+  ["products","Premium Advertising","Advertising-task earnings are available only to eligible Premium members."],
+  ["leaderboard","Leaderboard","See member leaderboard information."],
+  ["challenges","Challenges","Explore available challenges."]
+ ];
+ return <section className="nx-earning-centre" style={{padding:"clamp(12px,2vw,28px)",maxWidth:1200,margin:"0 auto"}}>
+  <div className="sectionhead"><div><span className="pill">NEXORA · EARN FIRST</span><h1>Your Earning Centre</h1><p className="muted">Understand your eligibility, track recorded activity and choose your next growth step. Earnings are not guaranteed.</p></div><button className="secondary" onClick={()=>goPage("dashboard")}>← Home</button></div>
+  <div className="nx-earn-metrics">
+   <div className="panel"><span>Direct referrals</span><strong>{direct}</strong><small>People in your direct network</small></div>
+   <div className="panel"><span>Recorded earnings</span><strong>{money(recorded)}</strong><small>Amounts currently recorded in your account</small></div>
+   <div className="panel"><span>Membership</span><strong>{me?.package?.name||"Not active"}</strong><small>{me?.package?"Review your plan benefits":"Review plans and eligibility"}</small></div>
+   <div className="panel"><span>Network conversion</span><strong>{analytics?.conversion==null?"—":`${analytics.conversion}%`}</strong><small>Based on the latest available analytics</small></div>
   </div>
+  <div className="nx-earning-next panel"><div><span className="pill">RECOMMENDED START</span><h2>{me?.package?"Build your referral network":"Review membership and earning rules"}</h2><p className="muted">{me?.package?"Share your referral link responsibly and use the activity tools to track what NEXORA records.":"Compare the available membership options and understand the eligibility rules before choosing a plan."}</p></div><button className="primary" onClick={()=>goPage(me?.package?"marketing":"referrals")}>{me?.package?"Open sharing tools":"Review plans"}</button></div>
+  <div className="nx-earning-tools">{actions.map(([id,title,desc])=><article key={id} className="panel"><h2>{title}</h2><p className="muted">{desc}</p><button className="primary" onClick={()=>goPage(id)}>Open {title} →</button></article>)}</div>
  </section>;
 }
+
 
 function App(){
  useEffect(()=>{
@@ -1736,7 +1754,9 @@ function App(){
  const [biometricGateReady,setBiometricGateReady]=useState(()=>!Capacitor.isNativePlatform()),[biometricGateBusy,setBiometricGateBusy]=useState(false),[biometricGateError,setBiometricGateError]=useState("");
  const biometricResumeLock=useRef(false),biometricResumeUnlocking=useRef(false);
  const [me,setMe]=useState(null),[receipt,setReceipt]=useState(null),[payMethods,setPayMethods]=useState({wallet:true,stkPush:false}),[page,setPage]=useState(memberInitialPage),[packages,setPackages]=useState(()=>readCachedMemberData("packages",[])),[referrals,setReferrals]=useState(()=>readCachedMemberData("referrals",{direct:[],level2:[]})),[earnings,setEarnings]=useState(()=>readCachedMemberData("earnings",[])),[transactions,setTransactions]=useState(()=>readCachedMemberData("transactions",[])),[analytics,setAnalytics]=useState(()=>readCachedMemberData("analytics",null)),[leaderboard,setLeaderboard]=useState(()=>readCachedMemberData("leaderboard",[])),[announcements,setAnnouncements]=useState(()=>readCachedMemberData("announcements",[])),[tickets,setTickets]=useState(()=>readCachedMemberData("tickets",[])),[notifications,setNotifications]=useState(()=>readCachedMemberData("notifications",[])),[loginUpdates,setLoginUpdates]=useState([]),[msg,setMsg]=useState(""),[error,setError]=useState(""),[mobile,setMobile]=useState(false),[loading,setLoading]=useState(true),[instructions,setInstructions]=useState(false),[phoneModal,setPhoneModal]=useState(null),[payment,setPayment]=useState(null),[copiedKind,setCopiedKind]=useState(""),[pageTransition,setPageTransition]=useState(false),[currencyRates,setCurrencyRates]=useState(FALLBACK_KES_RATES),[networkOnline,setNetworkOnline]=useState(()=>typeof navigator==="undefined"||navigator.onLine!==false),[offlineNotice,setOfflineNotice]=useState(false),[seenAnnouncementIds,setSeenAnnouncementIds]=useState([]),[showAnnouncementsModal,setShowAnnouncementsModal]=useState(false);
- const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
+ const [marketplaceView,setMarketplaceView]=useState({tab:"shop",category:"All"});
+  const openMarketplace=(tab="shop",category="All")=>{setMarketplaceView({tab,category});setPage("marketplace")};
+  const unreadAnnouncementCount=(Array.isArray(announcements)?announcements:[]).filter(a=>a?.id&&!a.opened&&!a.acknowledged).length;
  const [headerCompact,setHeaderCompact]=useState(false);
  const [showBackToTop,setShowBackToTop]=useState(false);
  useEffect(()=>{
@@ -2073,7 +2093,7 @@ function App(){
  if(path === "/packages" || path === "/packages/") return <PublicPackagesPage/>;
  if(loading&&!me)return <NexoraSplash label="Opening your workspace…"/>;if(!me)return <PublicLanding onLogin={()=>load()}/>;
  const nav=[
-  ["dashboardhub","Dashboard Hub",LayoutDashboard],["earning","Earning Dashboard",WalletCards],["promoter","Agent / Promoter",UsersRound],["howearn","How You Earn",HandCoins],["dashboard","Home",BarChart3],["intelligence","NEXORA Intelligence",Sparkles],["trust","Trust Centre",ShieldCheck],["businessbuilder","Business Builder",Wrench],["marketplace","🛒 Shop & Marketplace",Store],["connect","NEXORA Connect",Wifi],["wallet","Wallet & Payments",WalletCards],["transfer","Send Money",SendHorizontal],["services","NEXORA Services",Wrench],["balloon","Balloon Ventures · SME Funding",WalletCards],["transactions","Orders & Transactions",History],["activity","Activity Centre",Activity],["referrals","Membership & Referrals",UsersRound],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield],["settings","Settings & Preferences",Settings2]
+   ["earning","Earning Dashboard",WalletCards],["referrals","Membership & Referrals",UsersRound],["howearn","How You Earn",HandCoins],["promoter","Agent / Promoter",UsersRound],["dashboard","Home",BarChart3],["dashboardhub","Dashboard Hub",LayoutDashboard],["intelligence","NEXORA Intelligence",Sparkles],["trust","Trust Centre",ShieldCheck],["businessbuilder","Business Builder",Wrench],["marketplace","🛒 Shop & Marketplace",Store],["connect","NEXORA Connect",Wifi],["wallet","Wallet & Payments",WalletCards],["transfer","Send Money",SendHorizontal],["services","NEXORA Services",Wrench],["balloon","Balloon Ventures · SME Funding",WalletCards],["transactions","Orders & Transactions",History],["activity","Activity Centre",Activity],["products","Advertise",Megaphone],["marketing","Marketing Center",Megaphone],["academy","Academy",GraduationCap],["analytics","Analytics",BarChart2],["community","Community",Users2],["notifications","Notifications",Bell],["leaderboard","Leaderboard",Trophy],["challenges","Challenges",Target],["support","Help & Support",LifeBuoy],["security","Profile & Security",Shield],["settings","Settings & Preferences",Settings2]
  ];
  const primaryNavIds=new Set(["dashboardhub","earning","dashboard","marketplace","connect","wallet","transactions"]);
  const startPayment=async(phone,pkg)=>{
@@ -2148,16 +2168,16 @@ function App(){
   else{setError("Sharing is blocked by your browser. Please copy the referral link manually.");try{window.prompt("Copy your referral link:",link)}catch{}}
  };
  const logout=()=>{localStorage.removeItem("token");localStorage.removeItem("nexora-cached-me");clearCachedMemberData();setMe(null);setPage("dashboard");setMobile(false);setInstructions(false);window.history.replaceState({},"","/");window.location.replace("/")};
- const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone,me.user.referralCode,me.package].filter(Boolean).length/5)*100);
+ const profileStrength=Math.round(([me.user.name,me.user.email,me.user.phone].filter(Boolean).length/3)*100);
  const pendingActionCount=(transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING").length;
  return <div className={`app${mobile?" member-menu-open":""}`}>{mobile&&<button className="navoverlay" aria-label="Close menu" onClick={()=>setMobile(false)}/>}<aside className={mobile?"open":""}><div className="membernavbrand"><img src="/nexora-logo.png"/><div><b>NEXORA</b><small>MEMBER PLATFORM</small></div><button className="mobileclose" onClick={()=>setMobile(false)} aria-label="Close menu"><X size={19}/></button></div><div className="membernavscroll">{nav.map(([id,t,I])=><button className={`${page===id?"active":""}${primaryNavIds.has(id)?"":" navsecondary"}${id==="services"?" navserviceitem":""}`} onClick={()=>{setPage(id);setMobile(false);setMsg("");requestAnimationFrame(()=>{window.scrollTo({top:0,behavior:"instant"});document.querySelector(".app main")?.scrollTo({top:0,behavior:"instant"});document.querySelector(".app .membernavscroll")?.scrollTo({top:0,behavior:"instant"});})}} key={id}><I size={18}/><span className="navlabel">{t}{id==="services"&&<small className="navservicesub">Websites · Mobile Apps · Web Apps · E-commerce</small>}</span>{id==="community"&&unreadAnnouncementCount>0&&<span className="navbadge nx-community-announcement-badge" aria-label={`${unreadAnnouncementCount} unread announcements`}>{Math.min(unreadAnnouncementCount,99)}{unreadAnnouncementCount>99?"+":""}</span>}{id==="support" && tickets.some(x=>x.status==="OPEN") && <span className="navbadge">!</span>}</button>)}<button onClick={()=>{setInstructions(true);setMobile(false);requestAnimationFrame(()=>{window.scrollTo({top:0,behavior:"instant"});document.querySelector(".app main")?.scrollTo({top:0,behavior:"instant"});})}}><BookOpen size={18}/>Tutorials & Help</button><button onClick={()=>{setPage("security");setMobile(false);requestAnimationFrame(()=>{window.scrollTo({top:0,behavior:"instant"});document.querySelector(".app main")?.scrollTo({top:0,behavior:"instant"});})}}><UserCog size={18}/>Profile & Security</button><button className="logoutbtn" onClick={logout}><LogOut size={18}/>Logout</button></div></aside><main><header className={`member-sticky-header nx-header-redesigned${headerCompact?" compact":""}`}><div className="nx-header-left"><button className="mobilemenu" onClick={()=>setMobile(!mobile)} aria-label={mobile?"Close menu":"Open menu"} title={mobile?"Close navigation":"Open navigation"}>{mobile?<X size={22}/>:<span className="hamburgerglyph" aria-hidden="true">☰</span>}</button><div className="memberpagetitle"><b>{nav.find(x=>x[0]===page)?.[1]||"Dashboard"}</b><span className="nx-header-context">NEXORA workspace</span></div></div><div className="nx-header-actions"><HeaderNotifications me={me} tickets={tickets} notifications={notifications} pendingActionCount={pendingActionCount} unreadAnnouncementCount={unreadAnnouncementCount} onAnnouncements={()=>{setShowAnnouncementsModal(true);setMobile(false)}} goPage={setPage}/><PWAInstall compact/><button type="button" className="nx-header-nexbot" onClick={()=>window.dispatchEvent(new Event("nexora-open-nexbot"))} aria-label="Open NexBot assistant" title="Ask NexBot"><img src="/nexbot-mascot.png" alt=""/><span>NexBot</span></button><HeaderProfile name={me.user.name} onSecurity={()=>setPage("security")} onSettings={()=>setPage("settings")} onTutorials={()=>setInstructions(true)} onLogout={logout}/></div></header>{!networkOnline&&offlineNotice&&<div className="notice topmsg nx-offline-toast" role="status"><Wifi size={15}/><span>You’re offline. Saved information may be available; online actions will resume when you reconnect.</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{error&&<div className="error topmsg"><span>{error}</span><button onClick={()=>load(false)}><RefreshCw size={15}/> Retry</button></div>}{msg&&<div className="notice topmsg">{msg}</div>}
  <div className="nx-page-stage" key={page}><PendingPaymentBanner transactions={transactions} goPage={setPage}/>
  {page==="intelligence"&&<NexoraIntelligence me={me} referrals={referrals} earnings={earnings} transactions={transactions} goPage={setPage} profileStrength={profileStrength}/>} {page==="trust"&&<NexoraTrustCentre me={me} transactions={transactions} earnings={earnings} goPage={setPage}/>} {page==="businessbuilder"&&<NexoraBusinessBuilder goPage={setPage}/>}
- {page==="dashboardhub"&&<DashboardHub me={me} goPage={setPage}/>} {page==="earning"&&<EarningDashboard goPage={setPage}/>} {page==="promoter"&&<PromoterDashboard me={me} referrals={referrals} earnings={earnings} goPage={setPage}/>} {page==="howearn"&&<HowYouEarn goPage={setPage}/>} {page==="dashboard"&&<Dashboard goPage={setPage} me={me} referrals={referrals} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load} paymentConfig={payMethods}/>} 
+ {page==="dashboardhub"&&<DashboardHub me={me} goPage={setPage}/>} {page==="earning"&&<EarningDashboard goPage={setPage} me={me} referrals={referrals} earnings={earnings} analytics={analytics}/>} {page==="promoter"&&<PromoterDashboard me={me} referrals={referrals} earnings={earnings} goPage={setPage}/>} {page==="howearn"&&<HowYouEarn goPage={setPage}/>} {page==="dashboard"&&<Dashboard goPage={setPage} openMarketplace={openMarketplace} me={me} referrals={referrals} earnings={earnings} analytics={analytics} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} goPackages={()=>{setPage("referrals"); try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}} profileStrength={profileStrength} analytics={analytics} tickets={tickets} goSecurity={()=>setPage("security")} load={load} paymentConfig={payMethods}/>} 
  {page==="packages"&&<section><div className="sectionhead"><div><span className="pill">EARN · PLANS</span><h1>Membership plans</h1><p className="muted">Plans live under Earn — purchase a plan to unlock referral earning tools.</p></div><button className="secondary" onClick={()=>setPage("referrals")}>Back to Earn</button></div><button type="button" className="info-chip" onClick={()=>window.open("/membership","_blank","noopener")}>Plan required · view rules</button><Packages packages={packages} current={me.package} purchase={purchase} reload={()=>load(false)}/></section>} 
  {page==="referrals"&&<><Referrals data={referrals} earnings={earnings} me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share} packages={packages} purchase={purchase} reload={()=>load(false)} initialTab={(typeof sessionStorage!=="undefined"&&sessionStorage.getItem("nexora-earn-tab")==="plans"?(sessionStorage.removeItem("nexora-earn-tab"),"plans"):"network")}/><ReferralTree data={referrals} me={me}/></>} 
  {page==="analytics"&&<Analytics data={analytics} earnings={earnings} referrals={referrals}/>} 
- {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements} onAcknowledge={async a=>{try{await api("/announcements/"+encodeURIComponent(a.id)+"/acknowledge",{method:"POST"});setAnnouncements(rows=>{const next=rows.map(x=>x.id===a.id?{...x,opened:true,acknowledged:true}:x);if(me?.user?.id)saveCachedMemberData("announcements",next,me.user.id);return next});setMsg("Announcement acknowledged.");}catch(e){setError(e.message)}}}/>} {page==="activity"&&<ActivityCentrePage me={me} transactions={transactions} notifications={notifications} tickets={tickets} analytics={analytics} goPage={setPage}/>} {page==="notifications"&&<Notifications me={me} analytics={analytics} tickets={tickets} notifications={notifications}/>} 
+ {page==="marketing"&&<Marketing me={me} copy={copy} copyCode={copyCode} copiedKind={copiedKind} share={share}/>} {page==="marketplace"&&<Marketplace me={me} initialTab={marketplaceView.tab} initialCategory={marketplaceView.category}/>} {page==="connect"&&<NexoraConnect me={me}/>} {page==="products"&&<Products me={me} packages={packages} purchase={purchase} goPlans={()=>{setPage("referrals");try{sessionStorage.setItem("nexora-earn-tab","plans")}catch{}}}/>} {page==="community"&&<Community announcements={announcements} onAcknowledge={async a=>{try{await api("/announcements/"+encodeURIComponent(a.id)+"/acknowledge",{method:"POST"});setAnnouncements(rows=>{const next=rows.map(x=>x.id===a.id?{...x,opened:true,acknowledged:true}:x);if(me?.user?.id)saveCachedMemberData("announcements",next,me.user.id);return next});setMsg("Announcement acknowledged.");}catch(e){setError(e.message)}}}/>} {page==="activity"&&<ActivityCentrePage me={me} transactions={transactions} notifications={notifications} tickets={tickets} analytics={analytics} goPage={setPage}/>} {page==="notifications"&&<Notifications me={me} analytics={analytics} tickets={tickets} notifications={notifications}/>} 
  {page==="academy"&&<Academy goPage={setPage} me={me}/>} 
  {page==="leaderboard"&&<Leaderboard rows={leaderboard}/>} 
  {page==="challenges"&&<Challenges referrals={referrals} earnings={earnings}/>} 
@@ -2749,7 +2769,7 @@ function NexoraBusinessBuilder({goPage}){
  </section>;
 }
 
-function Dashboard({me,referrals,goPage,goPackages,profileStrength,tickets,goSecurity,load,paymentConfig={}}){
+function Dashboard({me,referrals,earnings=[],analytics,goPage,openMarketplace,goPackages,profileStrength,tickets,goSecurity,load,paymentConfig={}}){
  const ptrRef=usePullToRefresh(()=>load&&load(false));
  const [depositOpen,setDepositOpen]=useState(false);
  const [typedGreeting,setTypedGreeting]=useState("");
@@ -2787,43 +2807,49 @@ function Dashboard({me,referrals,goPage,goPackages,profileStrength,tickets,goSec
  const openTickets=(tickets||[]).filter(x=>x.status!=="CLOSED").length;
  const pendingPayments=(me.transactions||[]).filter(x=>String(x.status||"").toUpperCase()==="PENDING").length;
  const quickActions=[
-  {label:"Shop now",hint:"Browse products",icon:Store,action:()=>goPage("marketplace"),tone:"blue"},
-  {label:"My orders",hint:"Track purchases",icon:Truck,action:()=>goPage("marketplace"),tone:"teal"},
-  {label:"Sell a product",hint:"Create a listing",icon:Plus,action:()=>goPage("marketplace"),tone:"purple"},
-  {label:"Wishlist",hint:"Saved products",icon:Heart,action:()=>goPage("marketplace"),tone:"rose"},
-  {label:"Wallet",hint:"Balance & payments",icon:WalletCards,action:()=>goPage("wallet"),tone:"mint"},
-  {label:"Transactions",hint:"Payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
-  {label:"Academy",hint:"Learn marketplace skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
-  {label:"Activity Centre",hint:"Updates & next steps",icon:Activity,action:()=>goPage("activity"),tone:"indigo"},
-  {label:"NEXORA Intelligence",hint:"Your earning and safety guide",icon:Sparkles,action:()=>goPage("intelligence"),tone:"gold"},
-  {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"gold"}
- ];
+   {label:"Earn & referrals",hint:"Membership and recorded rewards",icon:TrendingUp,action:()=>goPage("referrals"),tone:"gold"},
+   {label:"Share & promote",hint:"Grow your referral network",icon:Share2,action:()=>goPage("marketing"),tone:"purple"},
+   {label:"Advertising",hint:"Premium campaign tools",icon:Megaphone,action:()=>goPage("products"),tone:"rose"},
+   {label:"Shop now",hint:"Browse products",icon:Store,action:()=>openMarketplace("shop","All"),tone:"blue"},
+   {label:"My orders",hint:"Track purchases",icon:Truck,action:()=>openMarketplace("orders"),tone:"teal"},
+   {label:"Sell a product",hint:"Create a listing",icon:Plus,action:()=>openMarketplace("sell"),tone:"purple"},
+   {label:"Wishlist",hint:"Saved products",icon:Heart,action:()=>openMarketplace("wishlist"),tone:"rose"},
+   {label:"Wallet",hint:"Balance & payments",icon:WalletCards,action:()=>goPage("wallet"),tone:"mint"},
+   {label:"Transactions",hint:"Payment history",icon:History,action:()=>goPage("transactions"),tone:"slate"},
+   {label:"Academy",hint:"Build useful skills",icon:GraduationCap,action:()=>goPage("academy"),tone:"indigo"},
+   {label:"Activity Centre",hint:"Updates & next steps",icon:Activity,action:()=>goPage("activity"),tone:"indigo"},
+   {label:"NEXORA Intelligence",hint:"Your earning and safety guide",icon:Sparkles,action:()=>goPage("intelligence"),tone:"gold"},
+   {label:"Support",hint:openTickets?`${openTickets} open request${openTickets>1?"s":""}`:"Get help",icon:LifeBuoy,action:()=>goPage("support"),tone:"gold"}
+  ];
  const nextAction=pendingPayments
   ? {title:"Check your pending payment",text:"A payment is still waiting for confirmation.",button:"View transactions",action:()=>goPage("transactions"),icon:Clock3}
   : profileStrength<100
-  ? {title:"Complete your shopper profile",text:"Keep your contact and delivery details up to date for smoother orders.",button:"Update profile",action:goSecurity,icon:UserCog}
-  : {title:"Explore the marketplace",text:"Discover products from NEXORA sellers and find something useful for you.",button:"Start shopping",action:()=>goPage("marketplace"),icon:Store};
+  ? {title:"Complete your account profile",text:"Keep your name, email and phone details accurate so your NEXORA account is ready.",button:"Update profile",action:goSecurity,icon:UserCog}
+  : !me.package
+  ? {title:"Review membership and earning rules",text:"Understand the available plans and earning eligibility before choosing your next step.",button:"Explore earning plans",action:()=>goPackages?goPackages():goPage("referrals"),icon:WalletCards}
+  : {title:"Grow your referral network",text:"Share your referral link responsibly and track only activity recorded by NEXORA.",button:"Open referral tools",action:()=>goPage("marketing"),icon:TrendingUp};
  const NextIcon=nextAction.icon;
  return <div className="nx-ptr" ref={ptrRef}><div className="nx-ptr-indicator"><LoaderCircle size={14} className="spin"/> Refreshing…</div>
   <section className="hero dashboardhero ecommerce-dashboard-hero home-hero-compact">
    <div className="dashboardhero-copy">
     <div className="dashboard-greeting" aria-live="polite"><span>{typedGreeting}</span></div>
     <span className="pill">NEXORA</span>
-    <h1>Shop, sell &amp; earn</h1>
-    <p className="home-hero-sub">Marketplace, wallet and membership tools in one place.</p>
-    <div className="heroactions home-hero-actions">
-     <button type="button" className="primary" onClick={()=>goPage("marketplace")}><ShoppingCart size={15}/> Shop</button>
-     <button type="button" className="secondary" onClick={()=>goPage("marketplace")}><Plus size={15}/> Sell</button>
-     <button type="button" className="secondary home-earn-btn" onClick={()=>goPackages?goPackages():goPage("referrals")}><TrendingUp size={15}/> Earn</button>
-     <button type="button" className="secondary home-loan-btn" onClick={()=>goPage("balloon")}><HandCoins size={15}/> Loan</button>
+    <h1>Grow your network. Earn with NEXORA.</h1>
+     <p className="home-hero-sub">Start with your earning tools, understand the rules, then explore the marketplace and other NEXORA services.</p>
+     <div className="heroactions home-hero-actions">
+      <button type="button" className="primary home-earn-btn" onClick={()=>goPage("referrals")}><TrendingUp size={15}/> Earn</button>
+      <button type="button" className="secondary" onClick={()=>goPage("marketing")}><Share2 size={15}/> Promote</button>
+      <button type="button" className="secondary" onClick={()=>openMarketplace("shop","All")}><ShoppingCart size={15}/> Shop</button>
+      <button type="button" className="secondary" onClick={()=>openMarketplace("sell")}><Plus size={15}/> Sell</button>
+      <button type="button" className="secondary home-loan-btn" onClick={()=>goPage("balloon")}><HandCoins size={15}/> Loan</button>
+     </div>
+     <div className="ecom-trust-row home-trust-compact" aria-label="Earning and account information">
+      <span><ShieldCheck size={12}/> Clear earning rules</span>
+      <span><CalendarCheck2 size={12}/> Friday payout cycle</span>
+      <span><WalletCards size={12}/> Wallet tracking</span>
+     </div>
     </div>
-    <div className="ecom-trust-row home-trust-compact" aria-label="Marketplace benefits">
-     <span><ShieldCheck size={12}/> Verified tools</span>
-     <span><Truck size={12}/> Tracking</span>
-     <span><WalletCards size={12}/> Secure pay</span>
-    </div>
-   </div>
-   <div className="dashboardhero-side home-hero-side">
+    <div className="dashboardhero-side home-hero-side">
     <div className="dashboardhero-balance ecommerce-balance-card">
      <div className="dashboardhero-balance-head"><span>BALANCE</span><button type="button" className="tiny-icon-btn" onClick={()=>setShowBalance(x=>!x)} title={showBalance?"Hide balance":"Show balance"}>{showBalance?<EyeOff size={12}/>:<Eye size={12}/>}</button></div>
      <strong className="home-balance-value">{showBalance?money(balance):`${currencyState().currency.symbol} •••••`}</strong>
@@ -2841,6 +2867,15 @@ function Dashboard({me,referrals,goPage,goPackages,profileStrength,tickets,goSec
    </div>
   </section>
 
+  <section className="panel nx-earn-overview">
+   <div className="paneltitle"><div><span className="pill">YOUR EARNING OVERVIEW</span><h3>Build your NEXORA progress</h3><p className="muted small">Only eligible and recorded activity counts as earnings. Income is not guaranteed.</p></div><button className="secondary narrow" onClick={()=>goPage("analytics")}>View analytics</button></div>
+   <div className="nx-earn-metrics">
+    <div><span>Direct referrals</span><strong>{Number(referrals?.direct?.length||0)}</strong><small>People in your direct network</small></div>
+    <div><span>Recorded earnings</span><strong>{money((Array.isArray(earnings)?earnings:[]).reduce((sum,row)=>sum+Number(row.amount||0),0))}</strong><small>Recorded in your account</small></div>
+    <div><span>Membership</span><strong>{me.package?.name||"Not active"}</strong><small>{me.package?"Review your earning tools":"Review plans and eligibility"}</small></div>
+   </div>
+   <div className="nx-earn-actions"><button className="primary" onClick={()=>goPage("referrals")}>Membership &amp; referrals</button><button className="secondary" onClick={()=>goPage("howearn")}>How earning works</button><button className="secondary" onClick={()=>goPage("products")}>Premium advertising</button></div>
+  </section>
   <GettingStartedChecklist me={me} goPage={goPage} profileStrength={profileStrength}/>
   <AcademyProgressWidget goPage={goPage}/>
   <SmartGuide me={me} referrals={referrals} profileStrength={profileStrength} goPage={goPage} goPackages={goPackages}/>

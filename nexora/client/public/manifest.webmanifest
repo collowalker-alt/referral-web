@@ -1,14 +1,14 @@
 {
-  "name": "NEXORA — Connect. Grow. Learn.",
+  "name": "NEXORA — Connect. Grow. Earn.",
   "short_name": "NEXORA",
-  "description": "NEXORA member workspace for membership, learning, analytics, referrals, wallet and support.",
+  "description": "NEXORA member workspace for earning, referrals, marketplace, learning, wallet and support.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
   "orientation": "portrait-primary",
-  "background_color": "#0756C9",
-  "theme_color": "#0756C9",
+  "background_color": "#07101F",
+  "theme_color": "#0B1424",
   "lang": "en",
   "categories": ["business", "education", "productivity"],
   "icons": [
