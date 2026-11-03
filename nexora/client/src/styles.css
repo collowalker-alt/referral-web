@@ -7607,3 +7607,29 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
 @media(max-width:390px){
  .nx-header-dropdown-panel{right:8px;left:8px;width:auto;max-width:none}
 }
+
+
+/* Notification count must sit outside the bell button, never inside its border. */
+.nx-notifications-dropdown{overflow:visible!important}
+.nx-notifications-dropdown>.nx-header-dropdown-trigger{
+  position:relative!important;
+  overflow:visible!important;
+  isolation:isolate;
+}
+.nx-notifications-dropdown>.nx-header-dropdown-trigger>.nx-header-badge{
+  position:absolute!important;
+  top:-9px!important;
+  right:-9px!important;
+  z-index:12!important;
+  min-width:21px!important;
+  height:21px!important;
+  padding:0 5px!important;
+  border:2px solid #07101f!important;
+  border-radius:999px!important;
+  display:grid!important;
+  place-items:center!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+  pointer-events:none!important;
+  transform:translate(0,0)!important;
+}
