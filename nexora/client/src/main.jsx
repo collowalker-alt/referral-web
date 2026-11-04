@@ -1701,16 +1701,15 @@ function EarningDashboard({goPage,me,referrals={},earnings=[],analytics}) {
 
 function App(){
  useEffect(()=>{
-  let locked=false,scrollY=0;
+  let locked=false,scrollY=0,frame=0;
   const modalSelector='.modalbackdrop,.nx-news-modal-backdrop,[role="dialog"][aria-modal="true"],.nexbot-panel';
   const isActuallyVisible=(el)=>{
    if(!el||!el.isConnected||el.hidden||el.getAttribute("aria-hidden")==="true")return false;
    const style=window.getComputedStyle(el);
-   if(style.display==="none"||style.visibility==="hidden"||style.visibility==="collapse")return false;
-   return el.getClientRects().length>0;
+   return style.display!=="none"&&style.visibility!=="hidden"&&style.visibility!=="collapse"&&el.getClientRects().length>0;
   };
   const syncModalScrollLock=()=>{
-   // Only visible modal roots may lock the page. Hidden dialogs are often kept mounted.
+   frame=0;
    const active=Array.from(document.querySelectorAll(modalSelector)).some(isActuallyVisible);
    if(active&&!locked){
     locked=true;
@@ -1721,18 +1720,22 @@ function App(){
     locked=false;
     document.body.classList.remove("nx-modal-scroll-locked");
     document.body.style.top="";
-    window.scrollTo(0,scrollY);
+    window.scrollTo({top:scrollY,left:0,behavior:"auto"});
    }
   };
-  const observer=new MutationObserver(syncModalScrollLock);
-  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class","style","aria-hidden","hidden"]});
+  // Batch DOM notifications to one scan per frame. Watching every class/style
+  // mutation across the entire app caused unnecessary repeated document scans.
+  const scheduleSync=()=>{if(!frame)frame=window.requestAnimationFrame(syncModalScrollLock)};
+  const observer=new MutationObserver(scheduleSync);
+  observer.observe(document.body,{childList:true,subtree:true});
   syncModalScrollLock();
   return()=>{
    observer.disconnect();
+   if(frame)window.cancelAnimationFrame(frame);
    if(locked){
     document.body.classList.remove("nx-modal-scroll-locked");
     document.body.style.top="";
-    window.scrollTo(0,scrollY);
+    window.scrollTo({top:scrollY,left:0,behavior:"auto"});
    }
   };
  },[]);
