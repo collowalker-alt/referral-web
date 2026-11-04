@@ -3487,7 +3487,7 @@ function Packages({packages,current,purchase,reload}){
 function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],purchase,reload,initialTab="network"}){
  const ptrRef=usePullToRefresh(()=>reload&&reload());
  const hasPackage=Boolean(me?.package);
- const [tab,setTab]=useState(initialTab==="plans"?"plans":"network");
+ const [tab,setTab]=useState("overview");
  const [earnInfo,setEarnInfo]=useState(false);
  return (
   <div className="nx-ptr" ref={ptrRef}>
@@ -3508,10 +3508,26 @@ function Referrals({data,earnings,me,copy,copyCode,copiedKind,share,packages=[],
      )}
     </div>
 
-    <div className="earntabs">
-     <button type="button" className={tab==="plans"?"active":""} onClick={()=>setTab("plans")}>Membership plans</button>
-     <button type="button" className={tab==="network"?"active":""} onClick={()=>setTab("network")}>Network & referrals</button>
-    </div>
+    {tab==="overview"&&(
+     <div className="earnsection-picker">
+      <button type="button" className="panel earnsection-choice" onClick={()=>setTab("plans")}>
+       <span className="earnsection-choice-icon"><PackageIcon size={22}/></span>
+       <span><strong>Membership plans</strong><small>View plans, compare benefits and manage your membership</small></span>
+       <ArrowUpRight size={19}/>
+      </button>
+      <button type="button" className="panel earnsection-choice" onClick={()=>setTab("network")}>
+       <span className="earnsection-choice-icon"><Users2 size={22}/></span>
+       <span><strong>Network & referrals</strong><small>View your referral network, link and commission records</small></span>
+       <ArrowUpRight size={19}/>
+      </button>
+     </div>
+    )}
+    {tab!=="overview"&&(
+     <div className="earntabs">
+      <button type="button" className="secondary" onClick={()=>setTab("overview")}>← All sections</button>
+      <span className="pill">{tab==="plans"?"MEMBERSHIP PLANS":"NETWORK & REFERRALS"}</span>
+     </div>
+    )}
 
     {tab==="plans"&&(
      <div className="earnplans">
