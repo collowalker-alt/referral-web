@@ -1798,32 +1798,34 @@ function App(){
  },[page]);
  useEffect(()=>{
   let previousY=window.scrollY||document.documentElement.scrollTop||0,frame=0,idleTimer=0;
+  let previousBackToTop=previousY>560;
+  let previousHeaderCompact=previousY>=90;
   const markScrolling=()=>{
-   document.body.classList.add("nx-floating-controls-scrolling");
+   if(!document.body.classList.contains("nx-floating-controls-scrolling"))document.body.classList.add("nx-floating-controls-scrolling");
    window.clearTimeout(idleTimer);
    idleTimer=window.setTimeout(()=>document.body.classList.remove("nx-floating-controls-scrolling"),700);
   };
-  const readY=(event)=>{
-   const target=event?.target;
-   if(target&&target!==window&&target!==document&&target!==document.documentElement&&target!==document.body&&target!==document.querySelector(".app main"))return previousY;
-   const main=document.querySelector(".app main");
-   return Math.max(0,window.scrollY||document.documentElement.scrollTop||document.body.scrollTop||main?.scrollTop||0);
-  };
-  const onScroll=(event)=>{
+  const onScroll=()=>{
    markScrolling();
    if(frame)return;
    frame=window.requestAnimationFrame(()=>{
-    const y=readY(event),delta=y-previousY;
-    setShowBackToTop(y>560);
-    if(y<90)setHeaderCompact(false);
-    else if(Math.abs(delta)>4)setHeaderCompact(delta>0);
-    previousY=y;frame=0;
+    const y=Math.max(0,window.scrollY||document.documentElement.scrollTop||document.body.scrollTop||0);
+    const delta=y-previousY;
+    const nextBackToTop=y>560;
+    if(nextBackToTop!==previousBackToTop){previousBackToTop=nextBackToTop;setShowBackToTop(nextBackToTop);}
+    let nextHeaderCompact=previousHeaderCompact;
+    if(y<90)nextHeaderCompact=false;
+    else if(Math.abs(delta)>4)nextHeaderCompact=delta>0;
+    if(nextHeaderCompact!==previousHeaderCompact){previousHeaderCompact=nextHeaderCompact;setHeaderCompact(nextHeaderCompact);}
+    previousY=y;
+    frame=0;
    });
   };
+  // The window listener tracks document scrolling only; do not capture every
+  // scroll event from nested lists, cards, tables, and modal content.
   window.addEventListener("scroll",onScroll,{passive:true});
-  document.addEventListener("scroll",onScroll,{passive:true,capture:true});
   onScroll();
-  return()=>{window.removeEventListener("scroll",onScroll);document.removeEventListener("scroll",onScroll,true);if(frame)window.cancelAnimationFrame(frame);window.clearTimeout(idleTimer);document.body.classList.remove("nx-floating-controls-scrolling")};
+  return()=>{window.removeEventListener("scroll",onScroll);if(frame)window.cancelAnimationFrame(frame);window.clearTimeout(idleTimer);document.body.classList.remove("nx-floating-controls-scrolling")};
  },[]);
   const load=async(show=true)=>{
   if(show)setLoading(true);setError("");
