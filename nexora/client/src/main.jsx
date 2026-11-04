@@ -1703,29 +1703,38 @@ function App(){
  useEffect(()=>{
   let locked=false,scrollY=0;
   const modalSelector='.modalbackdrop,.nx-news-modal-backdrop,[role="dialog"][aria-modal="true"],.nexbot-panel';
-  let lastActiveModal=null;
+  const isActuallyVisible=(el)=>{
+   if(!el||!el.isConnected||el.hidden||el.getAttribute("aria-hidden")==="true")return false;
+   const style=window.getComputedStyle(el);
+   if(style.display==="none"||style.visibility==="hidden"||style.visibility==="collapse")return false;
+   return el.getClientRects().length>0;
+  };
   const syncModalScrollLock=()=>{
-   const modalRoots=Array.from(document.querySelectorAll(modalSelector));
-   const active=modalRoots.length>0;
-   const currentModal=modalRoots[modalRoots.length-1]||null;
-   if(active&&!locked){locked=true;scrollY=window.scrollY||document.documentElement.scrollTop||0;document.body.classList.add("nx-modal-scroll-locked");document.body.style.top=`-${scrollY}px`}
-   else if(!active&&locked){locked=false;document.body.classList.remove("nx-modal-scroll-locked");document.body.style.top="";window.scrollTo(0,scrollY)}
-   if(currentModal&&currentModal!==lastActiveModal){
-    lastActiveModal=currentModal;
-    requestAnimationFrame(()=>{
-     const dialog=currentModal.matches('[role="dialog"]')?currentModal:currentModal.querySelector('[role="dialog"]');
-     [currentModal,dialog,...(dialog||currentModal).querySelectorAll("*")].filter(Boolean).forEach(el=>{
-      const style=window.getComputedStyle(el);
-      if(el===currentModal||el===dialog||style.overflowY==="auto"||style.overflowY==="scroll")el.scrollTop=0;
-     });
-    });
+   // Only visible modal roots may lock the page. Hidden dialogs are often kept mounted.
+   const active=Array.from(document.querySelectorAll(modalSelector)).some(isActuallyVisible);
+   if(active&&!locked){
+    locked=true;
+    scrollY=window.scrollY||document.documentElement.scrollTop||0;
+    document.body.classList.add("nx-modal-scroll-locked");
+    document.body.style.top=`-${scrollY}px`;
+   }else if(!active&&locked){
+    locked=false;
+    document.body.classList.remove("nx-modal-scroll-locked");
+    document.body.style.top="";
+    window.scrollTo(0,scrollY);
    }
-   if(!active)lastActiveModal=null;
   };
   const observer=new MutationObserver(syncModalScrollLock);
-  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class","style","aria-hidden"]});
+  observer.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:["class","style","aria-hidden","hidden"]});
   syncModalScrollLock();
-  return()=>{observer.disconnect();if(locked){document.body.classList.remove("nx-modal-scroll-locked");document.body.style.top="";window.scrollTo(0,scrollY)}};
+  return()=>{
+   observer.disconnect();
+   if(locked){
+    document.body.classList.remove("nx-modal-scroll-locked");
+    document.body.style.top="";
+    window.scrollTo(0,scrollY);
+   }
+  };
  },[]);
  useEffect(()=>{try{document.documentElement.classList.toggle("nexora-light",localStorage.getItem("nexora-theme")==="light");document.documentElement.classList.toggle("nx-reduce-motion",localStorage.getItem("nexora-reduce-motion")==="true")}catch{}},[]);
  // Check the published APK manifest on native installs. Installation is offered only after signing is configured.
