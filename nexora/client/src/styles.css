@@ -7663,3 +7663,16 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
 .nx-earning-next h2{margin:8px 0;font-size:20px}
 .nx-earning-next p{margin:0;max-width:680px}
 @media(max-width:600px){.nx-earning-next{align-items:stretch;flex-direction:column}.nx-earn-actions>*{flex:1 1 auto}}
+
+/* Dashboard cards are content, not independent scrollers. Never trap wheel
+   gestures over stat/hero/panel surfaces: let the page receive the scroll. */
+.app .panel,
+.app .stat,
+.app .dashboardstat,
+.app .hero,
+.app .dashboardhero,
+.app .dashboardhero-side,
+.app .ecommerce-dashboard-hero {
+  overscroll-behavior-y:auto!important;
+  overflow-anchor:auto;
+}
