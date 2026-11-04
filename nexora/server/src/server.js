@@ -1332,10 +1332,14 @@ app.get("/api/member/intelligence",auth,async(req,res)=>{
 
 app.get("/api/referrals",auth,async(req,res)=>{
   try{
-    const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,package:true}});
+    // This endpoint is the source of truth for the signed-in member's network.
+    // Return registration status and inviter linkage so the UI can show who
+    // joined and which direct member introduced each Level 2 referral.
+    const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,status:true,createdAt:true,package:true}});
     const ids=direct.map(x=>x.id);
-    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,createdAt:true,referredById:true,package:true}}):[];
-    res.json({direct,level2});
+    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,status:true,createdAt:true,referredById:true,package:true}}):[];
+    res.set("Cache-Control","no-store");
+    res.json({direct,level2,summary:{direct:direct.length,level2:level2.length}});
   }catch(e){console.error(e);res.status(500).json({message:"Unable to load referrals"});}
 });
 app.get("/api/earnings",auth,async(req,res)=>{
@@ -2047,6 +2051,7 @@ app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FIN
       paged?prisma.user.count({where}):Promise.resolve(null)
     ]);
     const users=rows.map(u=>{const c=countryForUser(u);const phoneCountry=detectCountryFromPhone(u.phone);return {id:u.id,name:u.name,email:u.email,phone:u.phone,countryCode:u.countryCode||c.code,countryName:u.countryName||c.name,countryVerified:u.countryVerified!==false,phoneCountryCode:phoneCountry?.code||null,paymentAvailability:paymentAvailabilityForCountry(u.countryCode||c.code),status:u.status,planStatus:u.planStatus,package:u.package,wallet:u.wallet,referralCode:u.referralCode,referredBy:u.referredBy,referralCount:u._count?.referrals??u.referrals?.length??0,referrals:u.referrals,createdAt:u.createdAt,riskFlags:[...(u.countryVerified===false?["COUNTRY_MISMATCH"]:[]),...(phoneCountry&&u.countryCode&&phoneCountry.code!==u.countryCode?["PHONE_COUNTRY_MISMATCH"]:[])]};});
+    res.set("Cache-Control","no-store");
     res.json(paged?{rows:users,page,pageSize,total,pageCount:Math.max(1,Math.ceil(total/pageSize))}:users);
   }catch(e){console.error("Admin users error:",e);res.status(500).json({message:"Unable to load users"});}
 });
