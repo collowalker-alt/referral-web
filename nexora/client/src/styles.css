@@ -6050,14 +6050,10 @@ main,
   overscroll-behavior: contain;
 }
 
-/* When any app modal is open, freeze the document behind it without moving it. */
-html:has(.modalbackdrop),
-body:has(.modalbackdrop),
-html:has([role="dialog"]),
-body:has([role="dialog"]),
-html:has([aria-modal="true"]),
-body:has([aria-modal="true"]) {
-  overflow: hidden;
+/* The document is locked only by the visibility-aware modal manager in main.jsx. */
+html.nx-modal-scroll-locked,
+body.nx-modal-scroll-locked {
+  overflow: hidden !important;
 }
 
 /* Keep modal content independently touch-scrollable on Android/iOS. */
