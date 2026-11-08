@@ -1779,6 +1779,23 @@ app.post("/api/admin/auth/login", adminLoginLimiter, async(req,res)=>{
     res.json({token:signAdmin(admin),admin:{id:admin.id,name:admin.name,email:admin.email,role:admin.role,twoFactorEnabled:Boolean(admin.twoFactorEnabled)}});
   }catch(e){console.error("Admin login error:",e);res.status(500).json({message:"Admin login failed"});}
 });
+app.post("/api/admin/auth/recover-2fa", adminLoginLimiter, async(req,res)=>{
+  try{
+    const email=String(req.body?.email||"").trim().toLowerCase();
+    const password=String(req.body?.password||"");
+    const suppliedKey=String(req.body?.recoveryKey||"");
+    const configuredKey=String(process.env.ADMIN_MFA_RECOVERY_KEY||"");
+    const keyMatches=Boolean(configuredKey.length>=32&&suppliedKey.length===configuredKey.length&&crypto.timingSafeEqual(Buffer.from(suppliedKey),Buffer.from(configuredKey)));
+    if(!email||!password||!keyMatches)return res.status(401).json({message:"Invalid recovery details."});
+    const admin=await prisma.admin.findUnique({where:{email},select:{id:true,name:true,email:true,passwordHash:true,status:true,role:true,tokenVersion:true,twoFactorEnabled:true}});
+    if(!admin||admin.status!=="ACTIVE"||!await bcrypt.compare(password,admin.passwordHash))return res.status(401).json({message:"Invalid recovery details."});
+    if(!admin.twoFactorEnabled)return res.status(400).json({message:"Two-factor authentication is already disabled."});
+    const updated=await prisma.admin.update({where:{id:admin.id},data:{twoFactorEnabled:false,twoFactorSecret:null,recoveryCodes:[],tokenVersion:{increment:1}}});
+    void prisma.adminLoginEvent.create({data:{adminId:admin.id,email:admin.email,success:true,ip:req.ip,userAgent:String(req.headers["user-agent"]||"").slice(0,500)}}).catch(e=>console.warn("[ADMIN MFA RECOVERY AUDIT]",e.message));
+    void prisma.adminActivityLog.create({data:{adminId:admin.id,adminEmail:admin.email,action:"ADMIN_2FA_RECOVERED",targetType:"ADMIN",targetId:admin.id,targetEmail:admin.email,details:{method:"password_and_emergency_key",sessionsRevoked:true}}}).catch(e=>console.warn("[ADMIN MFA RECOVERY ACTIVITY]",e.message));
+    res.json({token:signAdmin(updated),admin:{id:updated.id,name:updated.name,email:updated.email,role:updated.role,twoFactorEnabled:false},message:"Authenticator reset. Sign in completed; set up a new authenticator from Admin Security when ready."});
+  }catch(e){console.error("Admin MFA recovery error:",e);res.status(500).json({message:"Unable to recover admin authenticator."});}
+});
 app.post("/api/admin/auth/verify-2fa", adminLoginLimiter, async(req,res)=>{
   try{
     const challenge=String(req.body?.challenge||"");const code=String(req.body?.code||"");
