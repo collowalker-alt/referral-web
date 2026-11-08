@@ -7687,3 +7687,9 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
 .earnsection-choice>svg:last-child{flex:0 0 auto;color:var(--muted,#9aa8b8)}
 .earnsection-choice:hover{border-color:var(--primary,#4b91ff);transform:translateY(-1px)}
 @media(max-width:640px){.earnsection-picker{grid-template-columns:1fr}.earnsection-choice{padding:15px!important}}
+
+
+/* iOS Safari login keyboard/focus reliability. Inputs must remain directly tappable. */
+.authmodal input:not([type=hidden]),.adminloginbox input{position:relative;z-index:2;pointer-events:auto!important;touch-action:manipulation;-webkit-user-select:text!important;user-select:text!important;-webkit-appearance:none;}
+.authmodal .fieldlabel,.authmodal .passwordfield,.adminloginbox .adminfield,.adminloginbox .admininputwrap{min-width:0;pointer-events:auto!important;}
+@supports (-webkit-touch-callout:none){.modalbackdrop:has(>.authmodal){-webkit-overflow-scrolling:touch;}.authmodal input:not([type=hidden]){font-size:16px!important;line-height:1.35!important;caret-color:#38d9a9;}}
