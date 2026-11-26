@@ -7701,3 +7701,14 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
 .adminrecon-row>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .adminrecon-head{color:#dce8fa;background:rgba(19,36,61,.45);border-radius:10px 10px 0 0;}
 @media(max-width:760px){.adminrecon-table{min-width:720px}.adminrecon-row{gap:10px;padding:12px 10px;}}
+
+/* Mission Control: keep reconciliation content stacked at full panel width. */
+.adminpanel.adminrecon-panel{display:block;width:100%;min-width:0;box-sizing:border-box;}
+.adminrecon-panel>.adminsectionhead{width:100%;}
+.adminrecon-panel>.adminstats{width:100%;grid-template-columns:repeat(4,minmax(0,1fr));margin:16px 0;}
+.adminrecon-panel>.adminrecon-table-wrap{width:100%;}
+.adminrecon-panel>.muted{max-width:100%;}
+.adminrecon-panel>.secondary{margin-top:12px;}
+.adminrecon-table{display:block;width:100%;min-width:760px;}
+@media(max-width:900px){.adminrecon-panel>.adminstats{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:520px){.adminrecon-panel>.adminstats{grid-template-columns:1fr 1fr;}}
