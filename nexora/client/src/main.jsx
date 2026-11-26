@@ -1288,7 +1288,7 @@ function AdminAnalytics(){
  <div className="adminstat"><Clock3 size={18}/><span>Joined · 7 days</span><strong>{Number(data.members.new7d||0).toLocaleString()}</strong></div>
  <div className="adminstat"><Clock3 size={18}/><span>Joined · 30 days</span><strong>{Number(data.members.new30d||0).toLocaleString()}</strong></div>
  <div className="adminstat"><PackageIcon size={18}/><span>Active memberships</span><strong>{Number(data.members.withActivePlan||0).toLocaleString()}</strong></div>
- <div className="adminstat"><Network size={18}/><span>Referred members</span><strong>{Number(data.members.referred||0).toLocaleString()}</strong></div>
+ <div className="adminstat"><Users2 size={18}/><span>Referred members</span><strong>{Number(data.members.referred||0).toLocaleString()}</strong></div>
  <div className="adminstat"><HandCoins size={18}/><span>Recorded commissions</span><strong>{cash(data.revenue.commissionsRecorded)}</strong></div></div>
  <div className="adminpanel"><h3>Confirmed recorded revenue</h3><p className="muted small">NEXORA records only. These figures are not a live Paystack settlement or bank-balance statement.</p><div className="adminstats">
  <div className="adminstat"><CreditCard size={18}/><span>Package purchases · 30 days</span><strong>{cash(data.revenue.packagePurchases30d)}</strong></div>
@@ -1302,7 +1302,7 @@ function AdminAnalytics(){
  <div className="adminstat"><LoaderCircle size={18}/><span>Processing withdrawals</span><strong>{data.withdrawals.processing}</strong></div>
  <div className="adminstat"><CheckCircle2 size={18}/><span>Paid withdrawals</span><strong>{data.withdrawals.paid}</strong></div>
  <div className="adminstat"><AlertTriangle size={18}/><span>Failed withdrawals</span><strong>{data.withdrawals.failed}</strong></div>
- <div className="adminstat"><WalletCards size={18}/><span>Recorded paid withdrawal amount</span><strong>{cash(data.withdrawals.paidRecordedAmount)}</strong></div>
+ <div className="adminstat"><WalletCards size={18}/><span>Total wallet debit on paid withdrawals</span><strong>{cash(data.withdrawals.paidRecordedAmount)}</strong></div>
  <div className="adminstat"><LifeBuoy size={18}/><span>Open support tickets</span><strong>{data.support.open}</strong></div></div><p className="muted small">Withdrawal totals reflect NEXORA records, not provider settlement totals.</p></div>
  <div className="adminpanel"><h3>Exports and operations</h3><p className="muted">Use detailed member, transaction and withdrawal exports for record-level reconciliation.</p><div className="adminquick"><button className="rowaction" onClick={()=>downloadAdminCsv("users")}><Download size={14}/> Members CSV</button><button className="rowaction" onClick={()=>downloadAdminCsv("transactions")}><Download size={14}/> Transactions CSV</button><button className="rowaction" onClick={()=>downloadAdminCsv("withdrawals")}><Download size={14}/> Withdrawals CSV</button></div></div>
  </>}</section>;
