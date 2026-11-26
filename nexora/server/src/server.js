@@ -2055,6 +2055,31 @@ app.get("/api/admin/overview",adminAuth,async(req,res)=>{
     res.json({users,activeUsers,packages,transactions,pendingPayments,successfulPayments:successfulPayments._sum.amount||0,withdrawals,pendingWithdrawals,failedPayments,stalePendingPayments,stalePendingWithdrawals,recentFailedPayments,totalCommissions:totalEarned._sum.amount||0,paymentProvider:paystackConfigured()?"Paystack":"unconfigured",countries,flaggedUsers,recentFailedLogins,openTickets,paymentModes:AFRICAN_COUNTRIES.map(c=>({code:c.code,name:c.name,dial:c.dial,mode:paymentAvailabilityForCountry(c.code)}))});
   }catch(e){console.error("Admin overview error:",e);res.status(500).json({message:"Unable to load admin overview"});}
 });
+app.get("/api/admin/analytics",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
+  try{
+    const now=new Date();
+    const eatNow=new Date(now.getTime()+3*60*60*1000);eatNow.setUTCHours(0,0,0,0);
+    const todayStart=new Date(eatNow.getTime()-3*60*60*1000);
+    const sevenDaysAgo=new Date(todayStart.getTime()-6*24*60*60*1000);
+    const thirtyDaysAgo=new Date(todayStart.getTime()-29*24*60*60*1000);
+    const [totalMembers,activeMembers,newToday,new7d,new30d,withPlans,referred,package30d,packageAll,market30d,marketAll,commissions,pendingW,processingW,paidW,failedW,paidAmount,openTickets,dailyRegistrations,dailyPackageRevenue]=await Promise.all([
+      prisma.user.count(),prisma.user.count({where:{status:"ACTIVE"}}),
+      prisma.user.count({where:{createdAt:{gte:todayStart}}}),prisma.user.count({where:{createdAt:{gte:sevenDaysAgo}}}),prisma.user.count({where:{createdAt:{gte:thirtyDaysAgo}}}),
+      prisma.user.count({where:{packageId:{not:null},planStatus:"ACTIVE"}}),prisma.user.count({where:{referredById:{not:null}}}),
+      prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS",createdAt:{gte:thirtyDaysAgo}},_sum:{amount:true}}),
+      prisma.transaction.aggregate({where:{type:"PACKAGE_PURCHASE",status:"SUCCESS"},_sum:{amount:true}}),
+      prisma.order.aggregate({where:{paymentStatus:"SUCCESS",createdAt:{gte:thirtyDaysAgo}},_sum:{total:true},_count:{_all:true}}),
+      prisma.order.aggregate({where:{paymentStatus:"SUCCESS"},_sum:{total:true},_count:{_all:true}}),
+      prisma.commission.aggregate({_sum:{amount:true}}),
+      prisma.withdrawal.count({where:{status:"PENDING"}}),prisma.withdrawal.count({where:{status:"PROCESSING"}}),prisma.withdrawal.count({where:{status:"PAID"}}),prisma.withdrawal.count({where:{status:"FAILED"}}),
+      prisma.withdrawal.aggregate({where:{status:"PAID"},_sum:{amount:true}}),prisma.supportTicket.count({where:{status:{in:["OPEN","IN_PROGRESS"]}}}),
+      prisma.$queryRaw`SELECT to_char((timezone('Africa/Nairobi',"createdAt"))::date,'YYYY-MM-DD') AS day, COUNT(*)::int AS count FROM "User" WHERE "createdAt">=${thirtyDaysAgo} GROUP BY 1 ORDER BY 1`,
+      prisma.$queryRaw`SELECT to_char((timezone('Africa/Nairobi',"createdAt"))::date,'YYYY-MM-DD') AS day, COALESCE(SUM(amount),0)::int AS amount FROM "Transaction" WHERE type='PACKAGE_PURCHASE' AND status='SUCCESS' AND "createdAt">=${thirtyDaysAgo} GROUP BY 1 ORDER BY 1`
+    ]);
+    res.set("Cache-Control","no-store");
+    res.json({timezone:"Africa/Nairobi",currency:"KES",checkedAt:now.toISOString(),members:{total:totalMembers,active:activeMembers,withActivePlan:withPlans,referred,newToday,new7d,new30d},revenue:{packagePurchases30d:package30d._sum.amount||0,packagePurchasesAll:packageAll._sum.amount||0,marketplaceSales30d:market30d._sum.total||0,marketplaceOrders30d:market30d._count._all||0,marketplaceSalesAll:marketAll._sum.total||0,marketplaceOrdersAll:marketAll._count._all||0,commissionsRecorded:commissions._sum.amount||0},withdrawals:{pending:pendingW,processing:processingW,paid:paidW,failed:failedW,paidRecordedAmount:paidAmount._sum.amount||0},support:{open:openTickets},dailyRegistrations,dailyPackageRevenue});
+  }catch(e){console.error("[ADMIN ANALYTICS]",e);res.status(500).json({message:"Unable to load NEXORA analytics"});}
+});
 app.get("/api/admin/users",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN","SUPPORT_ADMIN"),async(req,res)=>{
   try{
     const q=String(req.query.q||"").trim().slice(0,120); const country=String(req.query.country||"").toUpperCase(); const status=String(req.query.status||"").toUpperCase();
