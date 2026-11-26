@@ -42,7 +42,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
-  allowedHeaders: ["Content-Type","Authorization","x-paystack-signature"]
+  allowedHeaders: ["Content-Type","Authorization","x-paystack-signature","x-bluepay-signature","x-bluepay-event"]
 }));
 
 app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(req,res)=>{
@@ -69,6 +69,10 @@ app.post("/api/paystack/webhook",express.raw({type:"application/json"}),async(re
     console.error("[PAYSTACK WEBHOOK]",e);
     return res.sendStatus(500);
   }
+});
+
+app.post("/api/bluepay/webhook",express.raw({type:"application/json"}),async(req,res)=>{
+ try{if(!bluepayConfigured())return res.sendStatus(503);const sig=String(req.headers["x-bluepay-signature"]||""),m=/^v1=([a-f0-9]{64})$/.exec(sig);if(!m)return res.sendStatus(401);const expected=crypto.createHmac("sha256",BLUEPAY_API_SECRET).update(req.body).digest(),got=Buffer.from(m[1],"hex");if(got.length!==expected.length||!crypto.timingSafeEqual(expected,got))return res.sendStatus(401);const e=JSON.parse(req.body.toString("utf8")),ref=String(e?.data?.account_reference||e?.data?.external_reference||"").trim();if(ref&&["mpesa.payment.received","mpesa.payment.failed","mpesa.wallet_topup.received"].includes(String(e.event||"")))await queryAndApplyBluePayStatus(ref);return res.sendStatus(200);}catch(e){console.error("[BLUEPAY WEBHOOK]",e?.message||e);return res.sendStatus(500);}
 });
 
 app.use(express.json({ limit: "12mb" }));
@@ -111,7 +115,7 @@ function detectCountryFromPhone(value){
   return AFRICAN_COUNTRIES.slice().sort((a,b)=>b.dial.length-a.dial.length).find(c=>n.startsWith(c.dial)) || null;
 }
 function countryForUser(u){ return COUNTRY_BY_CODE[u?.countryCode] || detectCountryFromPhone(u?.phone) || COUNTRY_BY_CODE.KE; }
-function paymentAvailabilityForCountry(code){ return code==='KE' ? (paystackConfigured() ? 'PAYSTACK_MPESA' : 'COOP_PAYBILL') : 'COMING_SOON'; }
+function paymentAvailabilityForCountry(code){ return code==='KE' ? (bluepayConfigured() ? 'BLUEPAY_MPESA' : (paystackConfigured() ? 'PAYSTACK_MPESA' : 'COOP_PAYBILL')) : 'COMING_SOON'; }
 
 const isStrongPassword = (p) => typeof p === "string" && p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
 
@@ -144,6 +148,29 @@ const MPESA_PAYBILL_ACCOUNT = String(process.env.MPESA_PAYBILL_ACCOUNT || "").tr
 const MPESA_PAYBILL_NAME = String(process.env.MPESA_PAYBILL_NAME || "NEXORA").trim();
 
 const paystackConfigured=()=>Boolean(PAYSTACK_SECRET_KEY);
+const BLUEPAY_BASE_URL=String(process.env.BLUEPAY_BASE_URL||"https://bluepay.co.ke").replace(/\/$/,"");
+const BLUEPAY_API_SECRET=String(process.env.BLUEPAY_API_SECRET||"").trim();
+const BLUEPAY_CHANNEL_ID=String(process.env.BLUEPAY_CHANNEL_ID||"").trim();
+const BLUEPAY_ENABLED=/^(1|true|yes)$/i.test(String(process.env.BLUEPAY_ENABLED||"false"));
+const bluepayConfigured=()=>BLUEPAY_ENABLED&&Boolean(BLUEPAY_API_SECRET&&BLUEPAY_CHANNEL_ID);
+async function bluepayRequest(pathname,{method="GET",body,timeoutMs=35000}={}){
+ if(!bluepayConfigured())throw new Error("BluePay is not enabled or its API secret/channel ID is missing.");
+ let response,rawText="",data={};
+ try{response=await fetch(`${BLUEPAY_BASE_URL}${pathname}`,{method,headers:{Authorization:`Bearer ${BLUEPAY_API_SECRET}`,"Content-Type":"application/json",Accept:"application/json"},...(body!==undefined?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(timeoutMs)});rawText=await response.text().catch(()=>"");try{data=rawText?JSON.parse(rawText):{};}catch{data={message:rawText.slice(0,200)||null};}}
+ catch(e){console.error("[BLUEPAY API ERROR]",JSON.stringify({path:pathname,httpStatus:0,errorName:e?.name||"Error"}));return {httpStatus:0,ok:false,transient:true,data:{message:"BluePay response is unknown. Check status before retrying."}};}
+ const transient=[408,425,429].includes(response.status)||response.status>=500;
+ if(!response.ok||data?.ok===false||data?.success===false)console.error("[BLUEPAY API ERROR]",JSON.stringify({path:pathname,httpStatus:response.status,errorCode:data?.error_code||null,message:data?.message||data?.error||null,transient}));
+ return {httpStatus:response.status,ok:response.ok&&data?.ok!==false&&data?.success!==false,transient,data};
+}
+async function createBluePayStk({phone,amount,reference}){
+ const r=await bluepayRequest("/api/stk_push.php",{method:"POST",timeoutMs:60000,body:{channel_id:BLUEPAY_CHANNEL_ID,phone:String(phone),amount:Math.round(Number(amount)),account_reference:String(reference),callback_url:"https://nexora-api-shxf.onrender.com/api/bluepay/webhook"}});
+ const d=r.data||{};return {...r,data:{...d,checkout_request_id:d.checkout_request_id||d.data?.checkout_request_id||null,stk_request_id:d.stk_request_id||d.data?.stk_request_id||null,account_reference:d.account_reference||d.data?.account_reference||reference}};
+}
+async function getBluePayPaymentStatus(reference){
+ const r=await bluepayRequest("/api/payment_status.php",{method:"POST",body:{account_reference:String(reference)}});
+ const d=r.data||{},p=d.payment||d.data?.payment||{},o=d.order||d.data?.order||{};
+ return {...r,data:d,paid:d.paid===true||d.data?.paid===true,failed:d.failed===true||d.data?.failed===true||String(d.stk_status||d.data?.stk_status||o.status||"").toLowerCase()==="failed",found:d.found===true||d.data?.found===true,amount:Number(p.amount??o.amount??d.amount??d.data?.amount??0),currency:String(p.currency??o.currency??d.currency??"KES").toUpperCase(),reference:String(d.account_reference||d.external_reference||o.external_reference||reference),receipt:p.mpesa_receipt_number||d.mpesa_receipt_number||null,checkoutRequestId:d.checkout_request_id||o.checkout_request_id||null};
+}
 
 async function paystackRequest(pathname,{method="GET",body}={}){
   if(!paystackConfigured()) throw new Error("Paystack is not configured on the NEXORA server");
@@ -573,6 +600,27 @@ async function queryAndApplyPaystackStatus(reference){
 }
 
 
+async function finalizeSuccessfulBluePay(reference,d){
+ const tx=await prisma.transaction.findUnique({where:{reference}});if(!tx)throw Error("BluePay payment reference not found");if(tx.status==="SUCCESS")return true;
+ const meta=tx.metadata&&typeof tx.metadata==="object"?tx.metadata:{};
+ if(!["DEPOSIT","PACKAGE_PURCHASE"].includes(tx.type)||String(meta.bluepay?.provider||"").toUpperCase()!=="BLUEPAY")throw Error("Not a NEXORA BluePay collection");
+ if(d.paid!==true||String(d.reference||"")!==String(reference)||Number(d.amount)!==Number(tx.amount)||String(d.currency||"KES").toUpperCase()!=="KES")throw Error("BluePay payment verification mismatch");
+ const updated={...meta,bluepay:{...(meta.bluepay||{}),provider:"BLUEPAY",status:"success",verified:true,verifiedAt:new Date().toISOString(),receipt:d.receipt||null,checkoutRequestId:d.checkoutRequestId||meta.bluepay?.checkoutRequestId||null,amount:Number(d.amount),currency:"KES"}};
+ if(tx.type==="DEPOSIT"){await prisma.$transaction(async db=>{const c=await db.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"SUCCESS",metadata:updated}});if(c.count!==1)return;await db.wallet.upsert({where:{userId:tx.userId},create:{userId:tx.userId,balance:tx.amount},update:{balance:{increment:tx.amount}}});});}
+ else{await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{metadata:updated}});await activatePaidPackage(reference);}return true;
+}
+async function queryAndApplyBluePayStatus(reference){
+ const tx=await prisma.transaction.findUnique({where:{reference}});if(!tx)throw Error("Payment reference not found");const meta=tx.metadata&&typeof tx.metadata==="object"?tx.metadata:{};
+ if(!["DEPOSIT","PACKAGE_PURCHASE"].includes(tx.type)||String(meta.bluepay?.provider||"").toUpperCase()!=="BLUEPAY")throw Error("Not a BluePay payment");
+ if(tx.status==="SUCCESS")return {status:"success",reference,message:"Payment confirmed."};
+ const r=await getBluePayPaymentStatus(reference);
+ if(!r.ok||r.transient||!r.found)return {status:"pending",reference,message:"BluePay has not returned a final payment status. Check again shortly; do not retry the payment."};
+ if(r.paid)await finalizeSuccessfulBluePay(reference,{paid:true,reference:r.reference,amount:r.amount,currency:r.currency,receipt:r.receipt,checkoutRequestId:r.checkoutRequestId});
+ else if(r.failed)await prisma.transaction.updateMany({where:{id:tx.id,status:"PENDING"},data:{status:"FAILED",metadata:{...meta,bluepay:{...(meta.bluepay||{}),status:"failed",lastCheckedAt:new Date().toISOString()}}}});
+ else await prisma.transaction.updateMany({where:{id:tx.id,status:{in:["PENDING","FAILED"]}},data:{status:"PENDING",metadata:{...meta,bluepay:{...(meta.bluepay||{}),status:"pending",lastCheckedAt:new Date().toISOString()}}}});
+ const latest=await prisma.transaction.findUnique({where:{reference}}),status=latest?.status==="SUCCESS"?"success":latest?.status==="FAILED"?"failed":"pending";
+ return {status,reference,message:status==="success"?(tx.type==="DEPOSIT"?"Deposit confirmed and wallet credited.":"Payment confirmed and package active."):status==="failed"?"BluePay reported failure; no wallet credit was made.":"M-Pesa payment is pending. Approve the prompt, then check again.",data:{receipt:r.receipt||null}};
+}
 async function sendPasswordResetEmail({ to, name, rawToken }) {
   if (!resend) {
     console.warn("[EMAIL] RESEND_API_KEY not set — password reset email was not sent");
@@ -857,9 +905,9 @@ app.get("/api/currency/rates",async(req,res)=>{
 app.get("/api/payments/methods",auth,async(req,res)=>{
   const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true,countryName:true}});
   const kenya=member?.countryCode==="KE";
-  const stkPush=Boolean(kenya&&paystackConfigured());
-  const paybill=Boolean(kenya&&!stkPush&&MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT);
-  res.json({wallet:true,countryCode:member?.countryCode||null,countryName:member?.countryName||null,paybill,paybillNumber:paybill?(MPESA_PAYBILL_NUMBER||null):null,paybillAccount:paybill?(MPESA_PAYBILL_ACCOUNT||null):null,paybillName:paybill?MPESA_PAYBILL_NAME:null,stkPush,paymentAvailability:paymentAvailabilityForCountry(member?.countryCode||"KE"),provider:stkPush?"paystack_mpesa":paybill?"coopbank_paybill":"coming_soon",paystackMode:stkPush?paystackMode():null});
+  const stkPush=Boolean(kenya&&bluepayConfigured());
+  const paybill=Boolean(kenya&&!stkPush&&!paystackConfigured()&&MPESA_PAYBILL_NUMBER&&MPESA_PAYBILL_ACCOUNT);
+  res.json({wallet:true,countryCode:member?.countryCode||null,countryName:member?.countryName||null,paybill,paybillNumber:paybill?(MPESA_PAYBILL_NUMBER||null):null,paybillAccount:paybill?(MPESA_PAYBILL_ACCOUNT||null):null,paybillName:paybill?MPESA_PAYBILL_NAME:null,stkPush,paymentAvailability:paymentAvailabilityForCountry(member?.countryCode||"KE"),provider:stkPush?"bluepay_mpesa":paybill?"coopbank_paybill":paystackConfigured()?"paystack_mpesa":"coming_soon",bluepayEnabled:stkPush});
 });
 
 
@@ -1390,54 +1438,21 @@ app.get("/api/transactions",auth,async(req,res)=>{
 });
 
 app.post("/api/payments/initialize",auth,paymentActionLimiter,async(req,res)=>{
-  const startedAt=Date.now();
-  try{
-    if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
-    const paymentMember=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
-    if(paymentMember?.countryCode!=="KE")return res.status(403).json({message:"Paystack M-Pesa STK Push is currently enabled for Kenyan accounts only."});
-    const {packageId,phone}=req.body;
-    const normalizedPhone=cleanPhone(phone||req.user.phone);
-    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
-    const pkg=await prisma.package.findUnique({where:{id:packageId}});
-    if(!pkg||!pkg.active)return res.status(404).json({message:"Package not found"});
-    const existingUser=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}});
-    const currentPackage=existingUser?.packageId?await prisma.package.findUnique({where:{id:existingUser.packageId}}):null;
-    if(currentPackage&&currentPackage.id===pkg.id)return res.status(400).json({message:"You already have this package"});
-    if(currentPackage&&pkg.price<=currentPackage.price)return res.status(400).json({message:"You can only upgrade to a higher package"});
-    const chargeAmount=currentPackage?pkg.price-currentPackage.price:pkg.price;
-    if(chargeAmount<=0)return res.status(400).json({message:"Invalid charge amount"});
-
-    const reference=`NX-PS-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount:chargeAmount,reference,status:"PENDING",metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:"initializing",initializedAt:new Date().toISOString()}}}});
-
-    const charge=await createPaystackMpesaCharge({
-      email:req.user.email,phone:normalizedPhone,amount:chargeAmount,reference,
-      metadata:{source:"NEXORA_PACKAGE",userId:req.user.id,packageId:pkg.id,transactionReference:reference}
-    });
-    const data=charge.data||{};
-    const uncertainCharge=Boolean(charge.transient)||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
-    const initialStatus=String(data.status||(uncertainCharge?"unknown":"pending")).toLowerCase();
-    const initializedAt=new Date().toISOString();
-    await prisma.transaction.update({where:{reference},data:{metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount,currentPackageId:currentPackage?.id||null,method:"PAYSTACK_MPESA",paystack:{provider:"PAYSTACK",status:initialStatus,reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt,lastChargeHttpStatus:charge.httpStatus},diagnostic:{initializedAt,responseMs:Date.now()-startedAt,chargeHttpStatus:charge.httpStatus,chargeTransient:uncertainCharge}}}});
-
-    if(!charge.ok){
-      if(uncertainCharge){
-        return res.json({reference,status:"pending",display_text:"",message:"NEXORA is still checking your M-PESA payment. It may be processing, so please wait at least 10 seconds and then check payment status before starting another payment.",retryAfterSeconds:10,chargeAmount});
-      }
-      await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"NEXORA could not start this M-PESA payment. No successful payment has been confirmed. Please try again later.",reference});
-    }
-
-    const chargeStatus=String(data.status||"pending").toLowerCase();
-    if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);
-    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-    const tx=await prisma.transaction.findUnique({where:{reference}});
-    const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.json({reference,status,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Payment confirmed. Your package is active.":status==="failed"?"NEXORA could not complete this payment. Please try again later.":"NEXORA sent an M-Pesa prompt to your phone. Enter your M-Pesa PIN on your phone, then NEXORA will confirm the payment automatically.",display_text:status==="failed"?"NEXORA could not complete this payment. Please try again later.":(data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt."),chargeAmount});
-  }catch(e){
-    console.error("[PAYSTACK STK INIT EXCEPTION]",e);
-    res.status(500).json({message:e.message||"Payment initialization failed"});
-  }
+ const started=Date.now();try{
+ if(!bluepayConfigured())return res.status(503).json({message:"BluePay STK is not enabled or credentials are incomplete."});
+ const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});if(member?.countryCode!=="KE")return res.status(403).json({message:"BluePay is enabled for Kenyan accounts only."});
+ const {packageId,phone}=req.body,normalizedPhone=cleanPhone(phone||req.user.phone);if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number."});
+ const pkg=await prisma.package.findUnique({where:{id:packageId}});if(!pkg||!pkg.active)return res.status(404).json({message:"Package not found"});
+ const u=await prisma.user.findUnique({where:{id:req.user.id},select:{packageId:true}}),current=u?.packageId?await prisma.package.findUnique({where:{id:u.packageId}}):null;
+ if(current?.id===pkg.id)return res.status(400).json({message:"You already have this package"});if(current&&pkg.price<=current.price)return res.status(400).json({message:"You can only upgrade to a higher package"});
+ const amount=current?pkg.price-current.price:pkg.price;if(amount<=0)return res.status(400).json({message:"Invalid charge amount"});
+ const reference=`NXBP-PKG-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`,initializedAt=new Date().toISOString();
+ await prisma.transaction.create({data:{userId:req.user.id,type:"PACKAGE_PURCHASE",amount,reference,status:"PENDING",metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount:amount,currentPackageId:current?.id||null,method:"BLUEPAY_MPESA",bluepay:{provider:"BLUEPAY",status:"initializing",initializedAt}}}});
+ const charge=await createBluePayStk({phone:normalizedPhone,amount,reference}),d=charge.data||{},uncertain=charge.transient||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
+ await prisma.transaction.update({where:{reference},data:{metadata:{packageId:pkg.id,phone:normalizedPhone,chargeAmount:amount,currentPackageId:current?.id||null,method:"BLUEPAY_MPESA",bluepay:{provider:"BLUEPAY",status:String(d.status||(uncertain?"unknown":"pending")).toLowerCase(),initializedAt,checkoutRequestId:d.checkout_request_id||null,stkRequestId:d.stk_request_id||null,accountReference:d.account_reference||reference,lastHttpStatus:charge.httpStatus,response:d},diagnostic:{responseMs:Date.now()-started,httpStatus:charge.httpStatus,transient:uncertain}}}});
+ if(!charge.ok&&!uncertain){await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});return res.status(400).json({message:d.message||d.error||"BluePay could not start the payment.",reference});}
+ return res.status(201).json({reference,status:"pending",display_text:"Please check your phone for the M-Pesa PIN prompt.",message:"BluePay received the STK request. Enter your M-Pesa PIN, then check payment status.",chargeAmount:amount,retryAfterSeconds:uncertain?10:undefined});
+ }catch(e){console.error("[BLUEPAY PACKAGE STK]",e);return res.status(500).json({message:e.message||"Payment initialization failed"});}
 });
 
 // Purchase / upgrade a package using wallet balance (no M-Pesa)
@@ -2531,43 +2546,18 @@ app.post("/api/withdrawals",auth,paymentActionLimiter,async(req,res)=>{
 
 // Wallet deposits via Paystack M-Pesa STK Push.
 app.post("/api/wallet/deposit/initiate",auth,paymentActionLimiter,async(req,res)=>{
-  const startedAt=Date.now();
-  try{
-    if(!paystackConfigured())return res.status(503).json({message:"Paystack M-Pesa STK Push is not configured on the NEXORA server"});
-    const paymentMember=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});
-    if(paymentMember?.countryCode!=="KE")return res.status(403).json({message:"Paystack wallet deposits are currently enabled for Kenyan accounts only."});
-    const amount=Number(req.body?.amount);
-    const normalizedPhone=cleanPhone(req.body?.phone||req.user.phone);
-    if(!Number.isInteger(amount)||amount<100)return res.status(400).json({message:"Minimum deposit is KSh 100"});
-    if(!PHONE_RE.test(normalizedPhone))return res.status(400).json({message:"Invalid Kenyan phone number. Use 07…, 01…, 2547… or 2541…."});
-
-    const reference=`NX-PS-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    await prisma.transaction.create({data:{userId:req.user.id,type:"DEPOSIT",amount,reference,status:"PENDING",metadata:{method:"PAYSTACK_MPESA",phone:normalizedPhone,paystack:{provider:"PAYSTACK",status:"initializing",initializedAt:new Date().toISOString()}}}});
-    const charge=await createPaystackMpesaCharge({
-      email:req.user.email,phone:normalizedPhone,amount,reference,
-      metadata:{source:"NEXORA_WALLET_DEPOSIT",userId:req.user.id,transactionReference:reference}
-    });
-    const data=charge.data||{};
-    const uncertainCharge=Boolean(charge.transient)||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
-    const initialStatus=String(data.status||(uncertainCharge?"unknown":"pending")).toLowerCase();
-    const initializedAt=new Date().toISOString();
-    await prisma.transaction.update({where:{reference},data:{metadata:{method:"PAYSTACK_MPESA",phone:normalizedPhone,paystack:{provider:"PAYSTACK",status:initialStatus,reference:data.reference||reference,id:data.id||null,display_text:data.display_text||charge.data?.message||"",response:data,initializedAt,lastChargeHttpStatus:charge.httpStatus},diagnostic:{initializedAt,responseMs:Date.now()-startedAt,chargeHttpStatus:charge.httpStatus,chargeTransient:uncertainCharge}}}});
-    if(!charge.ok){
-      if(uncertainCharge){
-        return res.status(201).json({reference,status:"pending",amount,phone:normalizedPhone,display_text:"",message:"NEXORA is still checking your M-PESA deposit. It may be processing, so please wait at least 10 seconds and then check payment status before starting another deposit.",retryAfterSeconds:10});
-      }
-      await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-      return res.status(400).json({message:"NEXORA could not start this M-PESA payment. No successful payment has been confirmed. Please try again later.",reference});
-    }
-    const chargeStatus=String(data.status||"pending").toLowerCase();
-    if(chargeStatus==="success") await finalizeSuccessfulPaystack(reference,data);
-    else if(["failed","timeout"].includes(chargeStatus)) await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});
-    const tx=await prisma.transaction.findUnique({where:{reference}});
-    const status=tx?.status==="SUCCESS"?"success":tx?.status==="FAILED"?"failed":"pending";
-    res.status(201).json({reference,status,amount,phone:normalizedPhone,display_text:data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.",message:status==="success"?"Deposit confirmed and your wallet has been credited.":status==="failed"?"NEXORA could not complete this deposit. Please try again later.":"NEXORA sent an M-Pesa prompt to your phone. Enter your M-Pesa PIN, then NEXORA will confirm the deposit automatically.",display_text:status==="failed"?"NEXORA could not complete this deposit. Please try again later.":(data.display_text||data.message||"Please check your phone for the M-Pesa PIN prompt.")});
-  }catch(e){console.error("[PAYSTACK WALLET STK INIT EXCEPTION]",e);res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
+ const started=Date.now();try{
+ if(!bluepayConfigured())return res.status(503).json({message:"BluePay STK is not enabled or credentials are incomplete."});
+ const member=await prisma.user.findUnique({where:{id:req.user.id},select:{countryCode:true}});if(member?.countryCode!=="KE")return res.status(403).json({message:"BluePay deposits are enabled for Kenyan accounts only."});
+ const amount=Number(req.body?.amount),phone=cleanPhone(req.body?.phone||req.user.phone);if(!Number.isInteger(amount)||amount<100||amount>250000)return res.status(400).json({message:"Deposit must be between KSh 100 and KSh 250,000."});if(!PHONE_RE.test(phone))return res.status(400).json({message:"Invalid Kenyan phone number."});
+ const reference=`NXBP-DEP-${Date.now()}-${crypto.randomBytes(4).toString("hex").toUpperCase()}`,initializedAt=new Date().toISOString();
+ await prisma.transaction.create({data:{userId:req.user.id,type:"DEPOSIT",amount,reference,status:"PENDING",metadata:{method:"BLUEPAY_MPESA",phone,bluepay:{provider:"BLUEPAY",status:"initializing",initializedAt}}}});
+ const charge=await createBluePayStk({phone,amount,reference}),d=charge.data||{},uncertain=charge.transient||charge.httpStatus===0||charge.httpStatus>=500||charge.httpStatus===429;
+ await prisma.transaction.update({where:{reference},data:{metadata:{method:"BLUEPAY_MPESA",phone,bluepay:{provider:"BLUEPAY",status:String(d.status||(uncertain?"unknown":"pending")).toLowerCase(),initializedAt,checkoutRequestId:d.checkout_request_id||null,stkRequestId:d.stk_request_id||null,accountReference:d.account_reference||reference,lastHttpStatus:charge.httpStatus,response:d},diagnostic:{responseMs:Date.now()-started,httpStatus:charge.httpStatus,transient:uncertain}}}});
+ if(!charge.ok&&!uncertain){await prisma.transaction.update({where:{reference},data:{status:"FAILED"}});return res.status(400).json({message:d.message||d.error||"BluePay could not start the M-Pesa payment.",reference});}
+ return res.status(201).json({reference,status:"pending",amount,phone,display_text:"Please check your phone for the M-Pesa PIN prompt.",message:"BluePay received the STK request. Enter your M-Pesa PIN, then check payment status.",retryAfterSeconds:uncertain?10:undefined});
+ }catch(e){console.error("[BLUEPAY WALLET STK]",e);return res.status(500).json({message:e.message||"Unable to start wallet deposit"});}
 });
-
 
 // Wallet deposits via Co-operative Bank Paybill (manual confirmation-code verification).
 app.post("/api/wallet/deposit/paybill/initiate",auth,async(req,res)=>{
@@ -2623,9 +2613,10 @@ app.get("/api/wallet/deposit/status/:reference",auth,async(req,res)=>{
     const reference=String(req.params.reference||"").trim();
     const tx=await prisma.transaction.findUnique({where:{reference}});
     if(!tx||tx.userId!==req.user.id||tx.type!=="DEPOSIT")return res.status(404).json({message:"Deposit not found"});
-    const result=await queryAndApplyPaystackStatus(reference);
+    const provider=String(tx.metadata?.bluepay?.provider||"").toUpperCase();
+    const result=provider==="BLUEPAY"?await queryAndApplyBluePayStatus(reference):await queryAndApplyPaystackStatus(reference);
     res.json(result);
-  }catch(e){console.error("[PAYSTACK WALLET STATUS]",e);res.status(500).json({message:e.message||"Unable to check deposit status"});}
+  }catch(e){console.error("[WALLET DEPOSIT STATUS]",e);res.status(500).json({message:e.message||"Unable to check deposit status"});}
 });
 
 app.get("/api/admin/wallet/deposits",adminAuth,requireAdminRole("SUPER_ADMIN","ADMIN","FINANCE_ADMIN"),async(req,res)=>{
