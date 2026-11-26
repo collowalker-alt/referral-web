@@ -1221,7 +1221,8 @@ function AdminApp(){
  if(coreDataPages.includes(page)&&sectionLoading===page)pageContent=<div className="adminloading">Loading {title.toLowerCase()}…</div>;
  else if(coreDataPages.includes(page)&&sectionErrors[page])pageContent=<div className="adminsection"><div className="error" role="alert">{sectionErrors[page]} <button className="secondary" onClick={retrySection}><RefreshCw size={14}/> Retry</button></div></div>;
  else switch(page){
-  case "overview":pageContent=<AdminOverview data={data.overview} onRefresh={()=>load(false)}/>;break;\n  case "analytics":pageContent=<AdminAnalytics/>;break;
+  case "overview":pageContent=<AdminOverview data={data.overview} onRefresh={()=>load(false)}/>;break;
+  case "analytics":pageContent=<AdminAnalytics/>;break;
   case "mission":pageContent=["SUPER_ADMIN","ADMIN","FINANCE_ADMIN"].includes(admin.role)?<AdminMissionControl/>:<AdminOverview data={data.overview}/>;break;
   case "users":pageContent=<AdminUsers rows={data.users} search={search} setSearch={setSearch} action={action} pagination={data.usersMeta} userQuery={userQuery} onQueryChange={loadUsersPage} queryLoading={usersFetching} canAssignReferrer={["SUPER_ADMIN","ADMIN"].includes(admin.role)}/>;break;
   case "transactions":pageContent=<AdminTransactions rows={data.transactions}/>;break;
