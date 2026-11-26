@@ -979,10 +979,26 @@ async function ensureAdmin(){
   console.log(`[ADMIN] Admin account ready: ${email}`);
 }
 
+const PLAN_BENEFITS={
+  Starter:["Referral earning depth: up to 2 levels (Level 1 direct + Level 2 indirect).","Marketplace access to shop and list products.","NEXORA Academy learning access.","Basic referral statistics and standard support."],
+  Growth:["Referral earning depth: up to 4 levels (Level 1 direct + Levels 2–4 indirect).","Advanced referral statistics and marketing templates.","Marketplace selling tools and business-learning resources.","Priority support."],
+  Pro:["Referral earning depth: up to 6 levels (Level 1 direct + Levels 2–6 indirect).","Advanced analytics and social-media marketing resources.","Pro member badge and selected partner opportunities when available."],
+  Elite:["Referral earning depth: up to 8 levels (Level 1 direct + Levels 2–8 indirect).","Team statistics, Elite member badge and priority withdrawal review.","Early access to selected features and partner opportunities when available."],
+  Premium:["Unlimited referral depth: Level 1 uses the direct rate; every eligible level from Level 2 onward uses the standard Level 2 rate.","Access to approved Products & Advertising campaigns, subject to campaign availability and review.","VIP support, VIP marketing resources and maximum available withdrawal limits.","Eligible for selected partner, reseller and lead-generation opportunities when those programmes are active."]
+};
 async function ensurePackages(){
   for(const [name,tier,price,directCommission,level2Commission] of DEFAULT_PACKAGES){
     const existing=await prisma.package.findUnique({where:{name}});
-    if(!existing) await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true}});
+    if(!existing){
+      await prisma.package.create({data:{name,tier,price,directCommission,level2Commission,active:true,features:PLAN_BENEFITS[name]||[]}});
+    }else{
+      const currentFeatures=Array.isArray(existing.features)?existing.features:[];
+      const depthFeature=(PLAN_BENEFITS[name]||[]).find(x=>x.startsWith("Referral earning depth:")||x.startsWith("Unlimited referral depth:"));
+      const hasDepth=currentFeatures.some(x=>String(x).startsWith("Referral earning depth:")||String(x).startsWith("Unlimited referral depth:"));
+      if(depthFeature&&!hasDepth){
+        await prisma.package.update({where:{id:existing.id},data:{features:[...currentFeatures,...(PLAN_BENEFITS[name]||[])]}});
+      }
+    }
   }
 }
 app.get("/api/ad-products",auth,async(req,res)=>{
@@ -1658,26 +1674,33 @@ async function activatePaidPackage(reference){
     if(claimed.count!==1)return;
     await db.user.update({where:{id:tx.userId},data:{packageId:pkg.id,planStatus:"ACTIVE"}});
     const buyer=await db.user.findUnique({where:{id:tx.userId}});
-    if(!buyer?.referredById)return;
-    const parent=await db.user.findUnique({where:{id:buyer.referredById}});
-    if(parent){
-      if(!parent.packageId || (await db.package.findUnique({where:{id:parent.packageId}}))?.tier >= pkg.tier){
-        const c1=pkg.directCommission;
-        const commissionRef=`C1-${reference}`;
-        await db.commission.create({data:{receiverId:parent.id,sourceUserId:buyer.id,level:1,amount:c1,reference:commissionRef}});
-        await db.transaction.create({data:{userId:parent.id,type:"COMMISSION",amount:c1,status:"SUCCESS",reference:`LEDGER-${commissionRef}`,metadata:{commissionReference:commissionRef,sourceUserId:buyer.id,source:"REFERRAL",level:1,qualifyingPurchaseReference:reference}}});
-        await db.wallet.update({where:{userId:parent.id},data:{balance:{increment:c1},totalEarned:{increment:c1}}});
-      }
-    }
-    if(parent?.referredById){
-      const grand=await db.user.findUnique({where:{id:parent.referredById}});
-      const grandPkg=grand?.packageId?await db.package.findUnique({where:{id:grand.packageId}}):null;
-      if(grand&&grandPkg&&grandPkg.tier>=pkg.tier){
-        const c2=pkg.level2Commission;
-        const commissionRef=`C2-${reference}`;
-        await db.commission.create({data:{receiverId:grand.id,sourceUserId:buyer.id,level:2,amount:c2,reference:commissionRef}});
-        await db.transaction.create({data:{userId:grand.id,type:"COMMISSION",amount:c2,status:"SUCCESS",reference:`LEDGER-${commissionRef}`,metadata:{commissionReference:commissionRef,sourceUserId:buyer.id,source:"REFERRAL",level:2,qualifyingPurchaseReference:reference}}});
-        await db.wallet.update({where:{userId:grand.id},data:{balance:{increment:c2},totalEarned:{increment:c2}}});
+    // Referral depth is controlled by the receiving member's active plan tier:
+    // Starter=2, Growth=4, Pro=6, Elite=8, Premium=unlimited.
+    // Level 1 keeps the purchased plan's direct rate; every deeper level uses
+    // that same purchased plan's existing Level 2 rate.
+    if(buyer?.referredById){
+      let referrerId=buyer.referredById;
+      let level=1;
+      const visited=new Set([buyer.id]);
+      while(referrerId && !visited.has(referrerId)){
+        visited.add(referrerId);
+        const referrer=await db.user.findUnique({where:{id:referrerId}});
+        if(!referrer) break;
+        const referrerPackage=referrer.packageId?await db.package.findUnique({where:{id:referrer.packageId}}):null;
+        const isPremium=referrerPackage?.name==="Premium";
+        const maxLevels=referrerPackage?(isPremium?Number.POSITIVE_INFINITY:Math.max(0,Number(referrerPackage.tier||0)*2)):1;
+        const purchaseEligible=level===1
+          ? (!referrer.packageId || Boolean(referrerPackage && Number(referrerPackage.tier)>=Number(pkg.tier)))
+          : Boolean(referrerPackage && Number(referrerPackage.tier)>=Number(pkg.tier));
+        if(level<=maxLevels && purchaseEligible){
+          const amount=level===1?Number(pkg.directCommission||0):Number(pkg.level2Commission||0);
+          const commissionRef=`C${level}-${reference}`;
+          await db.commission.create({data:{receiverId:referrer.id,sourceUserId:buyer.id,level,amount,reference:commissionRef}});
+          await db.transaction.create({data:{userId:referrer.id,type:"COMMISSION",amount,status:"SUCCESS",reference:`LEDGER-${commissionRef}`,metadata:{commissionReference:commissionRef,sourceUserId:buyer.id,source:"REFERRAL",level,qualifyingPurchaseReference:reference}}});
+          await db.wallet.update({where:{userId:referrer.id},data:{balance:{increment:amount},totalEarned:{increment:amount}}});
+        }
+        referrerId=referrer.referredById;
+        level+=1;
       }
     }
   });
