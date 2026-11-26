@@ -1703,7 +1703,7 @@ async function activatePaidPackage(reference){
         level+=1;
       }
     }
-  });
+  },{timeout:30000});
   // Alert finance/admin after confirmed activation (not merely after a payment attempt).
   const activatedTx=await prisma.transaction.findUnique({where:{reference}});
   if(activatedTx?.status==="SUCCESS") {
