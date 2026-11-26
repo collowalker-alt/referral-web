@@ -1348,15 +1348,35 @@ app.get("/api/member/intelligence",auth,async(req,res)=>{
 
 app.get("/api/referrals",auth,async(req,res)=>{
   try{
-    // This endpoint is the source of truth for the signed-in member's network.
-    // Return registration status and inviter linkage so the UI can show who
-    // joined and which direct member introduced each Level 2 referral.
-    const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,status:true,createdAt:true,package:true}});
-    const ids=direct.map(x=>x.id);
-    const level2=ids.length?await prisma.user.findMany({where:{referredById:{in:ids}},orderBy:{createdAt:"desc"},select:{id:true,name:true,email:true,status:true,createdAt:true,referredById:true,package:true}}):[];
+    // Count the complete referral tree level by level. Visited IDs prevent
+    // malformed referral cycles from causing repeated traversal.
+    const memberSelect={id:true,name:true,email:true,status:true,createdAt:true,referredById:true,package:true};
+    const direct=await prisma.user.findMany({where:{referredById:req.user.id},orderBy:{createdAt:"desc"},select:memberSelect});
+    const level2=direct.length?await prisma.user.findMany({where:{referredById:{in:direct.map(x=>x.id)}},orderBy:{createdAt:"desc"},select:memberSelect}):[];
+    const levels=[{level:1,count:direct.length},{level:2,count:level2.length}];
+    const visited=new Set([req.user.id,...direct.map(x=>x.id),...level2.map(x=>x.id)]);
+    let frontier=level2.map(x=>x.id);
+    let level=3;
+    // A real network is finite; the high guard protects the API from corrupted data.
+    while(frontier.length && level<=1000){
+      const next=await prisma.user.findMany({where:{referredById:{in:frontier},id:{notIn:[...visited]}},select:{id:true}});
+      for(const member of next)visited.add(member.id);
+      levels.push({level,count:next.length});
+      frontier=next.map(x=>x.id);
+      level+=1;
+    }
+    const commissionRows=await prisma.commission.findMany({where:{receiverId:req.user.id},select:{level:true,amount:true}});
+    const commissionByLevel={};
+    for(const row of commissionRows){
+      const key=String(row.level||1);
+      if(!commissionByLevel[key])commissionByLevel[key]={amount:0,count:0};
+      commissionByLevel[key].amount+=Number(row.amount||0);
+      commissionByLevel[key].count+=1;
+    }
+    const totalReferrals=levels.reduce((sum,row)=>sum+row.count,0);
     res.set("Cache-Control","no-store");
-    res.json({direct,level2,summary:{direct:direct.length,level2:level2.length}});
-  }catch(e){console.error(e);res.status(500).json({message:"Unable to load referrals"});}
+    res.json({direct,level2,levels,totalReferrals,summary:{direct:direct.length,level2:level2.length,totalReferrals,maxLevel:levels.reduce((max,row)=>row.count?Math.max(max,row.level):max,0)},commissionByLevel});
+  }catch(e){console.error("[REFERRAL NETWORK]",e);res.status(500).json({message:"Unable to load your full referral network"});}
 });
 app.get("/api/earnings",auth,async(req,res)=>{
   try{
