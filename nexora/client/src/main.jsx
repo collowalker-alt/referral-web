@@ -370,7 +370,7 @@ function NexBot({goPage,goPackages,me}){
   if(/\b(shop|product|products|buy|sell|seller|cart|wishlist|electronics|fashion)\b/.test(s)) return "I can help you find products, compare listings, use your wishlist/cart, or sell a product on NEXORA.";
   if(/\b(connect|safaricom|bundle|bundles|okoa|kigen|airtime|sms offer|minutes offer)\b/.test(s)) return "Open NEXORA Connect for the Safaricom data, minutes and SMS offers advertised by Kigen Internet Services. Confirm current availability and payment instructions with Kigen before paying; NEXORA does not yet automate bundle delivery.";
   if(/\b(advertise|advertising|campaign|views|engagement)\b/.test(s)) return "Advertising is for eligible Premium members. Campaign submissions are reviewed and approved payouts follow the campaign rules.";
-  if(/\b(payment|pay|mpesa|m-pesa|stk|deposit)\b/.test(s)) return "For Kenya, wallet deposits and membership plan purchases use Paystack M-Pesa STK Push when enabled. NEXORA only credits the wallet or activates a plan after Paystack confirms the payment. NEXORA Connect bundle orders keep their separate payment instructions. Never share your M-Pesa PIN or security codes.";
+  if(/\b(payment|pay|mpesa|m-pesa|stk|deposit)\b/.test(s)) return "For Kenya, wallet deposits and membership plan purchases use BluePay M-Pesa STK Push. NEXORA only credits the wallet or activates a plan after BluePay confirms the payment. NEXORA Connect bundle orders keep their separate payment instructions. Never share your M-Pesa PIN or security codes.";
   if(/\b(business plan|business idea|start a business|business builder)\b/.test(s)) return "Open Business Builder to create a practical starter brief. Add your idea, target customers, budget and skills, then copy the suggested steps. Validate demand and costs before investing.";
    if(/\b(trust centre|trust center|fees|withdrawal fee|payment status|security|scam|fraud)\b/.test(s)) return "Open the Trust Centre for guidance on earning eligibility, withdrawal fees, payment statuses, marketplace safety and account protection. For a specific payment, check its reference in Orders & Transactions; pending is not confirmation.";
    if(/\b(support|help|ticket|human)\b/.test(s)) return "Open Help & Support to create or review a ticket. For payment questions, include the transaction reference but never send your PIN.";
@@ -2218,7 +2218,7 @@ function App(){
    const d=await api(endpoint,{method:"POST",body:JSON.stringify(body)});
    if(!d?.reference){setError(d?.message||"Could not start payment.");return;}
    if(usePaystack){
-    setPayment({method:"paystack_mpesa",paymentType:"PACKAGE_PURCHASE",reference:d.reference,package:pkg,phone,status:d.status||"pending",chargeAmount:Number(d.chargeAmount!=null?d.chargeAmount:pkg.price)||0,display_text:d.display_text||"",message:d.message||""});
+    setPayment({method:"bluepay_mpesa",paymentType:"PACKAGE_PURCHASE",reference:d.reference,package:pkg,phone,status:d.status||"pending",chargeAmount:Number(d.chargeAmount!=null?d.chargeAmount:pkg.price)||0,display_text:d.display_text||"",message:d.message||""});
    }else{
     setPayment({method:"paybill",paymentType:"PACKAGE_PURCHASE",reference:d.reference,package:pkg,status:d.status||"pending",chargeAmount:Number(d.chargeAmount!=null?d.chargeAmount:pkg.price)||0,paybillNumber:d.paybillNumber||payMethods?.paybillNumber||"400200",paybillAccount:d.paybillAccount||payMethods?.paybillAccount||"",paybillName:d.paybillName||payMethods?.paybillName||"NEXORA",instructions:Array.isArray(d.instructions)?d.instructions:[],message:d.message||""});
    }
@@ -3261,7 +3261,7 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
   if(method==="wallet")return useWallet();
   if(!pkg?.id)return setErr("Plan not found. Close and try again.");
   if(method==="stkpush"&&!validPhone(phone))return setErr("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541….");
-  if(method==="stkpush"&&!cfg.stkPush)return setErr("Paystack M-Pesa STK Push is not enabled. Configure PAYSTACK_SECRET_KEY on the NEXORA server first.");
+  if(method==="stkpush"&&!cfg.stkPush)return setErr("BluePay M-Pesa STK Push is not enabled. Check the BluePay API secret and channel ID in Render.");
   setBusy(true);setErr(method==="stkpush"?"Sending M-Pesa STK Push…":"Opening Paybill payment window…");
   try{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));await onContinue(method==="stkpush"?cleanPhone(phone):null,pkg);}
   catch(ex){setErr(ex?.message||(method==="stkpush"?"Could not start M-Pesa STK Push":"Could not start Paybill payment"));setBusy(false);}
@@ -3279,7 +3279,7 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
   <div className="modalbackdrop payment-layer" role="dialog" aria-modal="true" aria-label="Pay for plan" onClick={onCancel}>
    <div className="modal phonemodal" onClick={e=>e.stopPropagation()}>
     <div className="modalhead">
-     <div><span className="pill">{method==="stkpush"?"PAYSTACK · M-PESA":"CO-OP BANK · LIPA NA M-PESA"}</span><h2>{method==="stkpush"?"Pay with M-Pesa STK Push":"Lipa na M-Pesa Paybill"}</h2><p className="muted small">{method==="stkpush"?"A secure payment prompt will be sent to your phone.":`Paybill ${paybillNumber} · then submit your confirmation code`}</p></div>
+     <div><span className="pill">{method==="stkpush"?"BLUEPAY · M-PESA":"CO-OP BANK · LIPA NA M-PESA"}</span><h2>{method==="stkpush"?"Pay with M-Pesa STK Push":"Lipa na M-Pesa Paybill"}</h2><p className="muted small">{method==="stkpush"?"A secure payment prompt will be sent to your phone.":`Paybill ${paybillNumber} · then submit your confirmation code`}</p></div>
      <button type="button" className="iconbtn" onClick={onCancel} aria-label="Close"><X size={20}/></button>
     </div>
     <form className="phonemodalform" onSubmit={submit}>
@@ -3291,7 +3291,7 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
       </div>
       <div className="paymethods">
        {cfg.stkPush&&<button type="button" className={`paymethod ${method==="stkpush"?"active":""}`} disabled={busy} onClick={()=>{setMethod("stkpush");setWalletConfirm(false);setErr("");}}>
-        <Smartphone size={18}/><div><b>Paystack M-Pesa STK Push</b><span>Send a secure payment prompt to your phone</span></div>
+        <Smartphone size={18}/><div><b>BluePay M-Pesa STK Push</b><span>Send a secure payment prompt to your phone</span></div>
        </button>}
        {cfg.paybill&&<button type="button" className={`paymethod ${method==="paybill"?"active":""}`} disabled={busy} onClick={()=>{setMethod("paybill");setWalletConfirm(false);setErr("");}}>
         <CreditCard size={18}/><div><b>Lipa na M-Pesa Paybill</b><span>Co-op Bank · Paybill {paybillNumber}</span></div>
@@ -3300,7 +3300,7 @@ function PhoneModal({data,onCancel,onContinue,onWallet,walletBalance=0,paymentCo
         <WalletCards size={18}/><div><b>Use wallet balance</b><span>{canWallet?`Pay ${money(amount)} from wallet`:`Need ${money(amount)} · you have ${money(bal)}`}</span></div>
        </button>
       </div>
-      {method==="stkpush"&&<div className="paybillbox"><label className="fieldlabel">M-Pesa phone number<input required autoComplete="tel" inputMode="tel" maxLength="13" placeholder="07…, 01…, or 2547…" value={phone} onChange={e=>setPhone(e.target.value)} /></label><p className="muted small">Confirm that this number can receive an M-Pesa prompt. Enter your M-Pesa PIN only in the prompt from Safaricom—never on NEXORA.</p><div className="notice"><ShieldCheck size={15}/> Paystack confirms the transaction before NEXORA activates your plan.</div></div>}
+      {method==="stkpush"&&<div className="paybillbox"><label className="fieldlabel">M-Pesa phone number<input required autoComplete="tel" inputMode="tel" maxLength="13" placeholder="07…, 01…, or 2547…" value={phone} onChange={e=>setPhone(e.target.value)} /></label><p className="muted small">Confirm that this number can receive an M-Pesa prompt. Enter your M-Pesa PIN only in the prompt from Safaricom—never on NEXORA.</p><div className="notice"><ShieldCheck size={15}/> BluePay confirms the transaction before NEXORA activates your plan.</div></div>}
       {method==="paybill"&&(
        <div className="paybillbox">
         <div className="paybilltitle"><div><b>{paybillName}</b><span>Co-op Bank</span></div><span className="paybillsecure">LIPA NA M-PESA</span></div>
@@ -3768,7 +3768,7 @@ function DepositModal({onClose,load,countryCode="KE",countryName="Kenya",default
   const n=Number(amount);
   if(!Number.isInteger(n)||n<100)return setMsg("Enter a whole deposit amount of at least KSh 100.");
   if(!validPhone(phone))return setMsg("Enter a valid Kenyan M-Pesa number: 07…, 01…, 2547… or 2541….");
-  if(!paymentConfig?.stkPush)return setMsg("Paystack M-Pesa STK Push is not enabled on the server yet. Configure PAYSTACK_SECRET_KEY on Render, then reload NEXORA.");
+  if(!paymentConfig?.stkPush)return setMsg("BluePay M-Pesa STK Push is not enabled on the server yet. Check the BluePay API secret and channel ID in Render, then reload NEXORA.");
   setBusy(true);
   try{
    const d=await api("/wallet/deposit/initiate",{method:"POST",body:JSON.stringify({amount:n,phone:cleanPhone(phone)})});
