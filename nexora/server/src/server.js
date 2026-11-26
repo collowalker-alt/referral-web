@@ -1752,17 +1752,19 @@ app.get("/api/payments/status/:reference",auth,async(req,res)=>{
   try{
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
     if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
-    const result=await queryAndApplyPaystackStatus(req.params.reference);
+    const provider=String(tx.metadata?.bluepay?.provider||"").toUpperCase();
+    const result=provider==="BLUEPAY"?await queryAndApplyBluePayStatus(req.params.reference):await queryAndApplyPaystackStatus(req.params.reference);
     const publicMessage=result.status==="failed"?"NEXORA could not complete this payment. Please try again later.":result.status==="success"?"Payment confirmed by NEXORA.":"Your payment is still being checked by NEXORA.";res.json({status:result.status,display_text:publicMessage,message:publicMessage,reference:req.params.reference});
-  }catch(e){console.error("[PAYSTACK STATUS EXCEPTION]",e);res.status(500).json({message:e.message||"Payment status check failed"});}
+  }catch(e){console.error("[PAYMENT STATUS EXCEPTION]",e);res.status(500).json({message:e.message||"Payment status check failed"});}
 });
 app.get("/api/payments/verify/:reference",auth,async(req,res)=>{
   try{
     const tx=await prisma.transaction.findUnique({where:{reference:req.params.reference}});
     if(!tx||tx.userId!==req.user.id)return res.status(404).json({message:"Payment reference not found"});
-    const result=await queryAndApplyPaystackStatus(req.params.reference);
+    const provider=String(tx.metadata?.bluepay?.provider||"").toUpperCase();
+    const result=provider==="BLUEPAY"?await queryAndApplyBluePayStatus(req.params.reference):await queryAndApplyPaystackStatus(req.params.reference);
     const publicMessage=result.status==="failed"?"NEXORA could not complete this payment. Please try again later.":result.status==="success"?"Payment confirmed by NEXORA.":"Your payment is still being checked by NEXORA.";res.json({status:result.status,display_text:publicMessage,message:publicMessage});
-  }catch(e){console.error("[PAYSTACK VERIFY EXCEPTION]",e);res.status(500).json({message:e.message||"Verification failed"});}
+  }catch(e){console.error("[PAYMENT VERIFY EXCEPTION]",e);res.status(500).json({message:e.message||"Verification failed"});}
 });
 
 // -------------------- NEXORA CONNECT ORDERS --------------------
