@@ -7693,3 +7693,11 @@ body.nx-modal-scroll-locked .nx-news-modal-backdrop>*{touch-action:pan-y!importa
 .authmodal input:not([type=hidden]),.adminloginbox input{position:relative;z-index:2;pointer-events:auto!important;touch-action:manipulation;-webkit-user-select:text!important;user-select:text!important;-webkit-appearance:none;}
 .authmodal .fieldlabel,.authmodal .passwordfield,.adminloginbox .adminfield,.adminloginbox .admininputwrap{min-width:0;pointer-events:auto!important;}
 @supports (-webkit-touch-callout:none){.modalbackdrop:has(>.authmodal){-webkit-overflow-scrolling:touch;}.authmodal input:not([type=hidden]){font-size:16px!important;line-height:1.35!important;caret-color:#38d9a9;}}
+
+/* Mission Control reconciliation table: fixed five-column layout prevents narrow-column character wrapping. */
+.adminrecon-table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+.adminrecon-table{display:grid;width:100%;min-width:760px;}
+.adminrecon-row{display:grid;grid-template-columns:minmax(180px,1.5fr) minmax(125px,1fr) minmax(135px,1.15fr) minmax(75px,.55fr) minmax(145px,1fr);gap:14px;align-items:center;padding:14px 12px;border-bottom:1px solid #1a2b42;min-width:0;}
+.adminrecon-row>*{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.adminrecon-head{color:#dce8fa;background:rgba(19,36,61,.45);border-radius:10px 10px 0 0;}
+@media(max-width:760px){.adminrecon-table{min-width:720px}.adminrecon-row{gap:10px;padding:12px 10px;}}
